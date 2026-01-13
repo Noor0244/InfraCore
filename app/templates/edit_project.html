@@ -1,0 +1,573 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Edit Project</h1>
+
+<div class="card" style="max-width:1100px;margin:auto">
+
+<style>
+            .form-errors{display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)}
+            .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
+            .btn-primary[disabled]{opacity:0.65;cursor:not-allowed}
+
+            /* Presets editor (Project Form) */
+            .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+            @media (max-width: 980px){.preset-grid{grid-template-columns:1fr}}
+            .preset-card{border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);border-radius:12px;padding:12px}
+            .preset-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+            .preset-actions{display:flex;gap:8px;flex-wrap:wrap}
+            .btn-small{padding:7px 10px;font-size:12px;line-height:1}
+            .preset-list{display:flex;flex-direction:column;gap:8px}
+            .preset-row{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.15)}
+            .preset-row input[type="text"]{flex:1;min-width:160px}
+            .preset-row .pill{font-size:11px;opacity:0.8;border:1px solid rgba(255,255,255,0.12);padding:3px 8px;border-radius:999px}
+            .icon-btn{border:1px solid rgba(255,255,255,0.12);background:transparent;color:var(--text-primary);border-radius:10px;padding:6px 10px;cursor:pointer}
+            .icon-btn:hover{background:rgba(255,255,255,0.06)}
+            .muted{opacity:0.85}
+            </style>
+
+        <form id="editProjectForm" method="post" action="/projects/{{ project.id }}/update">
+
+            <div id="formErrors" class="form-errors"></div>
+
+            <!-- ================= BASIC INFO ================= -->
+            <section class="form-section">
+                <h3 class="section-title">Basic Information</h3>
+
+                <div class="form-grid">
+                    <div>
+                        <label>Project Name <span class="required">*</span></label>
+                        <input type="text" name="name" required value="{{ project.name }}" placeholder="NH-66 Highway Upgrade">
+                        <div class="help-text">Use a concise, descriptive name (e.g. NH-66 Upgrade)</div>
+                    </div>
+
+                    <div>
+                        <label>Project Code / Package No</label>
+                        <input type="text" name="project_code" value="{{ project.project_code or '' }}" placeholder="PKG-001">
+                    </div>
+
+                    <div>
+                        <label>Client / Authority</label>
+                        <input type="text" name="client_authority" value="{{ project.client_authority or '' }}" placeholder="NHAI">
+                    </div>
+
+                    <div>
+                        <label>Contractor</label>
+                        <input type="text" name="contractor" value="{{ project.contractor or '' }}" placeholder="ABC Constructions Pvt Ltd">
+                    </div>
+
+                    <div>
+                        <label>Consultant / PMC</label>
+                        <input type="text" name="consultant_pmc" value="{{ project.consultant_pmc or '' }}" placeholder="XYZ Consultants">
+                    </div>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- ================= PROJECT CLASSIFICATION ================= -->
+            <section class="form-section">
+                <h3 class="section-title">Project Classification</h3>
+
+                <div class="form-grid">
+                    <div style="min-width:260px">
+                        <label>Project Type <span class="required">*</span></label>
+                        <select name="project_type" id="project_type" required aria-describedby="project-type-help">
+                            <option value="">-- Select project type --</option>
+                        </select>
+                        <div id="project-type-help" class="help-text">Project Type is locked after creation.</div>
+                    </div>
+                </div>
+
+                <div id="road_block" style="display:none">
+                    <h3 class="section-title" style="margin-top:14px">Road Classification</h3>
+
+                    <div id="road_classification" class="form-grid" style="display:none">
+                        <div id="road_category_field" style="display:none;min-width:260px">
+                            <label>Road Category <span class="required">*</span></label>
+                            <select id="road_category" name="road_category" disabled>
+                                <option value="">-- Select road category --</option>
+                            </select>
+                            <div class="help-text">Road Category is locked after creation.</div>
+                        </div>
+
+                        <div id="road_engineering_field" style="display:none;min-width:320px">
+                            <label>Road Engineering Type <span class="required">*</span></label>
+                            <select id="road_engineering_type" name="road_engineering_type" disabled>
+                                <option value="">-- Select engineering type --</option>
+                            </select>
+                            <div class="help-text">Road Engineering Type is locked after creation.</div>
+                        </div>
+                    </div>
+
+                    <div id="road_questions" class="form-grid" style="display:none;margin-top:10px">
+                        <div style="grid-column:1/-1">
+                            <label>Additional Questions</label>
+                            <div class="help-text">Stored classification details are read-only.</div>
+                        </div>
+                        <div id="road_questions_container" style="grid-column:1/-1"></div>
+                    </div>
+
+                    <div id="road_presets_panel" style="display:none;grid-column:1/-1">
+                        <label>Road Presets</label>
+                        <div class="project-helper muted">Presets are applied at creation. Manage Activities/Materials from their modules.</div>
+
+                        <div class="preset-grid">
+                            <div class="preset-card">
+                                <div class="preset-header">
+                                    <div>
+                                        <div style="font-weight:600">Activity Presets</div>
+                                        <div class="help-text">Shown for reference.</div>
+                                    </div>
+                                    <div class="preset-actions">
+                                        <button type="button" class="btn-secondary btn-small" id="btnResetActivities">Reset</button>
+                                        <button type="button" class="btn-primary btn-small" id="btnAddActivity">+ Add</button>
+                                    </div>
+                                </div>
+                                <div id="activityPresetList" class="preset-list"></div>
+                            </div>
+
+                            <div class="preset-card">
+                                <div class="preset-header">
+                                    <div>
+                                        <div style="font-weight:600">Material Presets</div>
+                                        <div class="help-text">Shown for reference.</div>
+                                    </div>
+                                    <div class="preset-actions">
+                                        <button type="button" class="btn-secondary btn-small" id="btnResetMaterials">Reset</button>
+                                        <button type="button" class="btn-primary btn-small" id="btnAddMaterial">+ Add</button>
+                                        <button type="button" class="btn-secondary btn-small" id="btnAllMaterials">All</button>
+                                        <button type="button" class="btn-secondary btn-small" id="btnNoMaterials">None</button>
+                                    </div>
+                                </div>
+                                <div id="materialPresetList" class="preset-list"></div>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="activity_presets_json" id="activity_presets_json">
+                        <input type="hidden" name="material_presets_json" id="material_presets_json">
+                        <input type="hidden" name="material_preset_defs_json" id="material_preset_defs_json">
+                    </div>
+
+                    <div id="road_details_fields" style="display:none">
+                        <label>Lanes <span class="required">*</span></label>
+                        <input type="number" name="lanes" required min="1" value="{{ project.lanes }}" placeholder="2">
+                        <div class="help-text">Number of traffic lanes per carriageway.</div>
+                    </div>
+
+                    <div id="road_details_fields2" style="display:none">
+                        <label>Road Width (m) <span class="required">*</span></label>
+                        <input type="number" step="0.01" name="road_width" required value="{{ project.road_width }}" placeholder="7.00">
+                        <div class="help-text">Total carriageway width in metres.</div>
+                    </div>
+
+                    <div>
+                        <label>Carriageway Width (m)</label>
+                        <input type="number" step="0.01" name="carriageway_width" value="{{ project.carriageway_width or '' }}" placeholder="6.00">
+                    </div>
+
+                    <div id="road_details_fields3" style="display:none">
+                        <label>Road Length (km) <span class="required">*</span></label>
+                        <input type="number" step="0.01" name="road_length_km" required value="{{ project.road_length_km }}" placeholder="12.50">
+                        <div class="help-text">Enter project length. Use chainages for non-linear projects.</div>
+                    </div>
+
+                    <div>
+                        <label>Shoulder Type</label>
+                        <input type="text" name="shoulder_type" value="{{ project.shoulder_type or '' }}" placeholder="Paved / Earthen">
+                    </div>
+
+                    <div>
+                        <label>Median Type</label>
+                        <input type="text" name="median_type" value="{{ project.median_type or '' }}" placeholder="None / Raised / Painted">
+                    </div>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- ================= LOCATION ================= -->
+            <section class="form-section">
+                <h3 class="section-title">Location</h3>
+
+                <div class="form-grid">
+                    <div>
+                        <label>Country <span class="required">*</span></label>
+                        <input type="text" name="country" required value="{{ project.country }}" placeholder="India">
+                    </div>
+                    <div>
+                        <label>State / Province</label>
+                        <input type="text" name="state" value="{{ project.state or '' }}" placeholder="Maharashtra">
+                    </div>
+                    <div>
+                        <label>District</label>
+                        <input type="text" name="district" value="{{ project.district or '' }}" placeholder="">
+                    </div>
+                    <div>
+                        <label>City <span class="required">*</span></label>
+                        <input type="text" name="city" required value="{{ project.city }}" placeholder="">
+                    </div>
+                    <div>
+                        <label>Chainage Start</label>
+                        <input type="text" name="chainage_start" value="{{ project.chainage_start or '' }}" placeholder="0+000">
+                    </div>
+                    <div>
+                        <label>Chainage End</label>
+                        <input type="text" name="chainage_end" value="{{ project.chainage_end or '' }}" placeholder="10+600">
+                    </div>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- ================= TIMELINE ================= -->
+            <section class="form-section">
+                <h3 class="section-title">Timeline</h3>
+                <div class="form-grid">
+                    <div>
+                        <label>Start Date <span class="required">*</span></label>
+                        <input type="text" name="planned_start_date" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_start_date.strftime('%d/%m/%Y') if project.planned_start_date else '' }}">
+                        <div class="help-text">Format: DD/MM/YYYY</div>
+                    </div>
+                    <div>
+                        <label>End Date <span class="required">*</span></label>
+                        <input type="text" name="planned_end_date" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_end_date.strftime('%d/%m/%Y') if project.planned_end_date else '' }}">
+                        <div class="help-text">Format: DD/MM/YYYY</div>
+                    </div>
+                </div>
+            </section>
+
+            <hr>
+
+            <div style="display:flex;gap:12px;margin-top:20px">
+                <button id="saveProjectBtn" class="btn-primary" type="submit">
+                    Save Changes
+                </button>
+
+                <a href="/projects/{{ project.id }}" class="btn-secondary">
+                    Cancel
+                </a>
+            </div>
+
+        </form>
+
+        </div>
+
+        {% endblock %}
+
+        {% block scripts %}
+        <script id="project-data" type="application/json">{{ {
+            'id': project.id,
+            'project_type': project.project_type or '',
+            'road_category': project.road_category or project.road_type or '',
+            'road_engineering_type': project.road_engineering_type or '',
+            'road_extras_json': project.road_extras_json or '{}'
+        } | tojson }}</script>
+        <script>
+        // Prefill data for JS
+        var __project = {};
+        try {
+            var raw = document.getElementById('project-data');
+            __project = JSON.parse((raw && raw.textContent) ? raw.textContent : '{}') || {};
+        } catch(e) {
+            __project = {};
+        }
+
+        function setFormError(message){
+            var box = document.getElementById('formErrors');
+            if(!box) return;
+            if(message){
+                box.textContent = message;
+                box.style.display = 'block';
+            } else {
+                box.textContent = '';
+                box.style.display = 'none';
+            }
+        }
+
+        function updateSaveButtonState(){
+            var form = document.getElementById('editProjectForm');
+            var btn = document.getElementById('saveProjectBtn');
+            if(!form || !btn) return;
+            btn.disabled = !form.checkValidity();
+        }
+
+        // ---- Shared logic copied from Create Project ----
+        var __roadPresetsCache = null;
+        var __currentRoadPresets = null;
+        var __classification = null;
+
+        function _el(id){ return document.getElementById(id); }
+
+        function populateSelect(selectEl, options){
+            if(!selectEl) return;
+            var first = selectEl.querySelector('option');
+            selectEl.innerHTML = '';
+            if(first){
+                selectEl.appendChild(first);
+            } else {
+                var ph = document.createElement('option');
+                ph.value = '';
+                ph.textContent = '-- Select --';
+                selectEl.appendChild(ph);
+            }
+            (options || []).forEach(function(opt){
+                var o = document.createElement('option');
+                o.value = opt;
+                o.textContent = opt;
+                selectEl.appendChild(o);
+            });
+        }
+
+        function handleProjectTypeChange(){
+            var projectType = document.getElementById('project_type');
+            var roadBlock = document.getElementById('road_block');
+            var roadClassification = document.getElementById('road_classification');
+            var roadCategoryField = document.getElementById('road_category_field');
+            var roadCategorySelect = document.getElementById('road_category');
+            var roadEngineeringField = document.getElementById('road_engineering_field');
+            var roadEngineeringSelect = document.getElementById('road_engineering_type');
+            var presetsPanel = document.getElementById('road_presets_panel');
+            var roadQuestions = document.getElementById('road_questions');
+            var details1 = document.getElementById('road_details_fields');
+            var details2 = document.getElementById('road_details_fields2');
+            var details3 = document.getElementById('road_details_fields3');
+
+            if(!projectType || !roadBlock || !roadClassification || !roadCategoryField || !roadCategorySelect || !roadEngineeringField || !roadEngineeringSelect || !presetsPanel || !roadQuestions || !details1 || !details2 || !details3) return;
+
+            var isRoad = projectType.value === 'Road';
+            roadBlock.style.display = isRoad ? 'block' : 'none';
+            roadClassification.style.display = isRoad ? 'grid' : 'none';
+            roadCategoryField.style.display = isRoad ? 'block' : 'none';
+            roadEngineeringField.style.display = isRoad ? 'block' : 'none';
+
+            presetsPanel.style.display = isRoad ? 'block' : 'none';
+            details1.style.display = isRoad ? 'block' : 'none';
+            details2.style.display = isRoad ? 'block' : 'none';
+            details3.style.display = isRoad ? 'block' : 'none';
+
+            document.querySelectorAll('[name="lanes"],[name="road_width"],[name="road_length_km"]').forEach(function(el){
+                if(isRoad) el.setAttribute('required','required'); else el.removeAttribute('required');
+            });
+        }
+
+        function updateEngineeringOptions(){
+            var category = document.getElementById('road_category');
+            var engineering = document.getElementById('road_engineering_type');
+            if(!category || !engineering || !__classification) return;
+            var map = __classification.engineering_types_by_category || {};
+            var opts = map[category.value] || [];
+            populateSelect(engineering, opts);
+        }
+
+        function renderConditionalQuestionsReadOnly(){
+            var category = document.getElementById('road_category');
+            var block = document.getElementById('road_questions');
+            var container = document.getElementById('road_questions_container');
+            if(!category || !block || !container || !__classification) return;
+
+            var qsMap = __classification.conditional_questions_by_category || {};
+            var qs = qsMap[category.value] || [];
+            container.innerHTML = '';
+            if(!qs.length){
+                block.style.display = 'none';
+                return;
+            }
+            block.style.display = 'block';
+
+            var values = {};
+            try { values = JSON.parse(__project.road_extras_json || '{}') || {}; } catch(e) { values = {}; }
+
+            var grid = document.createElement('div');
+            grid.className = 'form-grid';
+            qs.forEach(function(q){
+                var wrap = document.createElement('div');
+                var label = document.createElement('label');
+                label.textContent = q.label || q.key;
+                wrap.appendChild(label);
+
+                var inp = document.createElement('input');
+                inp.type = 'text';
+                inp.disabled = true;
+                inp.value = (values[q.key] || '');
+                wrap.appendChild(inp);
+                grid.appendChild(wrap);
+            });
+            container.appendChild(grid);
+        }
+
+        function renderActivityPresets(){
+            var list = _el('activityPresetList');
+            if(!list) return;
+            list.innerHTML = '';
+            var items = (__currentRoadPresets && __currentRoadPresets.activities) ? __currentRoadPresets.activities : [];
+            items.forEach(function(item, idx){
+                var row = document.createElement('div');
+                row.className = 'preset-row';
+
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = !!item.enabled;
+                cb.disabled = true;
+
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.value = item.name || '';
+                input.disabled = true;
+
+                var pill = document.createElement('span');
+                pill.className = 'pill';
+                pill.textContent = (item.standard ? 'Standard' : 'Custom');
+
+                row.appendChild(cb);
+                row.appendChild(input);
+                row.appendChild(pill);
+                list.appendChild(row);
+            });
+        }
+
+        function renderMaterialPresets(){
+            var list = _el('materialPresetList');
+            if(!list) return;
+            list.innerHTML = '';
+
+            var items = (__currentRoadPresets && __currentRoadPresets.materials) ? __currentRoadPresets.materials : [];
+            items.forEach(function(item){
+                var row = document.createElement('div');
+                row.className = 'preset-row';
+
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = !!item.enabled;
+                cb.disabled = true;
+
+                var name = document.createElement('input');
+                name.type = 'text';
+                name.value = item.name || '';
+                name.disabled = true;
+
+                var pill = document.createElement('span');
+                pill.className = 'pill';
+                pill.textContent = 'Unit: ' + (item.unit || 'unit');
+
+                row.appendChild(cb);
+                row.appendChild(name);
+                row.appendChild(pill);
+                list.appendChild(row);
+            });
+        }
+
+        function loadRoadPresets(engineeringType){
+            if(!engineeringType){
+                __roadPresetsCache = null;
+                __currentRoadPresets = null;
+                renderActivityPresets();
+                renderMaterialPresets();
+                return;
+            }
+
+            var url = '/projects/road-presets?engineering_type=' + encodeURIComponent(engineeringType);
+            return fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+                .then(function(r){ return r.json(); })
+                .then(function(data){
+                    var activities = (data.activities || []).map(function(n){
+                        return { name: String(n || ''), enabled: true, standard: true };
+                    });
+                    var materials = (data.materials || []).map(function(m){
+                        var defaultUnit = String(m.default_unit || 'unit');
+                        var allowed = Array.isArray(m.allowed_units) ? m.allowed_units.map(function(u){ return String(u || '').trim(); }).filter(Boolean) : [];
+                        if(!allowed.length) allowed = [defaultUnit];
+                        return { name: String(m.name || ''), unit: defaultUnit, allowed_units: allowed, enabled: true, standard: true };
+                    });
+
+                    __roadPresetsCache = { engineering_type: data.engineering_type || engineeringType, activities: activities, materials: materials };
+                    __currentRoadPresets = {
+                        engineering_type: __roadPresetsCache.engineering_type,
+                        activities: activities.map(function(a){ return { name: a.name, enabled: a.enabled, standard: a.standard }; }),
+                        materials: materials.map(function(m){ return { name: m.name, unit: m.unit, allowed_units: (m.allowed_units || []), enabled: m.enabled, standard: m.standard }; }),
+                    };
+
+                    renderActivityPresets();
+                    renderMaterialPresets();
+                })
+                .catch(function(){});
+        }
+
+        function loadClassificationMetadata(){
+            return fetch('/projects/classification-metadata', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+                .then(function(r){ return r.json(); })
+                .then(function(data){
+                    __classification = data;
+                    populateSelect(_el('project_type'), (data.project_types || []).concat(data.legacy_project_types || []));
+                    populateSelect(_el('road_category'), data.road_categories || []);
+                })
+                .catch(function(){});
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            var form = _el('editProjectForm');
+            var btn = _el('saveProjectBtn');
+
+            loadClassificationMetadata().then(function(){
+                var projectType = _el('project_type');
+                var roadCategory = _el('road_category');
+                var roadEngineering = _el('road_engineering_type');
+
+                if(projectType){
+                    projectType.value = __project.project_type || '';
+                    projectType.disabled = true;
+                }
+                handleProjectTypeChange();
+
+                if(roadCategory){
+                    roadCategory.value = __project.road_category || '';
+                    roadCategory.disabled = true;
+                }
+                updateEngineeringOptions();
+                if(roadEngineering){
+                    roadEngineering.value = __project.road_engineering_type || '';
+                    roadEngineering.disabled = true;
+                }
+
+                renderConditionalQuestionsReadOnly();
+                loadRoadPresets(__project.road_engineering_type || '');
+
+                // Disable any interactive buttons in presets panel (reference-only)
+                var presetsPanel = _el('road_presets_panel');
+                if(presetsPanel){
+                    presetsPanel.querySelectorAll('button,input,select,textarea').forEach(function(el){ el.disabled = true; });
+                }
+            });
+
+            if(form){
+                form.addEventListener('input', function(){
+                    setFormError('');
+                    updateSaveButtonState();
+                });
+                form.addEventListener('change', function(){
+                    setFormError('');
+                    updateSaveButtonState();
+                });
+                form.addEventListener('submit', function(e){
+                    setFormError('');
+                    form.querySelectorAll('.is-invalid').forEach(function(el){ el.classList.remove('is-invalid'); });
+                    if(!form.checkValidity()){
+                        e.preventDefault();
+                        form.querySelectorAll('input,select,textarea').forEach(function(el){
+                            if(typeof el.checkValidity === 'function' && !el.checkValidity()) el.classList.add('is-invalid');
+                        });
+                        setFormError('Please fill all required fields highlighted below.');
+                        updateSaveButtonState();
+                        return;
+                    }
+                    if(btn){
+                        btn.disabled = true;
+                        btn.textContent = 'Saving…';
+                    }
+                });
+            }
+
+            updateSaveButtonState();
+        });
+        </script>
+        {% endblock %}

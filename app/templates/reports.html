@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Reports</h1>
+
+<form method="get" class="filter-bar">
+    <select name="report_type">
+        <option value="">All Types</option>
+        <option value="Labour" {% if selected_type == "Labour" %}selected{% endif %}>Labour</option>
+        <option value="Machinery" {% if selected_type == "Machinery" %}selected{% endif %}>Machinery</option>
+        <option value="Material" {% if selected_type == "Material" %}selected{% endif %}>Material</option>
+    </select>
+
+    <input
+        type="text"
+        name="report_date"
+        value="{{ selected_date|ddmmyyyy }}"
+        placeholder="DD/MM/YYYY"
+        inputmode="numeric"
+        pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
+    >
+
+    <button type="submit">Filter</button>
+    <a href="/reports" class="button secondary">Reset</a>
+
+    <a href="/reports/new" class="button">➕ Add Report</a>
+
+    <a
+        href="/reports/export?report_type={{ selected_type or '' }}&report_date={{ selected_date or '' }}"
+        class="button secondary"
+    >
+        ⬇ Export Excel
+    </a>
+</form>
+
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th style="width: 160px;">Actions</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for r in reports %}
+        <tr>
+            <td>{{ r.report_date|ddmmyyyy }}</td>
+            <td>{{ r.report_type }}</td>
+            <td>{{ r.description }}</td>
+            <td>
+                <a href="/reports/edit/{{ r.id }}" class="button secondary">Edit</a>
+                <a href="/reports/delete/{{ r.id }}" class="button danger">Delete</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="4">No reports found</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

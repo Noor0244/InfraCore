@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">Vendors — {{ material.name }}</h1>
+    <div class="help-text">Vendor lead time overrides material default lead time. Disable vendors instead of deleting.</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button type="button" class="btn" onclick="(function(){ try{ if(window.parent && typeof window.parent.closeVendorModal==='function'){ window.parent.closeVendorModal(); return; } }catch(e){} window.location.href='/activity-material-planning'; })()">Close</button>
+    <a href="/activity-material-planning" class="btn">← Activity & Materials</a>
+  </div>
+</div>
+
+<div class="card" style="padding:16px;max-width:1100px">
+  <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:12px">
+    <div style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
+      <div style="font-weight:700;margin-bottom:8px">Add vendor</div>
+      <form method="post" action="/material-master/materials/{{ material.id }}/vendors/add" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input name="vendor_name" type="text" placeholder="Vendor Name" required />
+        <input name="lead_time_days" type="number" min="0" step="1" value="0" placeholder="Lead Time (days)" required />
+        <input name="contact_person" type="text" placeholder="Contact Person (optional)" />
+        <input name="phone" type="text" placeholder="Phone (optional)" />
+        <input name="email" type="email" placeholder="Email (optional)" />
+        <input name="min_order_qty" type="number" step="0.01" min="0" placeholder="Min Order Qty (optional)" />
+        <div style="grid-column:1 / -1;display:flex;justify-content:flex-end">
+          <button class="btn-primary" type="submit">+ Add Vendor</button>
+        </div>
+      </form>
+    </div>
+
+    <div style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
+      <div style="font-weight:700;margin-bottom:8px">Lead time logic</div>
+      <div class="help-text">
+        - Effective lead time = override (if set on activity) → vendor lead time → material default.
+        <br>
+        - Expected delivery = order date + lead time.
+        <br>
+        - If delivery is after activity start → activity is marked Material Risk.
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:14px">
+    {% if vendors|length == 0 %}
+      <div style="padding:16px;opacity:0.75">No vendors yet.</div>
+    {% else %}
+      <table class="table" style="margin:0">
+        <thead>
+          <tr>
+            <th style="width:20%">Vendor</th>
+            <th style="width:12%">Lead Time (days)</th>
+            <th style="width:16%">Contact</th>
+            <th style="width:18%">Email/Phone</th>
+            <th style="width:14%">Min Order Qty</th>
+            <th style="width:20%">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vendors %}
+          <tr {% if not v.is_active %}style="opacity:0.6"{% endif %}>
+            <td>
+              <strong>{{ v.vendor_name }}</strong>
+              {% if not v.is_active %}<span class="badge badge-warning">inactive</span>{% endif %}
+            </td>
+            <td>
+              <form method="post" action="/material-master/vendors/{{ v.id }}/update" style="display:grid;grid-template-columns:1fr;gap:8px">
+                <input name="vendor_name" type="text" value="{{ v.vendor_name }}" required />
+                <input name="lead_time_days" type="number" min="0" step="1" value="{{ v.lead_time_days }}" required />
+            </td>
+            <td>
+                <input name="contact_person" type="text" value="{{ v.contact_person or '' }}" placeholder="Contact" />
+            </td>
+            <td>
+                <input name="email" type="email" value="{{ v.email or '' }}" placeholder="Email" style="margin-bottom:6px" />
+                <input name="phone" type="text" value="{{ v.phone or '' }}" placeholder="Phone" />
+            </td>
+            <td>
+                <input name="min_order_qty" type="number" step="0.01" min="0" value="{{ v.min_order_qty if v.min_order_qty is not none else '' }}" placeholder="(optional)" />
+            </td>
+            <td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                  <button class="btn-primary btn-sm" type="submit">Save</button>
+                </div>
+              </form>
+
+              <form method="post" action="/material-master/vendors/{{ v.id }}/toggle" style="margin-top:8px">
+                <button class="btn-secondary btn-sm" type="submit">{{ 'Disable' if v.is_active else 'Enable' }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

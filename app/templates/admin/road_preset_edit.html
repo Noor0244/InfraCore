@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">Edit Road Preset</h1>
+    <div class="help-text" style="margin-top:-6px">
+      Editable: name (alias), activity name/order/optional, material name/unit/spec, and activity↔material links.
+      <br>Not editable: preset key, road category, engineering type, construction type, activity category.
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road/{{ data.preset.id }}">← View</a>
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road">All Presets</a>
+  </div>
+</div>
+
+<form method="post" action="/admin/presets/road/{{ data.preset.id }}/update" onsubmit="return buildPresetPayload();">
+  <input type="hidden" name="payload_json" id="payload_json" value="">
+
+  <div class="card card--page" style="margin-bottom:14px">
+    <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr 1fr">
+      <div>
+        <label>Preset Name (alias only)</label>
+        <input type="text" id="preset_title" value="{{ data.preset.title or '' }}" placeholder="Display name for admins/UI">
+        <div class="help-text">Key is fixed: <b>{{ data.preset.preset_key }}</b></div>
+      </div>
+      <div>
+        <label>Road Category</label>
+        <input type="text" value="{{ data.preset.road_category }}" disabled>
+      </div>
+      <div>
+        <label>Engineering Type</label>
+        <input type="text" value="{{ data.preset.engineering_type or data.preset.road_engineering_type }}" disabled>
+      </div>
+      <div>
+        <label>Construction Type</label>
+        <input type="text" value="{{ data.preset.construction_type or '' }}" disabled>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
+    <div class="card card--page">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Activities (drag to reorder)</div>
+        <div class="help-text">Sequence gaps auto-correct on save.</div>
+      </div>
+
+      <div id="activities" style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+        {% for a in data.activities %}
+          <div class="activity-row" draggable="true" data-code="{{ a.activity_code }}" data-core="{{ 1 if a.is_core else 0 }}" style="padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12)">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <div title="Drag" style="cursor:grab;user-select:none;font-weight:900">⋮⋮</div>
+              <div style="flex:1">
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                  <input class="act-name" type="text" value="{{ a.activity_name }}" style="flex:1;min-width:220px">
+                  <label class="help-text" style="display:flex;gap:6px;align-items:center">
+                    <input class="act-optional" type="checkbox" {% if a.is_optional %}checked{% endif %}> Optional
+                  </label>
+                  <label class="help-text" style="display:flex;gap:6px;align-items:center;opacity:{{ 0.6 if a.is_core else 1 }}">
+                    <input class="act-active" type="checkbox" {% if a.is_active %}checked{% endif %} {% if a.is_core %}disabled{% endif %}> Enabled
+                  </label>
+                  {% if a.is_core %}
+                    <span class="badge" style="background:#7c2d12;color:#ffedd5;padding:2px 8px;border-radius:999px">CORE</span>
+                  {% endif %}
+                </div>
+                <div class="help-text">Code: {{ a.activity_code }}{% if a.category %} • Category: {{ a.category }}{% endif %}</div>
+
+                <details style="margin-top:10px">
+                  <summary style="cursor:pointer">Materials linked to this activity</summary>
+                  <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+                    {% for m in data.materials %}
+                      <label style="display:flex;gap:8px;align-items:center;opacity:{{ 0.45 if not m.is_active else 1 }}">
+                        <input type="checkbox" class="map-box" data-activity="{{ a.activity_code }}" data-material="{{ m.material_code }}"
+                          {% for mp in data.mappings %}{% if mp.activity_code==a.activity_code and mp.material_code==m.material_code %}checked{% endif %}{% endfor %}
+                          {% if not m.is_active or not a.is_active %}disabled{% endif %}
+                        >
+                        <span>{{ m.material_name }}</span>
+                        <span class="help-text">({{ m.material_code }})</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                </details>
+
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <hr style="margin:14px 0">
+
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end">
+        <div>
+          <label>Add new activity (name)</label>
+          <input type="text" id="new_act_name" placeholder="e.g. Local drainage / extra QA">
+        </div>
+        <div>
+          <label>Optional?</label>
+          <select id="new_act_optional">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn-secondary" type="button" onclick="addActivity()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card--page">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Materials</div>
+        <div class="help-text">Core materials cannot be disabled.</div>
+      </div>
+
+      <div id="materials" style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+        {% for m in data.materials %}
+          <div class="material-row" data-code="{{ m.material_code }}" data-core="{{ 1 if m.is_core else 0 }}" style="padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12)">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <div style="font-weight:900">◼</div>
+              <div style="flex:1">
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                  <input class="mat-name" type="text" value="{{ m.material_name }}" style="flex:1;min-width:220px">
+                  <input class="mat-unit" type="text" value="{{ m.unit or '' }}" placeholder="unit" style="max-width:100px">
+                  <input class="mat-spec" type="text" value="{{ m.default_spec or '' }}" placeholder="spec" style="max-width:130px">
+                  <label class="help-text" style="display:flex;gap:6px;align-items:center;opacity:{{ 0.6 if m.is_core else 1 }}">
+                    <input class="mat-active" type="checkbox" {% if m.is_active %}checked{% endif %} {% if m.is_core %}disabled{% endif %}> Enabled
+                  </label>
+                  {% if m.is_core %}
+                    <span class="badge" style="background:#7c2d12;color:#ffedd5;padding:2px 8px;border-radius:999px">CORE</span>
+                  {% endif %}
+                </div>
+                <div class="help-text">Code: {{ m.material_code }}</div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <hr style="margin:14px 0">
+
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end">
+        <div>
+          <label>Add new material (name)</label>
+          <input type="text" id="new_mat_name" placeholder="e.g. Additive / primer">
+        </div>
+        <div>
+          <label>Unit</label>
+          <input type="text" id="new_mat_unit" placeholder="kg">
+        </div>
+        <div>
+          <label>Spec</label>
+          <input type="text" id="new_mat_spec" placeholder="optional">
+        </div>
+        <div>
+          <button class="btn-secondary" type="button" onclick="addMaterial()">Add</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display:flex;gap:10px;margin-top:14px">
+    <button class="btn-primary" type="submit" onclick="return confirm('Save changes to this preset? Validation will run and rollback on errors.')">Save</button>
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road/{{ data.preset.id }}">Cancel</a>
+  </div>
+</form>
+
+<script>
+(function(){
+  // Drag & drop reorder
+  const list = document.getElementById('activities');
+  let dragEl = null;
+
+  function onDragStart(e){
+    dragEl = e.currentTarget;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragEl.dataset.code);
+    dragEl.style.opacity = '0.6';
+  }
+  function onDragEnd(e){
+    if(dragEl) dragEl.style.opacity = '1';
+    dragEl = null;
+  }
+  function onDragOver(e){
+    e.preventDefault();
+    const target = e.target.closest('.activity-row');
+    if(!target || !dragEl || target === dragEl) return;
+    const rect = target.getBoundingClientRect();
+    const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+    list.insertBefore(dragEl, next ? target.nextSibling : target);
+  }
+
+  Array.from(document.querySelectorAll('.activity-row')).forEach(row => {
+    row.addEventListener('dragstart', onDragStart);
+    row.addEventListener('dragend', onDragEnd);
+  });
+  list.addEventListener('dragover', onDragOver);
+})();
+
+function addActivity(){
+  const name = (document.getElementById('new_act_name').value || '').trim();
+  if(!name){ alert('Enter activity name'); return; }
+  const isOpt = document.getElementById('new_act_optional').value === '1';
+  const code = 'NEW_' + Math.random().toString(16).slice(2, 10).toUpperCase();
+
+  const container = document.getElementById('activities');
+  const div = document.createElement('div');
+  div.className = 'activity-row';
+  div.setAttribute('draggable','true');
+  div.dataset.code = code;
+  div.dataset.core = '0';
+  div.style.cssText = 'padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12)';
+  div.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <div title="Drag" style="cursor:grab;user-select:none;font-weight:900">⋮⋮</div>
+      <div style="flex:1">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <input class="act-name" type="text" value="${escapeHtml(name)}" style="flex:1;min-width:220px">
+          <label class="help-text" style="display:flex;gap:6px;align-items:center"><input class="act-optional" type="checkbox" ${isOpt?'checked':''}> Optional</label>
+          <label class="help-text" style="display:flex;gap:6px;align-items:center"><input class="act-active" type="checkbox" checked> Enabled</label>
+        </div>
+        <div class="help-text">Code: ${code} • Category: Other</div>
+      </div>
+    </div>
+  `;
+  container.appendChild(div);
+
+  // Hook drag events
+  div.addEventListener('dragstart', function(e){
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', code);
+    div.style.opacity = '0.6';
+    window.__dragEl = div;
+  });
+  div.addEventListener('dragend', function(){ div.style.opacity = '1'; window.__dragEl = null; });
+
+  document.getElementById('new_act_name').value = '';
+}
+
+function addMaterial(){
+  const name = (document.getElementById('new_mat_name').value || '').trim();
+  if(!name){ alert('Enter material name'); return; }
+  const unit = (document.getElementById('new_mat_unit').value || '').trim();
+  const spec = (document.getElementById('new_mat_spec').value || '').trim();
+  const code = 'NEW_' + Math.random().toString(16).slice(2, 10).toUpperCase();
+
+  const container = document.getElementById('materials');
+  const div = document.createElement('div');
+  div.className = 'material-row';
+  div.dataset.code = code;
+  div.dataset.core = '0';
+  div.style.cssText = 'padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12)';
+  div.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="font-weight:900">◼</div>
+      <div style="flex:1">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <input class="mat-name" type="text" value="${escapeHtml(name)}" style="flex:1;min-width:220px">
+          <input class="mat-unit" type="text" value="${escapeHtml(unit)}" placeholder="unit" style="max-width:100px">
+          <input class="mat-spec" type="text" value="${escapeHtml(spec)}" placeholder="spec" style="max-width:130px">
+          <label class="help-text" style="display:flex;gap:6px;align-items:center"><input class="mat-active" type="checkbox" checked> Enabled</label>
+        </div>
+        <div class="help-text">Code: ${code}</div>
+      </div>
+    </div>
+  `;
+  container.appendChild(div);
+
+  document.getElementById('new_mat_name').value = '';
+  document.getElementById('new_mat_unit').value = '';
+  document.getElementById('new_mat_spec').value = '';
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>\"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]);
+  });
+}
+
+function buildPresetPayload(){
+  const title = (document.getElementById('preset_title').value || '').trim();
+
+  const activities = [];
+  document.querySelectorAll('#activities .activity-row').forEach((row, idx) => {
+    const code = row.dataset.code;
+    const name = (row.querySelector('.act-name')?.value || '').trim();
+    const is_optional = !!row.querySelector('.act-optional')?.checked;
+    const is_active = !!row.querySelector('.act-active')?.checked;
+    if(!name) return;
+    activities.push({ activity_code: code, activity_name: name, sequence_no: idx+1, is_optional, is_active });
+  });
+
+  const materials = [];
+  document.querySelectorAll('#materials .material-row').forEach((row) => {
+    const code = row.dataset.code;
+    const name = (row.querySelector('.mat-name')?.value || '').trim();
+    const unit = (row.querySelector('.mat-unit')?.value || '').trim();
+    const default_spec = (row.querySelector('.mat-spec')?.value || '').trim();
+    const is_active = !!row.querySelector('.mat-active')?.checked;
+    if(!name) return;
+    materials.push({ material_code: code, material_name: name, unit, default_spec, is_active });
+  });
+
+  const mappings = [];
+  document.querySelectorAll('.map-box').forEach((box) => {
+    if(!box.checked) return;
+    const ac = box.dataset.activity;
+    const mc = box.dataset.material;
+    mappings.push({ activity_code: ac, material_code: mc });
+  });
+
+  const payload = { title, activities, materials, mappings };
+  document.getElementById('payload_json').value = JSON.stringify(payload);
+  return true;
+}
+</script>
+
+{% endblock %}

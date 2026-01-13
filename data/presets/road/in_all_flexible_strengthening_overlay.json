@@ -1,0 +1,86 @@
+{
+  "preset_key": "in.road.all.flexible.strengthening_overlay",
+  "region": "India",
+  "title": "Flexible Pavement – Strengthening / Overlay (Renewal & Rehabilitation)",
+  "standards": ["IRC:81", "IRC:37", "MoRTH"],
+  "road_category": "ALL",
+  "road_engineering_type": "Flexible Pavement – Strengthening / Overlay",
+  "detail_level": "FULL_EXECUTION_LAYER_WISE",
+  "material_depth": "LAYER_SPEC_LEVEL_DEFAULT",
+  "notes": "Overlay/strengthening preset applicable to all flexible pavement categories (Expressway/NH/SH/MDR/ODR/Urban). Edit per survey, deflection, overlay design, and SOR.",
+
+  "materials": [
+    {"code": "MAT_RAP", "name": "Milling waste / RAP", "default_unit": "m3", "allowed_units": ["m3"], "tags": ["RAP", "Default"]},
+
+    {"code": "MAT_DBM", "name": "Dense Bituminous Macadam (DBM)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["DBM", "Default"]},
+    {"code": "MAT_BC", "name": "Bituminous Concrete (BC)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["BC", "Default"]},
+
+    {"code": "MAT_BIT_VG30", "name": "Bitumen (VG-30)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Bitumen", "Default"]},
+    {"code": "MAT_BIT_VG40", "name": "Bitumen (VG-40)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Bitumen", "Optional"]},
+    {"code": "MAT_BIT_MOD", "name": "Modified bitumen (PMB/CRMB)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Bitumen", "Optional"]},
+
+    {"code": "MAT_AGG", "name": "Aggregates", "default_unit": "m3", "allowed_units": ["m3", "MT"], "tags": ["Aggregates", "Default"]},
+
+    {"code": "MAT_CRACK_SEAL", "name": "Crack sealant", "default_unit": "kg", "allowed_units": ["kg", "MT"], "tags": ["Repairs", "Default"]},
+
+    {"code": "MAT_EMULSION", "name": "Emulsion / tack coat material", "default_unit": "liters", "allowed_units": ["liters"], "tags": ["Tack", "Default"]},
+
+    {"code": "MAT_MARKING_PAINT", "name": "Road marking paint", "default_unit": "kg", "allowed_units": ["kg", "MT"], "tags": ["Marking", "Default"]},
+
+    {"code": "MAT_RECYCLING_ADDITIVE", "name": "Recycling additives", "default_unit": "kg", "allowed_units": ["kg", "MT"], "tags": ["Recycling", "Optional"]},
+    {"code": "MAT_GEOSYNTHETIC", "name": "Geosynthetics (if used)", "default_unit": "m2", "allowed_units": ["m2"], "tags": ["Reinforcement", "Optional"]}
+  ],
+
+  "activities": [
+    {"code": "ACT_001", "name": "Condition survey of existing pavement", "phase": "Pre-Construction & Assessment"},
+    {"code": "ACT_002", "name": "Structural / functional evaluation", "phase": "Pre-Construction & Assessment"},
+    {"code": "ACT_003", "name": "Traffic management & diversions", "phase": "Pre-Construction & Assessment"},
+    {"code": "ACT_004", "name": "Marking of distressed areas", "phase": "Pre-Construction & Assessment"},
+
+    {"code": "ACT_005", "name": "Scarification / milling of existing pavement", "phase": "Surface Preparation"},
+    {"code": "ACT_006", "name": "Removal of loose materials", "phase": "Surface Preparation"},
+    {"code": "ACT_007", "name": "Cleaning of surface", "phase": "Surface Preparation"},
+
+    {"code": "ACT_008", "name": "Localized patch repairs", "phase": "Repairs & Strengthening"},
+    {"code": "ACT_009", "name": "Crack sealing", "phase": "Repairs & Strengthening"},
+    {"code": "ACT_010", "name": "Pothole repairs", "phase": "Repairs & Strengthening"},
+    {"code": "ACT_011", "name": "Profile correction course (if required)", "phase": "Repairs & Strengthening"},
+
+    {"code": "ACT_012", "name": "Tack coat", "phase": "Overlay Works"},
+    {"code": "ACT_013", "name": "Dense Bituminous Macadam (DBM) overlay", "phase": "Overlay Works"},
+    {"code": "ACT_014", "name": "Tack coat (BC)", "phase": "Overlay Works"},
+    {"code": "ACT_015", "name": "Bituminous Concrete (BC) overlay", "phase": "Overlay Works"},
+
+    {"code": "ACT_016", "name": "Shoulder strengthening / regrading", "phase": "Shoulders & Ancillary Works"},
+    {"code": "ACT_017", "name": "Drain cleaning & repairs", "phase": "Shoulders & Ancillary Works"},
+
+    {"code": "ACT_018", "name": "Road signage (replacement / adjustment)", "phase": "Road Furniture & Safety"},
+    {"code": "ACT_019", "name": "Road markings (fresh application)", "phase": "Road Furniture & Safety"},
+    {"code": "ACT_020", "name": "Road studs / reflectors", "phase": "Road Furniture & Safety"},
+
+    {"code": "ACT_021", "name": "Final inspection & commissioning", "phase": "Finishing"}
+  ],
+
+  "activity_materials": [
+    {"activity_code": "ACT_005", "material_code": "MAT_RAP", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_008", "material_code": "MAT_AGG", "consumption_rate": 0.0},
+    {"activity_code": "ACT_008", "material_code": "MAT_BIT_VG30", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_009", "material_code": "MAT_CRACK_SEAL", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_012", "material_code": "MAT_EMULSION", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_013", "material_code": "MAT_DBM", "consumption_rate": 0.0},
+    {"activity_code": "ACT_013", "material_code": "MAT_BIT_VG30", "consumption_rate": 0.0},
+    {"activity_code": "ACT_013", "material_code": "MAT_AGG", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_014", "material_code": "MAT_EMULSION", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_015", "material_code": "MAT_BC", "consumption_rate": 0.0},
+    {"activity_code": "ACT_015", "material_code": "MAT_BIT_VG30", "consumption_rate": 0.0},
+    {"activity_code": "ACT_015", "material_code": "MAT_AGG", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_019", "material_code": "MAT_MARKING_PAINT", "consumption_rate": 0.0}
+  ]
+}

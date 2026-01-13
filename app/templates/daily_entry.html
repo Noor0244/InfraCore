@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+    .dpr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .dpr-card { max-width: 1180px; margin: 0 auto; padding: 18px; }
+    .dpr-top { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap: wrap; }
+    .dpr-top .meta { opacity: 0.85; font-size: 13px; }
+    .project-context { position: sticky; top: 0; z-index: 5; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; background: rgba(17,24,39,0.92); backdrop-filter: blur(8px); }
+    .project-context .title { font-weight: 800; font-size: 14px; }
+    .project-context .kv { display:flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 6px; }
+    .project-context .kv div { opacity: 0.85; font-size: 12px; }
+    .dpr-table { width:100%; border-collapse: collapse; }
+    .dpr-table th, .dpr-table td { border: 1px solid rgba(255,255,255,0.08); padding: 10px; vertical-align: top; }
+    .dpr-table th { background: rgba(255,255,255,0.04); text-align:left; }
+    .pill { display:inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; background: rgba(255,255,255,0.08); }
+    .pill.draft { background: rgba(30,111,216,0.18); }
+    .pill.submitted { background: rgba(255,193,7,0.18); }
+    .pill.approved { background: rgba(25,135,84,0.22); }
+    .pill.rejected { background: rgba(214,69,69,0.22); }
+    .invalid { border: 1px solid #d64545 !important; }
+    .disabled-section { opacity: 0.55; pointer-events: none; }
+    details { border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px; background: rgba(255,255,255,0.02); margin-top: 12px; }
+    details > summary { cursor: pointer; font-weight: 700; }
+    .btn-danger { background: #d64545; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+</style>
+
+<h1 class="page-title">Daily Work Execution (DPR) — {{ project.name }}</h1>
+
+<div class="card dpr-card">
+    <div class="project-context">
+        <div class="title">Project Context (read-only)</div>
+        <div class="kv">
+            <div><strong>Project:</strong> {{ project.name }}</div>
+            <div><strong>Location:</strong> {{ project.city }}{% if project.state %}, {{ project.state }}{% endif %}</div>
+            <div><strong>Type:</strong> {{ project.project_type or '—' }}</div>
+            {% if project.project_type == 'Road' or project.road_type %}
+                <div><strong>Road Type:</strong> {{ project.road_type or '—' }}</div>
+            {% endif %}
+            <div><strong>Chainage:</strong> {{ project.chainage_start or '—' }} → {{ project.chainage_end or '—' }}</div>
+            <div><strong>Contractor:</strong> {{ project.contractor or '—' }}</div>
+            <div><strong>Client:</strong> {{ project.client_authority or '—' }}</div>
+        </div>
+    </div>
+
+    <div class="dpr-top">
+        <div>
+            <div class="meta">
+                Project ID: <span class="pill">#{{ project.id }}</span>
+                {% if report %}
+                    <span class="pill {% if report.status %}{{ report.status | lower }}{% endif %}">Status: {{ report.status }}</span>
+                {% else %}
+                    <span class="pill draft">Status: Draft</span>
+                {% endif %}
+            </div>
+            <div class="meta">
+                Selected date: <strong>{{ report_date }}</strong>
+                · <a href="/execution/{{ project.id }}?date={{ prev_date }}">← Prev</a>
+                · <a href="/execution/{{ project.id }}?date={{ next_date }}">Next →</a>
+            </div>
+        </div>
+        <div class="meta">
+            Prepared by: <strong>{{ user["username"] }}</strong>
+        </div>
+    </div>
+
+    {% if not planned or planned|length == 0 %}
+        <p style="opacity:0.7; margin-top: 14px;">
+            {% if activity_def_count and activity_def_count > 0 %}
+                Activities exist but are not planned yet.
+            {% else %}
+                No activities exist for this project yet.
+            {% endif %}
+        </p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 10px;">
+            <a class="btn-primary" href="/activity-material-planning/{{ project.id }}">Go to Activity & Materials</a>
+            <a class="btn-secondary" href="/projects/{{ project.id }}/activities/new">Add Activity</a>
+        </div>
+    {% else %}
+
+    <form id="dprForm" method="post" action="/execution/{{ project.id }}" enctype="multipart/form-data">
+
+        <div class="form-section">
+            <div class="section-title">Daily Header <span class="required">*</span></div>
+            <div class="help-text">Complete these fields to unlock the DPR sections.</div>
+
+            <div class="dpr-grid" style="margin-top: 10px;">
+                <div class="form-group">
+                    <label>Date <span class="required">*</span></label>
+                    <input id="report_date" name="report_date" type="text" value="{{ report_date|ddmmyyyy }}" placeholder="DD/MM/YYYY" inputmode="numeric" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Weather <span class="required">*</span></label>
+                    <select id="weather" name="weather" required>
+                        {% set w = (report.weather if report else "Sunny") %}
+                        {% for opt in ["Sunny","Cloudy","Rainy","Heavy Rain","Fog","Windy"] %}
+                            <option value="{{ opt }}" {% if w==opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Shift <span class="required">*</span></label>
+                    <select id="shift" name="shift" required>
+                        {% set sh = (report.shift if report else "Day") %}
+                        {% for opt in ["Day","Night","Double"] %}
+                            <option value="{{ opt }}" {% if sh==opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Work Chainage From <span class="required">*</span></label>
+                    <input id="work_chainage_from" name="work_chainage_from" type="text" value="{{ report.work_chainage_from if report else (project.chainage_start or '') }}" placeholder="e.g., CH 12+300" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Work Chainage To <span class="required">*</span></label>
+                    <input id="work_chainage_to" name="work_chainage_to" type="text" value="{{ report.work_chainage_to if report else (project.chainage_end or '') }}" placeholder="e.g., CH 13+100" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Engineer (auto)</label>
+                    <input type="text" value="{{ user['username'] }}" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label>Supervisor <span class="required">*</span></label>
+                    <input id="supervisor_name" name="supervisor_name" type="text" value="{{ report.supervisor_name if report else '' }}" placeholder="Site supervisor" required>
+                </div>
+            </div>
+        </div>
+
+        <div id="dprGated">
+
+            <div class="form-section">
+                <div class="section-title">Planned vs Executed (Activities)</div>
+                <div class="help-text">Rule: Executed today must not exceed remaining balance. Remarks required if executed is 0 or status is Delayed.</div>
+
+                <table class="dpr-table" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th style="width:26%">Activity</th>
+                            <th>Planned</th>
+                            <th>Cumulative (before)</th>
+                            <th>Executed today</th>
+                            <th>Cumulative (after)</th>
+                            <th>Balance</th>
+                            <th>Planned (time)</th>
+                            <th>Executed today (time)</th>
+                            <th>Cumulative (time)</th>
+                            <th>Balance (time)</th>
+                            <th>Status</th>
+                            <th style="width:22%">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pa in planned %}
+                            {% set ap = progress_by_activity.get(pa.activity_id) %}
+                            {% set planned_end = (ap.planned_end if ap else pa.end_date) %}
+                            {% set cum = (cum_before.get(pa.activity_id, 0) or 0) %}
+                            {% set ex = (executed_today.get(pa.activity_id, 0) or 0) %}
+                            {% set t = (time_by_activity_id.get(pa.activity_id) if time_by_activity_id is defined else None) %}
+                            <tr
+                                data-activity-id="{{ pa.activity_id }}"
+                                data-planned="{{ pa.planned_quantity }}"
+                                data-cum-other="{{ cum }}"
+                                data-planned-end="{{ planned_end }}"
+                                data-planned-hours="{{ (t.planned_hours if t else 0) }}"
+                                data-cum-other-hours="{{ (t.cum_before_hours if t else 0) }}"
+                                data-display-unit="{{ (t.display_unit if t else 'hours') }}"
+                                data-hours-per-day="{{ (t.hours_per_day if t else 8) }}"
+                            >
+                                <td>
+                                    <strong>{{ pa.activity.name }}</strong>
+                                    <div class="meta">Plan: {{ pa.start_date }} → {{ pa.end_date }}</div>
+                                    <input type="hidden" name="activity_ids" value="{{ pa.activity_id }}">
+                                </td>
+                                <td>{{ "%.3f"|format(pa.planned_quantity) }} {{ pa.unit }}</td>
+                                <td>{{ "%.3f"|format(cum) }}</td>
+                                <td><input class="activity-executed" name="act_exec_{{ pa.activity_id }}" type="number" min="0" step="0.001" value="{{ ex }}"></td>
+                                <td class="cell-cumulative">{{ "%.3f"|format(cum + ex) }}</td>
+                                <td class="cell-balance">{{ "%.3f"|format((pa.planned_quantity - (cum + ex)) if (pa.planned_quantity - (cum + ex)) > 0 else 0) }}</td>
+
+                                <!-- Time (base stored as hours) -->
+                                <td>
+                                    <span class="cell-time-planned">{{ "%.3f"|format((t.planned_display if t else 0) ) }}</span>
+                                    <span class="pill" title="Time tracking unit (does not affect stored hours)">
+                                        <select class="activity-time-unit" name="act_time_unit_{{ pa.activity_id }}" style="padding:2px 6px">
+                                            {% set u = (t.display_unit if t else 'hours') %}
+                                            <option value="hours" {% if u=='hours' %}selected{% endif %}>hrs</option>
+                                            <option value="days" {% if u=='days' %}selected{% endif %}>days</option>
+                                        </select>
+                                    </span>
+                                    <div class="meta" title="Conversion rule">
+                                        1 day = <span class="cell-hpd">{{ (t.hours_per_day if t else 8) }}</span> hrs
+                                    </div>
+                                </td>
+                                <td>
+                                    <input
+                                        class="activity-executed-time"
+                                        name="act_exec_time_{{ pa.activity_id }}"
+                                        type="number"
+                                        min="0"
+                                        step="0.001"
+                                        value="{{ (t.executed_today_display if t else 0) }}"
+                                        title="Enter executed time in the selected unit. Stored internally as hours."
+                                    >
+                                    <input class="activity-executed-hours" type="hidden" name="act_exec_hours_{{ pa.activity_id }}" value="{{ (t.executed_today_hours if t else 0) }}">
+                                </td>
+                                <td class="cell-time-cumulative">{{ "%.3f"|format((t.cum_after_display if t else 0)) }}</td>
+                                <td class="cell-time-balance">{{ "%.3f"|format((t.balance_display if t else 0)) }}</td>
+                                <td class="cell-status">—</td>
+                                <td><input class="activity-remarks" name="act_rem_{{ pa.activity_id }}" type="text" value="{{ remarks_today.get(pa.activity_id,'') }}" placeholder="Required if 0 / delayed"></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <details open>
+                <summary>Materials (Auto-linked)</summary>
+                <div class="help-text">Planned consumption is auto-calculated from executed quantities and activity consumption rates.</div>
+                <table class="dpr-table" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th style="width:26%">Material</th>
+                            <th>Available</th>
+                            <th>Planned today</th>
+                            <th>Unit</th>
+                            <th>Issued today</th>
+                            <th>Consumed today</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in materials %}
+                            {% set stock = (material_stock.get(m.id, 0) or 0) %}
+                            {% set exr = existing_materials.get(m.id) %}
+                            {% set selected_unit = (exr.unit if exr and exr.unit else m.get_standard_unit()) %}
+                            <tr data-material-id="{{ m.id }}" data-stock="{{ stock }}">
+                                <td>
+                                    <strong>{{ m.name }}</strong>
+                                    <div class="meta">Base unit: {{ m.unit }}</div>
+                                    <input type="hidden" name="material_ids" value="{{ m.id }}">
+                                    <input class="mat-planned-hidden" type="hidden" name="mat_planned_{{ m.id }}" value="{{ exr.planned_today if exr else 0 }}">
+                                </td>
+                                <td>{{ "%.3f"|format(stock) }}</td>
+                                <td class="cell-mat-planned">0.000</td>
+                                <td>
+                                    {% set allowed = m.get_allowed_units() %}
+                                    <select name="mat_unit_{{ m.id }}">
+                                        {% for u in allowed %}
+                                            <option value="{{ u }}" {% if selected_unit==u %}selected{% endif %}>{{ u }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><input class="mat-issued" name="mat_issued_{{ m.id }}" type="number" min="0" step="0.001" value="{{ exr.issued_today if exr else 0 }}"></td>
+                                <td><input class="mat-consumed" name="mat_consumed_{{ m.id }}" type="number" min="0" step="0.001" value="{{ exr.consumed_today if exr else 0 }}"></td>
+                                <td><input name="mat_source_{{ m.id }}" type="text" value="{{ exr.source if exr and exr.source else '' }}" placeholder="Plant / Quarry / Store"></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+
+            <details>
+                <summary>Labour</summary>
+                <div style="margin-top:10px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                    <div class="help-text">Add labour by category and hours.</div>
+                    <button id="addLabourRow" type="button" class="btn-primary">+ Add row</button>
+                </div>
+                <table id="labourTable" class="dpr-table" style="margin-top: 10px;">
+                    <thead><tr><th>Category</th><th>Workers</th><th>Hours</th><th>OT</th><th>Agency</th><th></th></tr></thead>
+                    <tbody>
+                        {% if report and report.labour_rows %}
+                            {% for r in report.labour_rows %}
+                            <tr>
+                                <td>
+                                    <select class="lab-category">
+                                        {% for opt in ["Skilled","Unskilled","Operator","Supervisor"] %}
+                                            <option {% if r.category==opt %}selected{% endif %}>{{ opt }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><input type="number" min="0" class="lab-workers" value="{{ r.workers }}"></td>
+                                <td><input type="number" min="0" step="0.5" class="lab-hours" value="{{ r.hours }}"></td>
+                                <td><input type="number" min="0" step="0.5" class="lab-ot" value="{{ r.overtime_hours }}"></td>
+                                <td><input type="text" class="lab-agency" value="{{ r.agency or '' }}"></td>
+                                <td><button type="button" class="btn-danger btn-sm remove-row">Remove</button></td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </details>
+
+            <details>
+                <summary>Machinery</summary>
+                <div style="margin-top:10px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                    <div class="help-text">Track equipment usage and breakdowns.</div>
+                    <button id="addMachRow" type="button" class="btn-primary">+ Add row</button>
+                </div>
+                <table id="machineryTable" class="dpr-table" style="margin-top: 10px;">
+                    <thead><tr><th>Equipment</th><th>Hours used</th><th>Idle</th><th>Fuel</th><th>Breakdown</th><th>Remarks</th><th></th></tr></thead>
+                    <tbody>
+                        {% if report and report.machinery_rows %}
+                            {% for r in report.machinery_rows %}
+                            <tr>
+                                <td><input type="text" class="mach-name" value="{{ r.equipment_name }}"></td>
+                                <td><input type="number" min="0" step="0.5" class="mach-hours" value="{{ r.hours_used }}"></td>
+                                <td><input type="number" min="0" step="0.5" class="mach-idle" value="{{ r.idle_hours }}"></td>
+                                <td><input type="number" min="0" step="0.1" class="mach-fuel" value="{{ r.fuel_consumed }}"></td>
+                                <td>
+                                    <select class="mach-breakdown">
+                                        <option value="No" {% if not r.breakdown %}selected{% endif %}>No</option>
+                                        <option value="Yes" {% if r.breakdown %}selected{% endif %}>Yes</option>
+                                    </select>
+                                </td>
+                                <td><input type="text" class="mach-break-remarks" value="{{ r.breakdown_remarks or '' }}"></td>
+                                <td><button type="button" class="btn-danger btn-sm remove-row">Remove</button></td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </details>
+
+            <details>
+                <summary>Quality Control (QC)</summary>
+                <div style="margin-top:10px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                    <div class="help-text">Record tests performed today.</div>
+                    <button id="addQcRow" type="button" class="btn-primary">+ Add row</button>
+                </div>
+                <table id="qcTable" class="dpr-table" style="margin-top: 10px;">
+                    <thead><tr><th>Test</th><th>Location</th><th>Value</th><th>Result</th><th>Engineer</th><th></th></tr></thead>
+                    <tbody>
+                        {% if report and report.qc_rows %}
+                            {% for r in report.qc_rows %}
+                            <tr>
+                                <td>
+                                    <select class="qc-type">
+                                        {% for opt in ["Compaction","Gradation","Cube","Slump","Bitumen Content","Other"] %}
+                                            <option {% if r.test_type==opt %}selected{% endif %}>{{ opt }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><input type="text" class="qc-location" value="{{ r.location or '' }}"></td>
+                                <td><input type="text" class="qc-value" value="{{ r.test_value or '' }}"></td>
+                                <td>
+                                    <select class="qc-result">
+                                        <option value="Pass" {% if r.result=="Pass" %}selected{% endif %}>Pass</option>
+                                        <option value="Fail" {% if r.result=="Fail" %}selected{% endif %}>Fail</option>
+                                    </select>
+                                </td>
+                                <td><input type="text" class="qc-engineer" value="{{ r.engineer_name or '' }}"></td>
+                                <td><button type="button" class="btn-danger btn-sm remove-row">Remove</button></td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </details>
+
+            <details>
+                <summary>Delays / Hindrances</summary>
+                <div style="margin-top:10px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                    <div class="help-text">Capture delay type, time window and impact.</div>
+                    <button id="addDelayRow" type="button" class="btn-primary">+ Add row</button>
+                </div>
+                <table id="delayTable" class="dpr-table" style="margin-top: 10px;">
+                    <thead><tr><th>Type</th><th>Start</th><th>End</th><th>Responsible</th><th>Impact (hrs)</th><th>Impact (qty)</th><th>Remarks</th><th></th></tr></thead>
+                    <tbody>
+                        {% if report and report.delay_rows %}
+                            {% for r in report.delay_rows %}
+                            <tr>
+                                <td>
+                                    <select class="delay-type">
+                                        {% for opt in ["Rain","Utility","Material","Labour","Land"] %}
+                                            <option {% if r.delay_type==opt %}selected{% endif %}>{{ opt }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><input type="time" class="delay-start" value="{{ r.start_time or '' }}"></td>
+                                <td><input type="time" class="delay-end" value="{{ r.end_time or '' }}"></td>
+                                <td><input type="text" class="delay-party" value="{{ r.responsible_party or '' }}"></td>
+                                <td><input type="number" min="0" step="0.25" class="delay-impact-hours" value="{{ r.impact_hours or 0 }}"></td>
+                                <td><input type="number" min="0" step="0.01" class="delay-impact-qty" value="{{ r.impact_quantity or 0 }}"></td>
+                                <td><input type="text" class="delay-remarks" value="{{ r.remarks or '' }}"></td>
+                                <td><button type="button" class="btn-danger btn-sm remove-row">Remove</button></td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </details>
+
+            <details>
+                <summary>Safety</summary>
+                <div class="dpr-grid" style="margin-top: 10px;">
+                    <div class="form-group">
+                        <label><input type="checkbox" name="toolbox_talk_conducted" {% if report and report.toolbox_talk_conducted %}checked{% endif %}> Toolbox Talk Conducted</label>
+                    </div>
+                    <div class="form-group">
+                        <label>PPE Compliance (%)</label>
+                        <input type="number" min="0" max="100" step="0.1" name="ppe_compliance_percent" value="{{ report.ppe_compliance_percent if report and report.ppe_compliance_percent is not none else '' }}" placeholder="0-100">
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" name="incident_or_near_miss" {% if report and report.incident_or_near_miss %}checked{% endif %}> Any Incident / Near Miss</label>
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Incident Description</label>
+                        <textarea name="incident_description" rows="2" placeholder="Describe incident/near miss">{{ report.incident_description if report else '' }}</textarea>
+                    </div>
+                </div>
+            </details>
+
+            <details>
+                <summary>Uploads</summary>
+                <div class="dpr-grid" style="margin-top: 10px;">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select name="upload_category">
+                            {% for opt in ["Before","During","After","Issue","QC","Safety","Docs"] %}
+                                <option value="{{ opt }}">{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Files</label>
+                        <input type="file" name="uploads" multiple>
+                        <div class="help-text">Files are saved to <span style="color:#ffffff;opacity:0.85">data/uploads/dpr/</span></div>
+                    </div>
+                </div>
+                {% if report and report.uploads and report.uploads|length > 0 %}
+                    <div class="help-text" style="margin-top:10px;">Existing uploads:</div>
+                    <ul>
+                        {% for u in report.uploads %}
+                            <li class="meta">{{ u.category }} — {{ u.original_name }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </details>
+
+            <details open>
+                <summary>Summary</summary>
+                <div class="dpr-grid" style="margin-top: 10px;">
+                    <div class="card" style="padding:12px;">
+                        <div class="meta">Total executed quantity (all activities)</div>
+                        <div style="font-size:18px;"><strong id="summary_total_qty">0.000</strong></div>
+                    </div>
+                    <div class="card" style="padding:12px;">
+                        <div class="meta">Total planned material consumption</div>
+                        <div style="font-size:18px;"><strong id="summary_total_mat">0.000</strong></div>
+                    </div>
+                    <div class="card" style="padding:12px;">
+                        <div class="meta">Man-hours (approx.)</div>
+                        <div style="font-size:18px;"><strong id="summary_man_hours">0.00</strong></div>
+                    </div>
+                    <div class="card" style="padding:12px;">
+                        <div class="meta">Delay hours</div>
+                        <div style="font-size:18px;"><strong id="summary_delay_hours">0.00</strong></div>
+                    </div>
+                </div>
+            </details>
+
+            <div class="form-section">
+                <div class="section-title">Engineer Remarks</div>
+                <textarea name="engineer_remarks" rows="3" placeholder="Overall summary / notes">{{ report.engineer_remarks if report else '' }}</textarea>
+            </div>
+
+            <input type="hidden" id="labour_json" name="labour_json" value="[]">
+            <input type="hidden" id="machinery_json" name="machinery_json" value="[]">
+            <input type="hidden" id="qc_json" name="qc_json" value="[]">
+            <input type="hidden" id="delays_json" name="delays_json" value="[]">
+
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top: 14px; flex-wrap: wrap;">
+                <button class="btn-secondary" type="submit" name="action" value="save">Save Draft</button>
+                <button class="btn-success" type="submit" name="action" value="submit">Submit for Review</button>
+            </div>
+
+        </div>
+
+    </form>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script id="amMapJson" type="application/json">{{ activity_material_map_json | safe }}</script>
+    <script src="/static/js/activity_units.js"></script>
+    <script src="/static/js/daily_execution.js"></script>
+{% endblock %}

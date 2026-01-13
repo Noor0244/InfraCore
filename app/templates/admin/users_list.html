@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header"
+     style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+
+    <h1 class="page-title">User Management</h1>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="/admin/logs"
+           style="
+               background:#374151;
+               color:#ffffff;
+               padding:8px 14px;
+               border-radius:6px;
+               font-weight:600;
+               text-decoration:none;
+               display:inline-flex;
+               align-items:center;
+               gap:6px;
+           ">
+            🧾 Audit Logs
+        </a>
+
+        <a href="/admin/presets/road"
+           style="
+               background:#374151;
+               color:#ffffff;
+               padding:8px 14px;
+               border-radius:6px;
+               font-weight:600;
+               text-decoration:none;
+               display:inline-flex;
+               align-items:center;
+               gap:6px;
+           ">
+            🧩 Road Presets
+        </a>
+
+        <!-- ADD USER -->
+        <a href="/admin/users/new"
+           style="
+               background:#1f6feb;
+               color:#ffffff;
+               padding:8px 14px;
+               border-radius:6px;
+               font-weight:600;
+               text-decoration:none;
+               display:inline-flex;
+               align-items:center;
+               gap:6px;
+           ">
+            ➕ Add User
+        </a>
+    </div>
+</div>
+
+<div class="card" style="padding:0">
+
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <h3 style="margin:0">All Users</h3>
+    </div>
+
+    <table class="table" style="margin:0">
+        <thead>
+            <tr style="background:rgba(255,255,255,0.04)">
+                <th style="width:60px">ID</th>
+                <th>Username</th>
+                <th style="width:120px">Role</th>
+                <th style="width:120px">Status</th>
+                <th style="width:320px">Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% if users and users|length > 0 %}
+        {% for u in users %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+                <td>{{ u.id }}</td>
+
+                <td><strong>{{ u.username }}</strong></td>
+
+                <!-- ROLE -->
+                <td>
+                    <span class="badge badge-info">
+                        {{ u.role | upper }}
+                    </span>
+                </td>
+
+                <!-- STATUS -->
+                <td>
+                    {% if u.is_active %}
+                        <span class="badge badge-success">ACTIVE</span>
+                    {% else %}
+                        <span class="badge badge-danger">DISABLED</span>
+                    {% endif %}
+                </td>
+
+                <!-- ACTIONS -->
+                <td>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+
+                        <!-- EDIT -->
+                        <a href="/admin/users/{{ u.id }}/edit"
+                           style="
+                               background:#374151;
+                               color:#ffffff;
+                               padding:5px 10px;
+                               border-radius:5px;
+                               font-size:13px;
+                               text-decoration:none;
+                           ">
+                            ✏️ Edit
+                        </a>
+
+                        <!-- SESSIONS -->
+                        <a href="/admin/users/{{ u.id }}/sessions"
+                           style="
+                               background:#0ea5a4;
+                               color:#ffffff;
+                               padding:5px 10px;
+                               border-radius:5px;
+                               font-size:13px;
+                               text-decoration:none;
+                           ">
+                            🕒 Sessions
+                        </a>
+
+                        <!-- ENABLE / DISABLE -->
+                        {% if user["id"] != u.id %}
+                            <form
+                                method="post"
+                                action="/admin/users/{{ u.id }}/toggle"
+                                style="display:inline"
+                            >
+                                {% if u.is_active %}
+                                    <button type="submit"
+                                        style="
+                                            background:#dc2626;
+                                            color:#ffffff;
+                                            padding:5px 10px;
+                                            border:none;
+                                            border-radius:5px;
+                                            font-size:13px;
+                                            cursor:pointer;
+                                        ">
+                                        🚫 Disable
+                                    </button>
+                                {% else %}
+                                    <button type="submit"
+                                        style="
+                                            background:#16a34a;
+                                            color:#ffffff;
+                                            padding:5px 10px;
+                                            border:none;
+                                            border-radius:5px;
+                                            font-size:13px;
+                                            cursor:pointer;
+                                        ">
+                                        ✅ Enable
+                                    </button>
+                                {% endif %}
+                            </form>
+                            <!-- DELETE (admin only, not self) -->
+                            {% if user["role"] == "admin" %}
+                            <form method="post"
+                                  action="/admin/users/{{ u.id }}/delete"
+                                  style="display:inline"
+                                  onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
+                                <button type="submit"
+                                    style="
+                                        background:#b91c1c;
+                                        color:#ffffff;
+                                        padding:5px 10px;
+                                        border:none;
+                                        border-radius:5px;
+                                        font-size:13px;
+                                        cursor:pointer;
+                                    ">
+                                    🗑 Delete
+                                </button>
+                            </form>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-warning">
+                                You
+                            </span>
+                        {% endif %}
+
+                    </div>
+                </td>
+            </tr>
+        {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" style="text-align:center;padding:24px">
+                    <strong>No users found.</strong>
+                    <div style="opacity:0.7;margin-top:8px">Create a user to allow team access.</div>
+                </td>
+            </tr>
+        {% endif %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

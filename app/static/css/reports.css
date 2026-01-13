@@ -1,0 +1,31 @@
+.report-form {
+    max-width: 400px;
+    margin-bottom: 30px;
+}
+
+.report-form input,
+.report-form textarea,
+.report-form button {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+}
+
+.report-form button {
+    background: #007bff;
+    color: white;
+    border: none;
+}
+
+.reports-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.report-card {
+    border: 1px solid #ccc;
+    padding: 15px;
+    width: 250px;
+    border-radius: 5px;
+}

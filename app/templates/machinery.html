@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Machinery</h1>
+
+<table>
+    <tr>
+        <th>Machine</th>
+        <th>Status</th>
+    </tr>
+    {% for m in machinery %}
+    <tr>
+        <td>{{ m.get("Machine_Name", "") }}</td>
+        <td>{{ m.get("Status", "") }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 980px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap: wrap;">
+        <h1 style="margin: 0;">Settings</h1>
+        <div style="opacity: 0.85; font-size: 0.95rem;">
+            Signed in as <strong>{{ user["username"] if user and user["username"] else "User" }}</strong>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 14px;">
+        <h3 style="margin: 0 0 8px 0;">Appearance</h3>
+        <div style="opacity: 0.85; margin-bottom: 12px;">
+            Theme is now controlled here (not on every page).
+        </div>
+
+        <div class="form-grid">
+            <div>
+                <label for="theme_mode">Theme</label>
+                <select id="theme_mode">
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+                <div class="help-text">Stored on this device (browser local storage).</div>
+            </div>
+
+            <div style="display:flex; gap: 10px; align-items:center;">
+                <button type="button" class="btn-primary" id="apply_theme_btn">Apply theme</button>
+                <button type="button" class="btn-secondary" id="reset_theme_btn">Reset to system</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 14px;">
+        <h3 style="margin: 0 0 8px 0;">Dashboard: Updates &amp; Warnings</h3>
+        <div style="opacity: 0.85; margin-bottom: 12px;">
+            Controls how far ahead the dashboard looks for upcoming activities and how it flags ordering urgency.
+        </div>
+
+        <form method="post" action="/settings" class="form-grid">
+            <div>
+                <label for="lookahead_days">Lookahead (days)</label>
+                <input type="number" min="1" max="365" id="lookahead_days" name="lookahead_days" value="{{ lookahead_days }}" required>
+                <div class="help-text">Default: 30</div>
+            </div>
+
+            <div>
+                <label for="due_soon_days">Due soon window (days)</label>
+                <input type="number" min="0" max="60" id="due_soon_days" name="due_soon_days" value="{{ due_soon_days }}" required>
+                <div class="help-text">Default: 7</div>
+            </div>
+
+            <div>
+                <label for="max_rows">Max alert rows</label>
+                <input type="number" min="5" max="200" id="max_rows" name="max_rows" value="{{ max_rows }}" required>
+                <div class="help-text">Default: 30</div>
+            </div>
+
+            <div style="display:flex; gap: 10px; align-items:center;">
+                <button type="submit" class="btn-primary">Save settings</button>
+                <a href="/dashboard" class="btn-secondary">Back to dashboard</a>
+                <button type="submit" class="btn-secondary" name="reset_alerts" value="1" title="Reset the dashboard alert thresholds to defaults">
+                    Reset alerts
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div style="opacity: 0.8; margin-top: 12px; font-size: 0.95rem;">
+        More settings can be added here later (roles, defaults, UI preferences).
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        function applyTheme(mode) {
+            const html = document.documentElement;
+            html.classList.add('theme-transition');
+
+            if (mode === 'dark') {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            } else if (mode === 'light') {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                // system
+                localStorage.setItem('theme', 'system');
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (prefersDark) html.classList.add('dark');
+                else html.classList.remove('dark');
+            }
+
+            setTimeout(() => html.classList.remove('theme-transition'), 300);
+        }
+
+        const select = document.getElementById('theme_mode');
+        const applyBtn = document.getElementById('apply_theme_btn');
+        const resetBtn = document.getElementById('reset_theme_btn');
+        if (!select || !applyBtn || !resetBtn) return;
+
+        const stored = localStorage.getItem('theme') || 'system';
+        select.value = (stored === 'dark' || stored === 'light' || stored === 'system') ? stored : 'system';
+
+        applyBtn.addEventListener('click', function () {
+            applyTheme(select.value);
+        });
+
+        resetBtn.addEventListener('click', function () {
+            select.value = 'system';
+            applyTheme('system');
+        });
+    })();
+</script>
+{% endblock %}

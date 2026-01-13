@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ================= PAGE HEADER ================= -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <div>
+        <h1 class="page-title">
+            Plan Activities – {{ project.name }}
+        </h1>
+        <!-- Project Selector Dropdown -->
+        {% if projects is defined and projects|length > 0 %}
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+            <label style="margin:0;font-size:12px;color:var(--muted-gray)">Project:</label>
+            <select onchange="if(this.value) window.location.href='/project-activity-plan/' + this.value"
+                    style="padding:6px 8px;font-size:13px;max-width:340px">
+                {% for p in projects %}
+                    <option value="{{ p.id }}" {% if project.id == p.id %}selected{% endif %}>
+                        {{ p.name }} — {{ p.city }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ✅ ADD ACTIVITY ENTRY POINT -->
+    <a
+        href="/projects/{{ project.id }}/activities/new"
+        class="btn-primary"
+        style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap"
+    >
+        ➕ Add Activity
+    </a>
+</div>
+
+<div class="card" style="padding:0">
+
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <strong>Define quantities, units, and schedule for each activity</strong>
+    </div>
+
+    {% if activities %}
+    <table class="table" style="margin:0">
+        <thead>
+            <tr>
+                <th style="width:220px">Activity</th>
+                <th style="width:140px">Planned Qty</th>
+                <th style="width:120px">Unit</th>
+                <th style="width:170px">Planned (time)</th>
+                <th style="width:120px">Time Unit</th>
+                <th style="width:120px">Hrs/Day</th>
+                <th style="width:140px">Start</th>
+                <th style="width:140px">End</th>
+                <th style="width:120px">Action</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for a in activities %}
+        <tr data-activity-id="{{ a.id }}">
+            <form method="post" action="/project-activity-plan/save">
+
+                <!-- REQUIRED CONTEXT -->
+                <input type="hidden" name="project_id" value="{{ project.id }}">
+                <input type="hidden" name="activity_id" value="{{ a.id }}">
+
+                <!-- ACTIVITY -->
+                <td>
+                    <strong>{{ a.name }}</strong>
+                    {% if a.is_standard %}
+                        <span class="badge badge-info" style="margin-left:6px">STD</span>
+                    {% endif %}
+                </td>
+
+                <!-- PLANNED QUANTITY -->
+                <td>
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="planned_quantity"
+                        value="{{ planned_map[a.id].planned_quantity if a.id in planned_map else '' }}"
+                        required
+                    >
+                </td>
+
+                <!-- UNIT -->
+                <td>
+                    <input
+                        type="text"
+                        name="unit"
+                        list="unit_opts_{{ a.id }}"
+                        value="{{ planned_map[a.id].unit if a.id in planned_map else '' }}"
+                        placeholder="m3 / sqm / m / km / nos"
+                        required
+                    >
+                    <datalist id="unit_opts_{{ a.id }}">
+                        {% set opts = unit_suggestions_by_activity_id.get(a.id, []) %}
+                        {% for u in opts %}
+                            <option value="{{ u }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </td>
+
+                <!-- PLANNED TIME (DISPLAY) -->
+                <td>
+                    <input
+                        class="activity-planned-display"
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        name="planned_time_display"
+                        value="{{ time_plan_display_by_activity_id.get(a.id, 0) }}"
+                        required
+                        title="Planned time in the selected unit. Stored internally as hours."
+                    >
+                    <div class="help-text" style="margin-top:4px">
+                        <span class="activity-hpd-helper">1 day = {{ time_hours_per_day_by_activity_id.get(a.id, 8) }} working hours</span>
+                    </div>
+                    <input class="activity-planned-hours" type="hidden" name="planned_quantity_hours" value="{{ time_plan_hours_by_activity_id.get(a.id, 0) }}">
+                </td>
+
+                <!-- TIME UNIT SELECTOR -->
+                <td>
+                    <select class="activity-display-unit" name="display_unit" title="Display unit for time planning & execution (does not change stored hours).">
+                        {% set u = (time_display_unit_by_activity_id.get(a.id, 'hours')) %}
+                        <option value="hours" {% if u=='hours' %}selected{% endif %}>Hours (hrs)</option>
+                        <option value="days" {% if u=='days' %}selected{% endif %}>Days</option>
+                    </select>
+                </td>
+
+                <!-- HOURS PER DAY -->
+                <td>
+                    <input
+                        class="activity-hours-per-day"
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        name="hours_per_day"
+                        value="{{ time_hours_per_day_by_activity_id.get(a.id, 8) }}"
+                        title="Conversion factor: 1 day = X working hours"
+                        required
+                    >
+                </td>
+
+                <!-- START DATE -->
+                <td>
+                    <input
+                        type="text"
+                        name="start_date"
+                        value="{{ planned_map[a.id].start_date|ddmmyyyy if a.id in planned_map else '' }}"
+                        placeholder="DD/MM/YYYY"
+                        inputmode="numeric"
+                        pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
+                        required
+                    >
+                </td>
+
+                <!-- END DATE -->
+                <td>
+                    <input
+                        type="text"
+                        name="end_date"
+                        value="{{ planned_map[a.id].end_date|ddmmyyyy if a.id in planned_map else '' }}"
+                        placeholder="DD/MM/YYYY"
+                        inputmode="numeric"
+                        pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
+                        required
+                    >
+                </td>
+
+                <!-- ACTION -->
+                <td>
+                    <button class="btn-primary btn-sm" type="submit">
+                        {% if a.id in planned_map %}
+                            🔄 Update
+                        {% else %}
+                            💾 Save
+                        {% endif %}
+                    </button>
+                </td>
+
+            </form>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <!-- EMPTY STATE -->
+        <div style="padding:24px;text-align:center;opacity:0.7">
+            No activities added yet.<br>
+            Click <strong>“Add Activity”</strong> to begin planning.
+        </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script src="/static/js/activity_units.js"></script>
+    <script src="/static/js/activity_time_planning.js"></script>
+{% endblock %}

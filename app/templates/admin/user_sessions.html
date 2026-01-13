@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">{{ title }}</h1>
+
+<div class="card" style="margin-bottom:16px">
+    <strong>User:</strong> {{ user_obj.username }} <br>
+    <strong>Role:</strong> {{ user_obj.role | upper }}
+</div>
+
+<!-- ✅ TOTAL LOGGED-IN TIME (ADDED) -->
+<div class="card" style="margin-bottom:16px">
+    <strong>Total Logged-in Time:</strong>
+    {% if total_logged_in_seconds %}
+        {{ (total_logged_in_seconds // 3600) }}h
+        {{ ((total_logged_in_seconds % 3600) // 60) }}m
+    {% else %}
+        0h 0m
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Login / Logout History</h3>
+
+    {% if sessions %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Login Time</th>
+                    <th>Logout Time</th>
+                    <th>Session Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for s in sessions %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ s.login_time }}</td>
+                    <td>
+                        {% if s.logout_time %}
+                            {{ s.logout_time }}
+                        {% else %}
+                            <span class="badge badge-warning">Active Session</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.session_duration %}
+                            {{ (s.session_duration // 3600) }}h
+                            {{ ((s.session_duration % 3600) // 60) }}m
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No login history available.</p>
+    {% endif %}
+</div>
+
+<div style="margin-top:16px">
+    <a href="/admin/users" class="btn-secondary">
+        ← Back to Users
+    </a>
+</div>
+
+{% endblock %}

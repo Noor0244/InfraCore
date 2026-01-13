@@ -1,0 +1,2201 @@
+# app/routes/projects.py
+# --------------------------------------------------
+# Project CRUD + Management (ROLE-SECURED)
+# InfraCore
+# --------------------------------------------------
+
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import date, datetime
+import logging
+import json
+
+from app.db.session import SessionLocal
+from app.models.project import Project
+from app.models.project_user import ProjectUser
+from app.models.project_alignment import ProjectAlignmentPoint
+from app.models.user import User
+from app.utils.flash import flash
+from app.utils.audit_logger import log_action, model_to_dict
+from app.utils.road_classification import (
+    get_classification_metadata,
+    get_presets_for_engineering_type,
+)
+
+from app.utils.project_type_presets import (
+    get_presets_for_project_type,
+    serialize_presets,
+)
+from app.utils.activity_material_presets import get_activity_material_links, serialize_links
+from app.utils.road_preset_engine import get_road_preset
+from app.utils.template_filters import register_template_filters
+from app.utils.dates import parse_date_ddmmyyyy_or_iso
+
+# Material model used by presets
+from app.models.material import Material
+
+# Other models that reference projects - ensure we delete dependents safely
+from app.models.activity import Activity
+from app.models.project_activity import ProjectActivity
+from app.models.planned_material import PlannedMaterial
+from app.models.activity_material import ActivityMaterial
+from app.models.material_usage_daily import MaterialUsageDaily
+from app.models.material_usage import MaterialUsage
+from app.models.material_stock import MaterialStock
+from app.models.activity_progress import ActivityProgress
+from app.models.daily_entry import DailyEntry
+from app.models.material_vendor import MaterialVendor
+
+from app.utils.material_lead_time import (
+    compute_expected_delivery_date,
+    evaluate_delivery_risk,
+    resolve_effective_lead_time_days,
+    compute_reorder_suggestion,
+)
+
+from app.utils.road_classification import get_presets_for_engineering_type
+
+from app.utils.id_codes import activity_code_allocator
+
+# Helper: create project activity presets for road projects
+def _create_road_activity_presets(db: Session, project: Project):
+    if not project or project.project_type != 'Road':
+        return
+
+    road_type_text = (project.road_type or "")
+    if not road_type_text:
+        return
+
+    # Match flexible pavement variants (case-insensitive partial match)
+    if 'flexible' not in road_type_text.lower():
+        return
+
+    activities = [
+        "Clearing & Grubbing",
+        "Subgrade Preparation",
+        "Granular Sub-Base (GSB)",
+        "Wet Mix Macadam (WMM)",
+        "Prime Coat",
+        "Dense Bituminous Macadam (DBM)",
+        "Bituminous Concrete (BC)",
+        "Road Marking & Finishing",
+    ]
+
+    next_act_code = activity_code_allocator(db, Activity, project_id=int(project.id), width=6, project_width=6)
+
+    for name in activities:
+        # create Activity if missing
+        act = (
+            db.query(Activity)
+            .filter(Activity.project_id == project.id, Activity.name == name)
+            .first()
+        )
+        if not act:
+            act = Activity(name=name, is_standard=True, project_id=project.id)
+            act.code = next_act_code()
+            db.add(act)
+            db.flush()  # assign id without committing
+
+        # create ProjectActivity mapping if missing
+        pa = (
+            db.query(ProjectActivity)
+            .filter(ProjectActivity.project_id == project.id, ProjectActivity.activity_id == act.id)
+            .first()
+        )
+        if not pa:
+            pa = ProjectActivity(
+                project_id=project.id,
+                activity_id=act.id,
+                planned_quantity=0,
+                unit="unit",
+                start_date=project.planned_start_date,
+                end_date=project.planned_end_date,
+            )
+            db.add(pa)
+
+
+router = APIRouter(prefix="/projects", tags=["Projects"])
+templates = Jinja2Templates(directory="app/templates")
+register_template_filters(templates)
+
+logger = logging.getLogger(__name__)
+
+
+
+# ---------------- DB DEPENDENCY ----------------
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# ---------------- ROAD-TYPE PRESETS (JSON) ----------------
+@router.get("/road-presets")
+def road_presets(
+    request: Request,
+    engineering_type: str | None = None,
+    road_category: str | None = None,
+    road_extras_json: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Return standard presets for a given road engineering type.
+
+    Supports a data-driven engine keyed by Road Category + Engineering Type.
+    Falls back to legacy engineering-type-only presets.
+    """
+    result = get_road_preset(
+        road_category=road_category,
+        road_engineering_type=engineering_type,
+        road_extras_json=road_extras_json,
+        db=db,
+    )
+
+    if result:
+        return {
+            "preset_key": result.preset_key,
+            "road_category": (road_category or "").strip(),
+            "engineering_type": (engineering_type or "").strip(),
+            "activities": list(result.activities),
+            "materials": [
+                {
+                    "name": m.name,
+                    "default_unit": m.default_unit,
+                    "allowed_units": list(m.allowed_units),
+                }
+                for m in (result.materials or [])
+            ],
+            # Optional extra (UI-safe): activity→material suggestions
+            "activity_material_links": serialize_links(result.links or []),
+        }
+
+    preset = get_presets_for_engineering_type(engineering_type)
+    materials = preset.get("materials", [])
+    return {
+        "engineering_type": (engineering_type or "").strip(),
+        "activities": list(preset.get("activities", [])),
+        "materials": [
+            {
+                "name": m.name,
+                "default_unit": m.default_unit,
+                "allowed_units": list(m.allowed_units),
+            }
+            for m in materials
+        ],
+    }
+
+
+@router.get("/classification-metadata")
+def classification_metadata(request: Request):
+    """UI helper endpoint. Keeps template free of hard-coded classification lists."""
+    return get_classification_metadata()
+
+
+@router.get("/type-presets")
+def type_presets(request: Request, project_type: str | None = None):
+    """Return standard presets for a non-road Project Type (Building/Bridge/Flyover/Utility...)."""
+    preset = get_presets_for_project_type(project_type)
+    data = serialize_presets(preset)
+    return {
+        "project_type": (project_type or "").strip(),
+        "activities": data.get("activities", []),
+        "materials": data.get("materials", []),
+    }
+
+# ---------------- PROJECT ACCESS GUARD ----------------
+def get_project_access(db, project_id, user):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        return None, None
+    # If there's no authenticated user, just return project with no role
+    if not user:
+        return project, None
+
+    # System admin has full access
+    if user.get("role") == "admin":
+        return project, "admin"
+
+    # Creator is owner
+    if project.created_by == user.get("id"):
+        return project, "owner"
+
+    # Check explicit project membership
+    pu = (
+        db.query(ProjectUser)
+        .filter(
+            ProjectUser.project_id == project_id,
+            ProjectUser.user_id == user.get("id")
+        )
+        .first()
+    )
+
+    if pu:
+        return project, pu.role_in_project
+
+    # Not a member — allow read-only viewing for logged-in users
+    return project, "viewer"
+
+# =================================================
+# LIST PROJECTS
+# =================================================
+@router.get("", response_class=HTMLResponse)
+def projects_page(request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    base = (
+        db.query(Project)
+        .outerjoin(ProjectUser, Project.id == ProjectUser.project_id)
+        .filter(
+            Project.is_active == True,
+            Project.status == "active",
+            Project.completed_at.is_(None),
+        )
+    )
+
+    # Keep the UI clean from seed/test/preset projects (matches Daily Execution behavior)
+    base = base.filter(
+        ~func.lower(Project.name).like("%preset%"),
+        ~func.lower(Project.name).like("%test%"),
+    )
+
+    if user.get("role") == "admin":
+        projects = base.distinct().order_by(Project.id.desc()).all()
+    else:
+        projects = (
+            base.filter(
+                (Project.created_by == user["id"]) |
+                (ProjectUser.user_id == user["id"])
+            )
+            .distinct()
+            .order_by(Project.id.desc())
+            .all()
+        )
+
+    return templates.TemplateResponse(
+        "projects.html",
+        {"request": request, "projects": projects, "user": user}
+    )
+
+# =================================================
+# MANAGE PROJECTS
+# =================================================
+@router.get("/manage", response_class=HTMLResponse)
+def manage_projects_page(request: Request, view: str | None = "active", db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    query = db.query(Project)
+
+    # Keep the UI clean from seed/test/preset projects (matches Daily Execution behavior)
+    query = query.filter(
+        ~func.lower(Project.name).like("%preset%"),
+        ~func.lower(Project.name).like("%test%"),
+    )
+
+    # Admin can manage all projects; others manage their own.
+    if user.get("role") != "admin":
+        query = query.filter(Project.created_by == user["id"])
+
+    if view == "archived":
+        query = query.filter(Project.is_active == False)
+    else:
+        query = query.filter(Project.is_active == True)
+
+    projects = query.order_by(Project.created_at.desc()).all()
+
+    return templates.TemplateResponse(
+        "projects_manage.html",
+        {"request": request, "projects": projects, "view": view, "user": user}
+    )
+
+# =================================================
+# CREATE PROJECT
+# =================================================
+@router.get("/new", response_class=HTMLResponse)
+def new_project_page(request: Request):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    all_users: list[User] = []
+    if user.get("role") in ["admin", "manager"]:
+        db = SessionLocal()
+        try:
+            all_users = (
+                db.query(User)
+                .filter(User.is_active == True)  # noqa: E712
+                .order_by(User.username.asc())
+                .all()
+            )
+        except Exception:
+            all_users = []
+        finally:
+            db.close()
+
+    return templates.TemplateResponse(
+        "new_project.html",
+        {"request": request, "user": user, "all_users": all_users},
+    )
+
+@router.post("/create")
+def create_project_form(
+    request: Request,
+    wizard_id: int | None = Form(None),
+    # Restore required fields; keep road-specific optional with conditional validation
+    name: str = Form(...),
+    # Basic fields
+    project_code: str | None = Form(None),
+    client_authority: str | None = Form(None),
+    contractor: str | None = Form(None),
+    consultant_pmc: str | None = Form(None),
+
+    # Road-specific fields (classification)
+    road_category: str | None = Form(None),
+    road_engineering_type: str | None = Form(None),
+    # Backward compatibility (older forms)
+    road_type: str | None = Form(None),
+    lanes: int | None = Form(None),
+    road_width: float | None = Form(None),
+    carriageway_width: float | None = Form(None),
+    shoulder_type: str | None = Form(None),
+    median_type: str | None = Form(None),
+    road_length_km: float | None = Form(None),
+    road_construction_type: str | None = Form(None),
+
+    # Road metadata (optional)
+    road_name: str | None = Form(None),
+    lane_configuration: str | None = Form(None),
+    road_pavement_type: str | None = Form(None),
+    terrain_type: str | None = Form(None),
+    # Preset selections (optional; only used for Road projects)
+    activity_presets: list[str] | None = Form(None),
+    material_presets: list[str] | None = Form(None),
+    # Editable preset payloads from UI (preferred when present)
+    activity_presets_json: str | None = Form(None),
+    activity_preset_defs_json: str | None = Form(None),
+    material_presets_json: str | None = Form(None),
+    material_preset_defs_json: str | None = Form(None),
+    project_team_json: str | None = Form(None),
+    road_extras_json: str | None = Form(None),
+    # Concrete-specific (conditional when road_type == 'Concrete Road')
+    pavement_type: str | None = Form(None),
+    slab_thickness_mm: int | None = Form(None),
+    grade_of_concrete: str | None = Form(None),
+    joint_spacing_m: float | None = Form(None),
+    dowel_diameter_mm: int | None = Form(None),
+    tie_bar_diameter_mm: int | None = Form(None),
+
+    # Location
+    country: str = Form(...),
+    state: str | None = Form(None),
+    district: str | None = Form(None),
+    city: str = Form(...),
+    chainage_start: str | None = Form(None),
+    chainage_end: str | None = Form(None),
+    planned_start_date: str = Form(...),
+    planned_end_date: str = Form(...),
+    project_type: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    try:
+        planned_start_date = parse_date_ddmmyyyy_or_iso(planned_start_date)
+        planned_end_date = parse_date_ddmmyyyy_or_iso(planned_end_date)
+    except Exception:
+        flash(request, "Invalid date. Please use DD/MM/YYYY.", "error")
+        return RedirectResponse('/projects/new', status_code=302)
+
+    # Derive numeric lanes from lane_configuration if needed (2L/4L/6L)
+    derived_lanes = lanes
+    if derived_lanes is None and lane_configuration:
+        lc = (lane_configuration or "").strip().upper()
+        if lc.endswith("L") and lc[:-1].isdigit():
+            try:
+                derived_lanes = int(lc[:-1])
+            except Exception:
+                derived_lanes = lanes
+
+    # Validate conditional requirements
+    if project_type == 'Road':
+        missing = []
+        # Prefer new classification fields
+        effective_road_category = (road_category or road_type or '').strip()
+        effective_engineering_type = (road_engineering_type or '').strip()
+
+        if not effective_road_category:
+            missing.append('Road Category')
+        if not effective_engineering_type:
+            missing.append('Road Engineering Type')
+        if missing:
+            logger.warning("Create Project blocked (missing road fields): %s", ", ".join(missing))
+            flash(request, f"Missing required road fields: {', '.join(missing)}", "error")
+            return RedirectResponse('/projects/new', status_code=302)
+
+    # For non-road projects, provide safe defaults for non-nullable DB columns
+    # Store legacy `road_type` as the selected Road Category for compatibility.
+    safe_road_type = (road_category or road_type or '')
+    safe_lanes = derived_lanes or 0
+    safe_road_width = road_width or 0.0
+    safe_road_length_km = road_length_km or 0.0
+
+    project = Project(
+        name=name,
+        project_code=project_code or None,
+        client_authority=client_authority or None,
+        contractor=contractor or None,
+        consultant_pmc=consultant_pmc or None,
+        road_type=safe_road_type,
+        project_type=project_type,
+        road_construction_type=road_construction_type or None,
+        road_name=(road_name or None),
+        lane_configuration=(lane_configuration or None),
+        road_pavement_type=(road_pavement_type or None),
+        terrain_type=(terrain_type or None),
+        concrete_pavement_type=(pavement_type or None),
+        slab_thickness_mm=slab_thickness_mm,
+        grade_of_concrete=(grade_of_concrete or None),
+        joint_spacing_m=joint_spacing_m,
+        dowel_diameter_mm=dowel_diameter_mm,
+        tie_bar_diameter_mm=tie_bar_diameter_mm,
+        road_category=(road_category or safe_road_type) or None,
+        road_engineering_type=(road_engineering_type or None),
+        road_extras_json=road_extras_json or None,
+        lanes=safe_lanes,
+        road_width=safe_road_width,
+        carriageway_width=carriageway_width or None,
+        shoulder_type=shoulder_type or None,
+        median_type=median_type or None,
+        road_length_km=safe_road_length_km,
+        country=country,
+        state=state or None,
+        district=district or None,
+        city=city,
+        chainage_start=chainage_start or None,
+        chainage_end=chainage_end or None,
+        planned_start_date=planned_start_date,
+        planned_end_date=planned_end_date,
+        created_by=user["id"],
+        is_active=True,
+        status="active",
+    )
+
+    db.add(project)
+    try:
+        db.commit()
+        # Refresh to get id
+        db.refresh(project)
+    except Exception:
+        db.rollback()
+        logger.exception("Create Project failed during commit")
+        flash(request, "Failed to create project. Please try again.", "error")
+        return RedirectResponse('/projects/new', status_code=302)
+
+    # Audit: Project CREATE (best-effort)
+    log_action(
+        db=db,
+        request=request,
+        action="CREATE",
+        entity_type="Project",
+        entity_id=project.id,
+        description="Project created",
+        old_value=None,
+        new_value=model_to_dict(project),
+    )
+
+    # Auto-create activity presets for certain road construction types
+    try:
+        _create_road_activity_presets(db, project)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # Preset insertion
+    def _safe_parse_json_list(raw: str | None) -> list[str]:
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+            if isinstance(value, list):
+                return [str(v) for v in value]
+        except Exception:
+            return []
+        return []
+
+    def _safe_parse_json_material_defs(raw: str | None) -> list[dict]:
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+            if isinstance(value, list):
+                out: list[dict] = []
+                for item in value[:500]:
+                    if not isinstance(item, dict):
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    if not name:
+                        continue
+                    # support both keys
+                    unit = str(item.get("default_unit") or item.get("unit") or "unit").strip() or "unit"
+                    allowed_raw = item.get("allowed_units")
+                    allowed: list[str] = []
+                    if isinstance(allowed_raw, list):
+                        allowed = [str(u or "").strip() for u in allowed_raw]
+                        allowed = [u for u in allowed if u]
+                    if not allowed:
+                        allowed = [unit]
+                    if unit not in allowed:
+                        allowed.insert(0, unit)
+                    out.append({
+                        "name": name[:150],
+                        "default_unit": unit[:50],
+                        "allowed_units": allowed[:50],
+                    })
+                return out
+        except Exception:
+            return []
+        return []
+
+    def _safe_parse_json_activity_defs(raw: str | None) -> list[dict]:
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+            if isinstance(value, list):
+                out: list[dict] = []
+                for item in value[:500]:
+                    if not isinstance(item, dict):
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    if not name:
+                        continue
+                    start_time = str(item.get("start_time") or "").strip() or None
+                    end_time = str(item.get("end_time") or "").strip() or None
+                    enabled = bool(item.get("enabled", True))
+                    out.append(
+                        {
+                            "name": name[:150],
+                            "start_time": start_time[:10] if start_time else None,
+                            "end_time": end_time[:10] if end_time else None,
+                            "enabled": enabled,
+                        }
+                    )
+                return out
+        except Exception:
+            return []
+        return []
+
+    def _safe_parse_project_team(raw: str | None) -> list[dict]:
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+            if isinstance(value, list):
+                out: list[dict] = []
+                for item in value[:200]:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        uid = int(item.get("user_id") or 0)
+                    except Exception:
+                        uid = 0
+                    role_in_project = str(item.get("role_in_project") or "member").strip() or "member"
+                    if uid <= 0:
+                        continue
+                    out.append({"user_id": uid, "role_in_project": role_in_project[:50]})
+                return out
+        except Exception:
+            return []
+        return []
+
+    def _sanitize_names(values: list[str], max_items: int = 200) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for v in values[:max_items]:
+            name = (v or "").strip()
+            if not name:
+                continue
+            name = name[:150]
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(name)
+        return out
+
+    # Detailed type presets are defined in app/utils/project_type_presets.py
+
+    try:
+        if project_type == "Road":
+            # If wizard provides a concrete preset_key, snapshot it for admin safety checks.
+            try:
+                if (road_extras_json or "").strip():
+                    extras = json.loads(road_extras_json)
+                    if isinstance(extras, dict):
+                        pk = str(extras.get("preset_key") or "").strip() or None
+                        if pk:
+                            project.road_preset_key = pk
+            except Exception:
+                pass
+
+            road_preset = get_road_preset(
+                road_category=road_category,
+                road_engineering_type=road_engineering_type,
+                road_extras_json=road_extras_json,
+                db=db,
+            )
+            preset_def = (
+                {"activities": list(road_preset.activities), "materials": list(road_preset.materials)}
+                if road_preset
+                else get_presets_for_engineering_type(road_engineering_type)
+            )
+            standard_activity_set = {str(a).strip() for a in preset_def.get("activities", [])}
+
+            next_act_code = activity_code_allocator(db, Activity, project_id=int(project.id), width=6, project_width=6)
+
+            activity_defs = _safe_parse_json_activity_defs(activity_preset_defs_json)
+            activity_defs_by_name = {str(d.get("name") or "").strip().lower(): d for d in activity_defs}
+            selected_activities_from_defs = [
+                str(d.get("name") or "").strip()
+                for d in activity_defs
+                if bool(d.get("enabled", True)) and str(d.get("name") or "").strip()
+            ]
+
+            selected_activities_from_json = _sanitize_names(_safe_parse_json_list(activity_presets_json))
+            selected_activities = (
+                _sanitize_names(selected_activities_from_defs)
+                or selected_activities_from_json
+                or (activity_presets or list(preset_def.get("activities", [])))
+            )
+
+            for act_name in selected_activities:
+                exists = (
+                    db.query(Activity)
+                    .filter(Activity.project_id == project.id, Activity.name == act_name)
+                    .first()
+                )
+                if not exists:
+                    d = activity_defs_by_name.get(str(act_name or "").strip().lower())
+                    db.add(
+                        Activity(
+                            name=act_name,
+                            is_standard=(act_name in standard_activity_set),
+                            project_id=project.id,
+                            code=next_act_code(),
+                            default_start_time=(d.get("start_time") if isinstance(d, dict) else None),
+                            default_end_time=(d.get("end_time") if isinstance(d, dict) else None),
+                        )
+                    )
+
+            # Materials: UI sends a JSON list of names (optional). Otherwise fall back to checkbox values.
+            preset_materials = preset_def.get("materials", [])
+            preset_material_by_name = {
+                m.name: {
+                    "name": m.name,
+                    "default_unit": m.default_unit,
+                    "allowed_units": list(m.allowed_units),
+                }
+                for m in preset_materials
+            }
+
+            # Prefer full material defs payload (supports unit editing)
+            selected_material_defs_from_json = _safe_parse_json_material_defs(material_preset_defs_json)
+            if selected_material_defs_from_json:
+                selected_material_defs = selected_material_defs_from_json
+            else:
+                selected_material_names = _sanitize_names(_safe_parse_json_list(material_presets_json))
+                if not selected_material_names:
+                    selected_material_names = list(material_presets or [m.name for m in preset_materials])
+
+                selected_material_defs = [
+                    preset_material_by_name.get(
+                        n,
+                        {"name": n, "default_unit": "unit", "allowed_units": ["unit"]},
+                    )
+                    for n in selected_material_names
+                ]
+
+            # Explicit storage of selected presets
+            try:
+                project.preset_activities_json = json.dumps(selected_activities)
+                project.preset_materials_json = json.dumps(selected_material_defs)
+                if road_preset and not getattr(project, "road_preset_key", None):
+                    project.road_preset_key = getattr(road_preset, "preset_key", None)
+                db.add(project)
+                db.commit()
+            except Exception:
+                db.rollback()
+
+            for mdef in selected_material_defs:
+                mat_name = str(mdef.get("name") or "").strip()
+                if not mat_name:
+                    continue
+                unit = str(mdef.get("default_unit") or mdef.get("unit") or "unit").strip() or "unit"
+                allowed_units = mdef.get("allowed_units")
+                if not isinstance(allowed_units, list) or not allowed_units:
+                    allowed_units = [unit]
+                allowed_units = [str(u or "").strip() for u in allowed_units]
+                allowed_units = [u for u in allowed_units if u]
+                if unit not in allowed_units:
+                    allowed_units.insert(0, unit)
+
+                mat = db.query(Material).filter(Material.name == mat_name).first()
+                if not mat:
+                    mat = Material(
+                        name=mat_name,
+                        unit=unit,
+                        standard_unit=unit,
+                        allowed_units=json.dumps(allowed_units),
+                    )
+                    db.add(mat)
+                    db.commit()
+                    db.refresh(mat)
+                else:
+                    # Do not overwrite existing config unless missing
+                    changed = False
+                    if getattr(mat, "standard_unit", None) in (None, "") and unit:
+                        mat.standard_unit = unit
+                        changed = True
+                    if getattr(mat, "allowed_units", None) in (None, "") and allowed_units:
+                        mat.allowed_units = json.dumps(allowed_units)
+                        changed = True
+                    if changed:
+                        db.add(mat)
+                        db.commit()
+
+                pm_exists = (
+                    db.query(PlannedMaterial)
+                    .filter(PlannedMaterial.project_id == project.id, PlannedMaterial.material_id == mat.id)
+                    .first()
+                )
+                if not pm_exists:
+                    db.add(PlannedMaterial(project_id=project.id, material_id=mat.id, planned_quantity=0))
+
+            db.commit()
+
+        elif project_type:
+            # Prefer editable presets payloads coming from UI (works for ALL types)
+            activity_defs = _safe_parse_json_activity_defs(activity_preset_defs_json)
+            activity_defs_by_name = {str(d.get("name") or "").strip().lower(): d for d in activity_defs}
+            selected_activities_from_defs = [
+                str(d.get("name") or "").strip()
+                for d in activity_defs
+                if bool(d.get("enabled", True)) and str(d.get("name") or "").strip()
+            ]
+            selected_activities = _sanitize_names(selected_activities_from_defs) or _sanitize_names(_safe_parse_json_list(activity_presets_json))
+            selected_material_defs = _safe_parse_json_material_defs(material_preset_defs_json)
+
+            if not selected_activities and not selected_material_defs:
+                # Fallback to project-type standard presets
+                preset = serialize_presets(get_presets_for_project_type(project_type))
+                selected_activities = _sanitize_names([str(a) for a in (preset.get("activities") or [])])
+                selected_material_defs = _safe_parse_json_material_defs(json.dumps(preset.get("materials") or []))
+
+            next_act_code = activity_code_allocator(db, Activity, project_id=int(project.id), width=6, project_width=6)
+
+            # Activities
+            standard_activity_set = {a.lower() for a in selected_activities}
+            for act_name in selected_activities:
+                exists = (
+                    db.query(Activity)
+                    .filter(Activity.project_id == project.id, Activity.name == act_name)
+                    .first()
+                )
+                if not exists:
+                    d = activity_defs_by_name.get(str(act_name or "").strip().lower())
+                    db.add(
+                        Activity(
+                            name=act_name,
+                            is_standard=(act_name.lower() in standard_activity_set),
+                            project_id=project.id,
+                            code=next_act_code(),
+                            default_start_time=(d.get("start_time") if isinstance(d, dict) else None),
+                            default_end_time=(d.get("end_time") if isinstance(d, dict) else None),
+                        )
+                    )
+
+            # Store selected presets for audit/future UX (optional)
+            try:
+                project.preset_activities_json = json.dumps(selected_activities)
+                project.preset_materials_json = json.dumps(selected_material_defs)
+                db.add(project)
+                db.commit()
+            except Exception:
+                db.rollback()
+
+            # Materials (global material registry + planned material link)
+            for mdef in selected_material_defs:
+                mat_name = str(mdef.get("name") or "").strip()
+                if not mat_name:
+                    continue
+                unit = str(mdef.get("default_unit") or mdef.get("unit") or "unit").strip() or "unit"
+                allowed_units = mdef.get("allowed_units")
+                if not isinstance(allowed_units, list) or not allowed_units:
+                    allowed_units = [unit]
+                allowed_units = [str(u or "").strip() for u in allowed_units]
+                allowed_units = [u for u in allowed_units if u]
+                if unit not in allowed_units:
+                    allowed_units.insert(0, unit)
+
+                mat = db.query(Material).filter(Material.name == mat_name).first()
+                if not mat:
+                    mat = Material(
+                        name=mat_name,
+                        unit=unit,
+                        standard_unit=unit,
+                        allowed_units=json.dumps(allowed_units),
+                    )
+                    db.add(mat)
+                    db.commit()
+                    db.refresh(mat)
+                else:
+                    changed = False
+                    if getattr(mat, "standard_unit", None) in (None, "") and unit:
+                        mat.standard_unit = unit
+                        changed = True
+                    if getattr(mat, "allowed_units", None) in (None, "") and allowed_units:
+                        mat.allowed_units = json.dumps(allowed_units)
+                        changed = True
+                    if changed:
+                        db.add(mat)
+                        db.commit()
+
+                pm_exists = (
+                    db.query(PlannedMaterial)
+                    .filter(PlannedMaterial.project_id == project.id, PlannedMaterial.material_id == mat.id)
+                    .first()
+                )
+                if not pm_exists:
+                    db.add(PlannedMaterial(project_id=project.id, material_id=mat.id, planned_quantity=0))
+
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Create Project presets failed")
+
+    # Project team membership (optional; best-effort)
+    try:
+        team = _safe_parse_project_team(project_team_json)
+        if team:
+            allowed_roles = {"admin", "manager", "member", "viewer"}
+            is_system_admin = user.get("role") == "admin"
+            for item in team:
+                uid = int(item.get("user_id") or 0)
+                if uid <= 0:
+                    continue
+                role_in_project = str(item.get("role_in_project") or "member").strip().lower() or "member"
+                if role_in_project not in allowed_roles:
+                    role_in_project = "member"
+                if role_in_project == "admin" and not is_system_admin:
+                    role_in_project = "member"
+
+                existing = (
+                    db.query(ProjectUser)
+                    .filter(ProjectUser.project_id == project.id, ProjectUser.user_id == uid)
+                    .first()
+                )
+                if existing:
+                    existing.role_in_project = role_in_project
+                    db.add(existing)
+                else:
+                    db.add(ProjectUser(project_id=project.id, user_id=uid, role_in_project=role_in_project))
+            db.commit()
+    except Exception:
+        db.rollback()
+
+    flash(request, "Project created successfully", "success")
+
+    # If project creation came from the wizard, deactivate that wizard state (best-effort).
+    if wizard_id:
+        try:
+            from app.models.project_wizard import ProjectWizardState
+
+            db.query(ProjectWizardState).filter(
+                ProjectWizardState.id == int(wizard_id),
+                ProjectWizardState.user_id == int(user.get("id")),
+            ).update({ProjectWizardState.is_active: False})
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    return RedirectResponse(f"/projects/{project.id}", status_code=302)
+
+# =================================================
+# PROJECT OVERVIEW
+# =================================================
+def _build_project_preset_snapshot(project) -> dict:
+    def _safe_json_dict(raw: str | None) -> dict:
+        if not raw:
+            return {}
+        try:
+            value = json.loads(raw)
+            if isinstance(value, dict):
+                return value
+        except Exception:
+            return {}
+        return {}
+
+    def _safe_json_list(raw: str | None) -> list:
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+            if isinstance(value, list):
+                return value
+        except Exception:
+            return []
+        return []
+
+    extras = _safe_json_dict(getattr(project, "road_extras_json", None))
+
+    preset_key = (getattr(project, "road_preset_key", None) or "").strip() or None
+    if not preset_key:
+        preset_key = str(extras.get("preset_key") or "").strip() or None
+
+    activity_names: list[str] = []
+    for item in _safe_json_list(getattr(project, "preset_activities_json", None)):
+        name = str(item or "").strip()
+        if name:
+            activity_names.append(name)
+    activity_names = activity_names[:500]
+
+    material_defs: list[dict] = []
+    for item in _safe_json_list(getattr(project, "preset_materials_json", None)):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        unit = str(item.get("default_unit") or item.get("unit") or "unit").strip() or "unit"
+        material_defs.append({"name": name[:150], "unit": unit[:50]})
+    material_defs = material_defs[:500]
+
+    mapping_pairs_raw = extras.get("activity_material_map")
+    mapping_by_activity: dict[str, list[str]] = {}
+    if isinstance(mapping_pairs_raw, list):
+        for pair in mapping_pairs_raw[:2000]:
+            if not isinstance(pair, dict):
+                continue
+            ac = str(pair.get("activity_code") or "").strip()
+            mc = str(pair.get("material_code") or "").strip()
+            if not ac or not mc:
+                continue
+            mapping_by_activity.setdefault(ac, []).append(mc)
+        # de-dupe + sort
+        for ac, mcs in list(mapping_by_activity.items()):
+            uniq = sorted({str(x).strip() for x in mcs if str(x).strip()})
+            mapping_by_activity[ac] = uniq
+
+    return {
+        "project_type": getattr(project, "project_type", None),
+        "road_category": getattr(project, "road_category", None),
+        "road_engineering_type": getattr(project, "road_engineering_type", None),
+        "preset_key": preset_key,
+        "activity_names": activity_names,
+        "material_defs": material_defs,
+        "mapping_by_activity": dict(sorted(mapping_by_activity.items(), key=lambda kv: kv[0])),
+    }
+
+
+@router.get("/{project_id}", response_class=HTMLResponse)
+def project_overview_page(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+
+    # If project does not exist, go back to list
+    if not project:
+        flash(request, "Project not found", "error")
+        return RedirectResponse("/projects", status_code=302)
+
+    preset_snapshot = _build_project_preset_snapshot(project)
+
+    return templates.TemplateResponse(
+        "projects/overview.html",
+        {
+            "request": request,
+            "project": project,
+            "role": role,
+            "user": user,
+            "preset_snapshot": preset_snapshot,
+        }
+    )
+
+
+@router.get("/{project_id}/preset-snapshot.json", response_class=JSONResponse)
+def project_preset_snapshot_json(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        return JSONResponse({"error": "Please login to continue"}, status_code=401)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project:
+        return JSONResponse({"error": "Project not found"}, status_code=404)
+
+    snapshot = _build_project_preset_snapshot(project)
+    snapshot["project_id"] = int(project.id)
+    snapshot["project_name"] = str(project.name)
+    snapshot["access_role"] = role
+
+    return JSONResponse(snapshot)
+
+# =================================================
+# ✅ EDIT PROJECT (FIXED)
+# =================================================
+@router.get("/{project_id}/edit", response_class=HTMLResponse)
+def edit_project_page(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    project, role = get_project_access(db, project_id, user)
+
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit this project.", "error")
+        return RedirectResponse("/projects/manage", status_code=302)
+
+    return templates.TemplateResponse(
+        "edit_project.html",
+        {"request": request, "project": project, "user": user}
+    )
+
+@router.post("/{project_id}/update")
+def update_project_form(
+    project_id: int,
+    request: Request,
+    name: str = Form(...),
+    # Do not require road_type on update; road_type is treated as read-only once created
+    road_type: str | None = Form(None),
+    # New classification fields are immutable after creation
+    road_category: str | None = Form(None),
+    road_engineering_type: str | None = Form(None),
+    road_extras_json: str | None = Form(None),
+    # Basic fields (optional)
+    project_code: str | None = Form(None),
+    client_authority: str | None = Form(None),
+    contractor: str | None = Form(None),
+    consultant_pmc: str | None = Form(None),
+    lanes: int = Form(...),
+    road_width: float = Form(...),
+    road_length_km: float = Form(...),
+    carriageway_width: float | None = Form(None),
+    shoulder_type: str | None = Form(None),
+    median_type: str | None = Form(None),
+    country: str = Form(...),
+    state: str | None = Form(None),
+    district: str | None = Form(None),
+    city: str = Form(...),
+    chainage_start: str | None = Form(None),
+    chainage_end: str | None = Form(None),
+    planned_start_date: str = Form(...),
+    planned_end_date: str = Form(...),
+    project_type: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    project, role = get_project_access(db, project_id, user)
+
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to update this project.", "error")
+        return RedirectResponse("/projects/manage", status_code=302)
+
+    try:
+        planned_start_date = parse_date_ddmmyyyy_or_iso(planned_start_date)
+        planned_end_date = parse_date_ddmmyyyy_or_iso(planned_end_date)
+    except Exception:
+        flash(request, "Invalid date. Please use DD/MM/YYYY.", "error")
+        return RedirectResponse(f"/projects/{project_id}/edit", status_code=302)
+
+    # Strict immutability: never allow classification changes after creation.
+    submitted_category = (road_category or "").strip()
+    submitted_engineering = (road_engineering_type or "").strip()
+    if submitted_category and submitted_category != ((project.road_category or "").strip()):
+        flash(request, "Road Category cannot be changed after creation.", "error")
+        return RedirectResponse(f"/projects/{project_id}/edit", status_code=302)
+    if submitted_engineering and submitted_engineering != ((project.road_engineering_type or "").strip()):
+        flash(request, "Road Engineering Type cannot be changed after creation.", "error")
+        return RedirectResponse(f"/projects/{project_id}/edit", status_code=302)
+    if (road_extras_json or "").strip() and (road_extras_json or "").strip() != ((project.road_extras_json or "").strip()):
+        flash(request, "Road classification details are locked after creation.", "error")
+        return RedirectResponse(f"/projects/{project_id}/edit", status_code=302)
+
+    old = model_to_dict(project)
+
+    project.name = name
+    project.project_code = (project_code or None)
+    project.client_authority = (client_authority or None)
+    project.contractor = (contractor or None)
+    project.consultant_pmc = (consultant_pmc or None)
+    # Preserve existing road_type and project_type (immutable)
+    # Do NOT overwrite `project.project_type` or `project.road_type` from the form.
+    project.lanes = lanes
+    project.road_width = road_width
+    project.road_length_km = road_length_km
+    project.carriageway_width = carriageway_width
+    project.shoulder_type = (shoulder_type or None)
+    project.median_type = (median_type or None)
+    project.country = country
+    project.state = (state or None)
+    project.district = (district or None)
+    project.city = city
+    project.chainage_start = (chainage_start or None)
+    project.chainage_end = (chainage_end or None)
+    project.planned_start_date = planned_start_date
+    project.planned_end_date = planned_end_date
+
+    db.commit()
+
+    # Audit: Project UPDATE (best-effort)
+    log_action(
+        db=db,
+        request=request,
+        action="UPDATE",
+        entity_type="Project",
+        entity_id=project.id,
+        description="Project updated",
+        old_value=old,
+        new_value=model_to_dict(project),
+    )
+    flash(request, "Project updated successfully", "success")
+    return RedirectResponse("/projects/manage", status_code=302)
+
+
+# =================================================
+# PROJECT MODULE ROUTES (lightweight guards / redirects)
+# Ensure template paths exist to avoid 404s
+# =================================================
+@router.get("/{project_id}/materials", response_class=HTMLResponse)
+def project_materials_page(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project:
+        flash(request, "Project not found", "error")
+        return RedirectResponse("/projects", status_code=302)
+
+    # Planned materials for this project
+    planned_rows = (
+        db.query(PlannedMaterial)
+        .filter(PlannedMaterial.project_id == project_id)
+        .all()
+    )
+
+    planned_materials: list[dict[str, object]] = []
+    planned_name_keys: set[str] = set()
+    for pm in planned_rows:
+        mat = pm.material
+        if not mat:
+            continue
+        planned_materials.append({
+            "planned_material_id": int(pm.id),
+            "material_id": int(mat.id),
+            "name": mat.name,
+            "unit": getattr(mat, "unit", "") or "",
+            "standard_unit": getattr(mat, "standard_unit", None),
+            "allowed_units": (mat.get_allowed_units() if hasattr(mat, "get_allowed_units") else []),
+            "planned_quantity": float(pm.planned_quantity or 0),
+        })
+        planned_name_keys.add((mat.name or "").strip().lower())
+
+    # Suggested (preset) materials not yet added
+    project_type = (project.project_type or "").strip() or "Building"
+    preset_material_defs: list[dict[str, object]] = []
+    try:
+        if project_type.lower() == "road":
+            preset_def = get_presets_for_engineering_type(project.road_engineering_type)
+            for m in (preset_def.get("materials") or []):
+                try:
+                    name = str(getattr(m, "name", "") or "").strip()
+                    if not name:
+                        continue
+                    unit = str(getattr(m, "default_unit", "unit") or "unit").strip() or "unit"
+                    allowed = list(getattr(m, "allowed_units", []) or [])
+                    allowed = [str(u or "").strip() for u in allowed if str(u or "").strip()]
+                    if not allowed:
+                        allowed = [unit]
+                    if unit not in allowed:
+                        allowed.insert(0, unit)
+                    preset_material_defs.append({"name": name, "default_unit": unit, "allowed_units": allowed})
+                except Exception:
+                    continue
+        else:
+            preset = serialize_presets(get_presets_for_project_type(project_type))
+            preset_material_defs = list(preset.get("materials") or [])
+    except Exception:
+        preset_material_defs = []
+
+    suggested_material_defs = []
+    for mdef in preset_material_defs:
+        name = str(mdef.get("name") or "").strip()
+        if not name:
+            continue
+        if name.strip().lower() in planned_name_keys:
+            continue
+        suggested_material_defs.append(mdef)
+
+    # Who can edit
+    can_edit = role in ["owner", "admin", "manager"]
+
+    return templates.TemplateResponse(
+        "project_materials.html",
+        {
+            "request": request,
+            "user": user,
+            "project": project,
+            "role": role,
+            "can_edit": can_edit,
+            "planned_materials": planned_materials,
+            "suggested_material_defs": suggested_material_defs,
+        },
+    )
+
+
+@router.post("/{project_id}/materials/add")
+async def project_materials_add(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit project materials.", "error")
+        return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+    form = await request.form()
+
+    # Accept either a selected preset name or custom fields
+    preset_name = str(form.get("preset_material_name") or "").strip()
+    custom_name = str(form.get("custom_name") or "").strip()
+    custom_unit = str(form.get("custom_unit") or "").strip() or "unit"
+    custom_allowed = str(form.get("custom_allowed_units") or "").strip()
+
+    mdef: dict[str, object] = {}
+    if preset_name:
+        # Resolve the selected preset material to a full definition (unit + allowed units)
+        pt = (project.project_type or "").strip() or "Building"
+        resolved: dict[str, object] | None = None
+        try:
+            if pt.lower() == "road":
+                preset_def = get_presets_for_engineering_type(project.road_engineering_type)
+                for m in (preset_def.get("materials") or []):
+                    name = str(getattr(m, "name", "") or "").strip()
+                    if name.lower() != preset_name.lower():
+                        continue
+                    unit = str(getattr(m, "default_unit", "unit") or "unit").strip() or "unit"
+                    allowed = list(getattr(m, "allowed_units", []) or [])
+                    allowed = [str(u or "").strip() for u in allowed if str(u or "").strip()]
+                    if not allowed:
+                        allowed = [unit]
+                    if unit not in allowed:
+                        allowed.insert(0, unit)
+                    resolved = {"name": name, "default_unit": unit, "allowed_units": allowed}
+                    break
+            else:
+                preset = serialize_presets(get_presets_for_project_type(pt))
+                for m in (preset.get("materials") or []):
+                    name = str(m.get("name") or "").strip()
+                    if name.lower() != preset_name.lower():
+                        continue
+                    resolved = m
+                    break
+        except Exception:
+            resolved = None
+
+        if resolved:
+            mdef = resolved
+        else:
+            mdef = {"name": preset_name, "default_unit": "unit", "allowed_units": ["unit"]}
+    elif custom_name:
+        allowed_units = [u.strip() for u in custom_allowed.split(",") if u.strip()] if custom_allowed else [custom_unit]
+        if custom_unit not in allowed_units:
+            allowed_units.insert(0, custom_unit)
+        mdef = {"name": custom_name, "default_unit": custom_unit, "allowed_units": allowed_units}
+
+    mat_name = str(mdef.get("name") or "").strip()
+    if not mat_name:
+        flash(request, "Please select a preset material or enter a custom material.", "warning")
+        return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+    unit = str(mdef.get("default_unit") or mdef.get("unit") or "unit").strip() or "unit"
+    allowed_units = mdef.get("allowed_units")
+    if not isinstance(allowed_units, list) or not allowed_units:
+        allowed_units = [unit]
+    allowed_units = [str(u or "").strip() for u in allowed_units]
+    allowed_units = [u for u in allowed_units if u]
+    if unit not in allowed_units:
+        allowed_units.insert(0, unit)
+
+    try:
+        mat = db.query(Material).filter(Material.name == mat_name).first()
+        if not mat:
+            mat = Material(
+                name=mat_name,
+                unit=unit,
+                standard_unit=unit,
+                allowed_units=json.dumps(allowed_units),
+            )
+            db.add(mat)
+            db.commit()
+            db.refresh(mat)
+        else:
+            changed = False
+            if getattr(mat, "standard_unit", None) in (None, "") and unit:
+                mat.standard_unit = unit
+                changed = True
+            if getattr(mat, "allowed_units", None) in (None, "") and allowed_units:
+                mat.allowed_units = json.dumps(allowed_units)
+                changed = True
+            if changed:
+                db.add(mat)
+                db.commit()
+
+        pm_exists = (
+            db.query(PlannedMaterial)
+            .filter(PlannedMaterial.project_id == project.id, PlannedMaterial.material_id == mat.id)
+            .first()
+        )
+        if not pm_exists:
+            db.add(PlannedMaterial(project_id=project.id, material_id=mat.id, planned_quantity=0))
+            db.commit()
+
+        flash(request, f"Material added: {mat.name}", "success")
+    except Exception:
+        db.rollback()
+        flash(request, "Failed to add material.", "error")
+
+    return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+
+@router.post("/{project_id}/materials/update")
+async def project_materials_update(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit project materials.", "error")
+        return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+    form = await request.form()
+    pm_id = int(form.get("planned_material_id") or 0)
+    qty_raw = str(form.get("planned_quantity") or "0").strip()
+    try:
+        qty = float(qty_raw)
+    except Exception:
+        qty = 0.0
+    if qty < 0:
+        qty = 0.0
+
+    pm = (
+        db.query(PlannedMaterial)
+        .filter(PlannedMaterial.id == pm_id, PlannedMaterial.project_id == project_id)
+        .first()
+    )
+    if not pm:
+        flash(request, "Planned material not found.", "error")
+        return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+    try:
+        pm.planned_quantity = qty
+        db.add(pm)
+        db.commit()
+        flash(request, "Planned quantity updated.", "success")
+    except Exception:
+        db.rollback()
+        flash(request, "Failed to update planned quantity.", "error")
+
+    return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+
+@router.post("/{project_id}/materials/remove")
+async def project_materials_remove(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit project materials.", "error")
+        return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+    form = await request.form()
+    pm_id = int(form.get("planned_material_id") or 0)
+
+    pm = (
+        db.query(PlannedMaterial)
+        .filter(PlannedMaterial.id == pm_id, PlannedMaterial.project_id == project_id)
+        .first()
+    )
+    if not pm:
+        flash(request, "Planned material not found.", "error")
+        return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+    try:
+        db.delete(pm)
+        db.commit()
+        flash(request, "Material removed from project.", "success")
+    except Exception:
+        db.rollback()
+        flash(request, "Failed to remove material.", "error")
+
+    return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
+
+
+@router.get("/{project_id}/activity-materials", response_class=HTMLResponse)
+def project_activity_materials_page(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project:
+        flash(request, "Project not found", "error")
+        return RedirectResponse("/projects", status_code=302)
+
+    can_edit = role in ["owner", "admin", "manager"]
+    can_edit_lead_time = role in ["admin", "manager"] or (user.get("role") in ["admin", "manager"])
+
+    activities = (
+        db.query(Activity)
+        .filter(Activity.project_id == project_id)
+        .order_by(Activity.name.asc())
+        .all()
+    )
+
+    planned_rows = (
+        db.query(PlannedMaterial)
+        .filter(PlannedMaterial.project_id == project_id)
+        .all()
+    )
+    planned_materials = [pm.material for pm in planned_rows if pm.material]
+    planned_materials = sorted(planned_materials, key=lambda m: (m.name or "").lower())
+
+    mappings = (
+        db.query(ActivityMaterial, Activity, Material, MaterialVendor)
+        .join(Activity, Activity.id == ActivityMaterial.activity_id)
+        .join(Material, Material.id == ActivityMaterial.material_id)
+        .outerjoin(MaterialVendor, MaterialVendor.id == ActivityMaterial.vendor_id)
+        .filter(Activity.project_id == project_id)
+        .order_by(Activity.name.asc(), Material.name.asc())
+        .all()
+    )
+
+    # Schedule baseline (for delivery risk)
+    pa_rows = (
+        db.query(ProjectActivity)
+        .filter(ProjectActivity.project_id == project_id)
+        .all()
+    )
+    start_by_activity_id = {int(pa.activity_id): pa.start_date for pa in pa_rows}
+    planned_qty_by_activity_id = {int(pa.activity_id): float(pa.planned_quantity or 0.0) for pa in pa_rows}
+
+    # Vendors by material
+    planned_material_ids = sorted({int(m.id) for m in planned_materials})
+    vendor_rows = []
+    if planned_material_ids:
+        vendor_rows = (
+            db.query(MaterialVendor)
+            .filter(MaterialVendor.material_id.in_(planned_material_ids))
+            .order_by(MaterialVendor.is_active.desc(), MaterialVendor.vendor_name.asc())
+            .all()
+        )
+    vendors_by_material_id: dict[int, list[MaterialVendor]] = {}
+    vendors_by_material_json: dict[str, list[dict[str, object]]] = {}
+    for v in vendor_rows:
+        vendors_by_material_id.setdefault(int(v.material_id), []).append(v)
+        vendors_by_material_json.setdefault(str(int(v.material_id)), []).append(
+            {
+                "id": int(v.id),
+                "vendor_name": str(v.vendor_name or ""),
+                "lead_time_days": int(v.lead_time_days or 0),
+                "is_active": bool(v.is_active),
+            }
+        )
+
+    # Stock by material for reorder suggestion
+    stock_rows = []
+    if planned_material_ids:
+        stock_rows = (
+            db.query(MaterialStock)
+            .filter(MaterialStock.project_id == project_id, MaterialStock.material_id.in_(planned_material_ids))
+            .all()
+        )
+    stock_by_material_id = {int(s.material_id): s for s in stock_rows}
+
+    mapping_rows: list[dict[str, object]] = []
+    mapped_activity_ids: set[int] = set()
+    today = date.today()
+    for am, act, mat, vendor in mappings:
+        activity_start = start_by_activity_id.get(int(act.id))
+
+        vendor_lead = int(getattr(vendor, "lead_time_days", 0) or 0) if vendor else None
+        mat_default = getattr(mat, "default_lead_time_days", None)
+        mat_legacy = getattr(mat, "lead_time_days", None)
+
+        effective_lead = resolve_effective_lead_time_days(
+            lead_time_days_override=getattr(am, "lead_time_days_override", None),
+            vendor_lead_time_days=vendor_lead,
+            material_default_lead_time_days=mat_default,
+            material_legacy_lead_time_days=mat_legacy,
+        )
+
+        od = getattr(am, "order_date", None)
+        expected = getattr(am, "expected_delivery_date", None) or compute_expected_delivery_date(od, effective_lead)
+        check = evaluate_delivery_risk(
+            activity_start_date=activity_start,
+            order_date=od,
+            expected_delivery_date=expected,
+            today=today,
+        )
+
+        planned_qty = float(planned_qty_by_activity_id.get(int(act.id), 0.0) or 0.0)
+        required_qty = planned_qty * float(am.consumption_rate or 0.0)
+        stock = stock_by_material_id.get(int(mat.id))
+        available = float(getattr(stock, "quantity_available", 0.0) or 0.0) if stock else 0.0
+        reorder_hint = compute_reorder_suggestion(
+            available_qty=available,
+            required_qty=required_qty,
+            unit_label=(mat.unit or None),
+        )
+
+        mapping_rows.append(
+            {
+                "id": int(am.id),
+                "activity_id": int(act.id),
+                "activity": act.name,
+                "material_id": int(mat.id),
+                "material": mat.name,
+                "consumption_rate": float(am.consumption_rate or 0),
+
+                "activity_start_date": activity_start,
+                "vendor_id": int(getattr(am, "vendor_id", 0) or 0) or None,
+                "vendor_name": getattr(vendor, "vendor_name", None) if vendor else None,
+                "order_date": od,
+                "lead_time_days": int(effective_lead or 0),
+                "lead_time_override": getattr(am, "lead_time_days_override", None),
+                "expected_delivery_date": check.expected_delivery_date,
+                "material_status": check.status,
+                "material_is_risk": bool(check.is_risk),
+                "material_days_late": int(check.days_late or 0),
+
+                "available_qty": available,
+                "required_qty": required_qty,
+                "reorder_hint": reorder_hint,
+            }
+        )
+        mapped_activity_ids.add(int(act.id))
+
+    unmapped_activities = [a for a in activities if int(a.id) not in mapped_activity_ids]
+
+    return templates.TemplateResponse(
+        "project_activity_materials.html",
+        {
+            "request": request,
+            "user": user,
+            "project": project,
+            "role": role,
+            "can_edit": can_edit,
+            "can_edit_lead_time": can_edit_lead_time,
+            "activities": activities,
+            "planned_materials": planned_materials,
+            "mapping_rows": mapping_rows,
+            "unmapped_activities": unmapped_activities,
+            "vendors_by_material_id": vendors_by_material_id,
+            "vendors_by_material_json": vendors_by_material_json,
+            "today": today,
+        },
+    )
+
+
+@router.post("/{project_id}/activity-materials/add")
+async def project_activity_materials_add(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit activity-material mappings.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    form = await request.form()
+    try:
+        activity_id = int(form.get("activity_id") or 0)
+        material_id = int(form.get("material_id") or 0)
+        rate = float(str(form.get("consumption_rate") or "0").strip() or 0)
+    except Exception:
+        activity_id, material_id, rate = 0, 0, 0.0
+
+    # Optional vendor + lead time planning fields
+    try:
+        vendor_id = int(form.get("vendor_id") or 0)
+    except Exception:
+        vendor_id = 0
+    vendor_id = vendor_id or None
+
+    order_date_raw = str(form.get("order_date") or "").strip()
+    order_date = None
+    if order_date_raw:
+        try:
+            order_date = parse_date_ddmmyyyy_or_iso(order_date_raw)
+        except Exception:
+            order_date = None
+
+    lt_override_raw = str(form.get("lead_time_days_override") or "").strip()
+    lead_time_days_override = None
+    if lt_override_raw != "":
+        try:
+            lead_time_days_override = int(float(lt_override_raw))
+        except Exception:
+            lead_time_days_override = None
+        if lead_time_days_override is not None and lead_time_days_override < 0:
+            lead_time_days_override = 0
+
+    activity = db.query(Activity).filter(Activity.id == activity_id, Activity.project_id == project_id).first()
+    material = db.query(Material).filter(Material.id == material_id).first()
+    if not activity or not material:
+        flash(request, "Invalid activity or material.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    existing = (
+        db.query(ActivityMaterial)
+        .filter(ActivityMaterial.activity_id == activity_id, ActivityMaterial.material_id == material_id)
+        .first()
+    )
+    if existing:
+        flash(request, "Mapping already exists.", "warning")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    # Resolve vendor/material lead time
+    vendor = None
+    if vendor_id:
+        vendor = db.query(MaterialVendor).filter(MaterialVendor.id == vendor_id, MaterialVendor.material_id == material_id).first()
+        if not vendor:
+            vendor_id = None
+
+    effective_lt = resolve_effective_lead_time_days(
+        lead_time_days_override=lead_time_days_override,
+        vendor_lead_time_days=(vendor.lead_time_days if vendor else None),
+        material_default_lead_time_days=getattr(material, "default_lead_time_days", None),
+        material_legacy_lead_time_days=getattr(material, "lead_time_days", None),
+    )
+    expected = compute_expected_delivery_date(order_date, effective_lt)
+
+    # Activity start for risk check
+    pa = (
+        db.query(ProjectActivity)
+        .filter(ProjectActivity.project_id == project_id, ProjectActivity.activity_id == activity_id)
+        .first()
+    )
+    activity_start = pa.start_date if pa else None
+    check = evaluate_delivery_risk(
+        activity_start_date=activity_start,
+        order_date=order_date,
+        expected_delivery_date=expected,
+        today=date.today(),
+    )
+
+    try:
+        db.add(
+            ActivityMaterial(
+                activity_id=activity_id,
+                material_id=material_id,
+                consumption_rate=max(rate, 0.0),
+                vendor_id=vendor_id,
+                order_date=order_date,
+                lead_time_days_override=lead_time_days_override,
+                lead_time_days=int(effective_lt or 0),
+                expected_delivery_date=check.expected_delivery_date,
+                is_material_risk=bool(check.is_risk),
+                updated_at=datetime.utcnow(),
+            )
+        )
+
+        pm_exists = (
+            db.query(PlannedMaterial)
+            .filter(PlannedMaterial.project_id == project_id, PlannedMaterial.material_id == material_id)
+            .first()
+        )
+        if not pm_exists:
+            db.add(PlannedMaterial(project_id=project_id, material_id=material_id, planned_quantity=0))
+
+        db.commit()
+        flash(request, "Mapping added.", "success")
+    except Exception:
+        db.rollback()
+        flash(request, "Failed to add mapping.", "error")
+
+    return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+
+@router.post("/{project_id}/activity-materials/update")
+async def project_activity_materials_update(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit activity-material mappings.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    form = await request.form()
+    try:
+        mapping_id = int(form.get("mapping_id") or 0)
+        rate = float(str(form.get("consumption_rate") or "0").strip() or 0)
+    except Exception:
+        mapping_id, rate = 0, 0.0
+
+    # Optional vendor + lead time planning fields
+    try:
+        vendor_id = int(form.get("vendor_id") or 0)
+    except Exception:
+        vendor_id = 0
+    vendor_id = vendor_id or None
+
+    order_date_raw = str(form.get("order_date") or "").strip()
+    order_date = None
+    if order_date_raw:
+        try:
+            order_date = parse_date_ddmmyyyy_or_iso(order_date_raw)
+        except Exception:
+            order_date = None
+
+    lt_override_raw = str(form.get("lead_time_days_override") or "").strip()
+    lead_time_days_override = None
+    if lt_override_raw != "":
+        try:
+            lead_time_days_override = int(float(lt_override_raw))
+        except Exception:
+            lead_time_days_override = None
+        if lead_time_days_override is not None and lead_time_days_override < 0:
+            lead_time_days_override = 0
+
+    row = (
+        db.query(ActivityMaterial)
+        .join(Activity, Activity.id == ActivityMaterial.activity_id)
+        .filter(ActivityMaterial.id == mapping_id, Activity.project_id == project_id)
+        .first()
+    )
+    if not row:
+        flash(request, "Mapping not found.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    # Lead time editing: admin/manager only (global or project role)
+    can_edit_lead_time = role in ["admin", "manager"] or (user.get("role") in ["admin", "manager"])
+
+    old_snapshot = model_to_dict(row)
+
+    try:
+        row.consumption_rate = max(rate, 0.0)
+
+        if can_edit_lead_time:
+            # Validate vendor belongs to material
+            material = db.query(Material).filter(Material.id == row.material_id).first()
+            vendor = None
+            if vendor_id:
+                vendor = (
+                    db.query(MaterialVendor)
+                    .filter(MaterialVendor.id == vendor_id, MaterialVendor.material_id == row.material_id)
+                    .first()
+                )
+                if not vendor:
+                    vendor_id = None
+
+            effective_lt = resolve_effective_lead_time_days(
+                lead_time_days_override=lead_time_days_override,
+                vendor_lead_time_days=(vendor.lead_time_days if vendor else None),
+                material_default_lead_time_days=getattr(material, "default_lead_time_days", None) if material else None,
+                material_legacy_lead_time_days=getattr(material, "lead_time_days", None) if material else None,
+            )
+
+            expected = compute_expected_delivery_date(order_date, effective_lt)
+            pa = (
+                db.query(ProjectActivity)
+                .filter(ProjectActivity.project_id == project_id, ProjectActivity.activity_id == row.activity_id)
+                .first()
+            )
+            activity_start = pa.start_date if pa else None
+            check = evaluate_delivery_risk(
+                activity_start_date=activity_start,
+                order_date=order_date,
+                expected_delivery_date=expected,
+                today=date.today(),
+            )
+
+            row.vendor_id = vendor_id
+            row.order_date = order_date
+            row.lead_time_days_override = lead_time_days_override
+            row.lead_time_days = int(effective_lt or 0)
+            row.expected_delivery_date = check.expected_delivery_date
+            row.is_material_risk = bool(check.is_risk)
+
+        row.updated_at = datetime.utcnow()
+        db.add(row)
+        db.commit()
+
+        # Audit vendor selection/lead time changes
+        new_snapshot = model_to_dict(row)
+        if can_edit_lead_time:
+            if (old_snapshot.get("vendor_id") != new_snapshot.get("vendor_id")):
+                log_action(
+                    db=db,
+                    request=request,
+                    action="UPDATE",
+                    entity_type="activity_material",
+                    entity_id=row.id,
+                    description=f"Vendor selection changed for activity-material mapping #{row.id}",
+                    old_value={"mapping": old_snapshot},
+                    new_value={"mapping": new_snapshot},
+                )
+            elif (
+                old_snapshot.get("lead_time_days_override") != new_snapshot.get("lead_time_days_override")
+                or old_snapshot.get("order_date") != new_snapshot.get("order_date")
+                or old_snapshot.get("lead_time_days") != new_snapshot.get("lead_time_days")
+            ):
+                log_action(
+                    db=db,
+                    request=request,
+                    action="UPDATE",
+                    entity_type="activity_material",
+                    entity_id=row.id,
+                    description=f"Lead time planning updated for activity-material mapping #{row.id}",
+                    old_value={"mapping": old_snapshot},
+                    new_value={"mapping": new_snapshot},
+                )
+
+        flash(request, "Mapping updated.", "success")
+    except Exception:
+        db.rollback()
+        flash(request, "Failed to update mapping.", "error")
+
+    return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+
+@router.post("/{project_id}/activity-materials/remove")
+async def project_activity_materials_remove(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit activity-material mappings.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    form = await request.form()
+    try:
+        mapping_id = int(form.get("mapping_id") or 0)
+    except Exception:
+        mapping_id = 0
+
+    row = (
+        db.query(ActivityMaterial)
+        .join(Activity, Activity.id == ActivityMaterial.activity_id)
+        .filter(ActivityMaterial.id == mapping_id, Activity.project_id == project_id)
+        .first()
+    )
+    if not row:
+        flash(request, "Mapping not found.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    try:
+        db.delete(row)
+        db.commit()
+        flash(request, "Mapping removed.", "success")
+    except Exception:
+        db.rollback()
+        flash(request, "Failed to remove mapping.", "error")
+
+    return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+
+@router.post("/{project_id}/activity-materials/apply-presets")
+def project_activity_materials_apply_presets(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to apply presets.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    activities = db.query(Activity).filter(Activity.project_id == project_id).all()
+    if not activities:
+        flash(request, "No activities found for this project.", "warning")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    pt = (project.project_type or "").strip() or "Building"
+
+    # Prefer data-driven Road preset mappings when available (category + engineering type + extras)
+    links = None
+    if pt.lower() == "road":
+        preset = get_road_preset(
+            road_category=getattr(project, "road_category", None),
+            road_engineering_type=getattr(project, "road_engineering_type", None),
+            road_extras_json=getattr(project, "road_extras_json", None),
+            db=db,
+        )
+        if preset and preset.links:
+            links = list(preset.links)
+
+    if links is None:
+        links = get_activity_material_links(pt, getattr(project, "road_engineering_type", None))
+
+    by_activity: dict[str, list] = {}
+    for link in links:
+        key = (link.activity or "").strip().lower()
+        if not key:
+            continue
+        by_activity.setdefault(key, []).append(link)
+
+    created = 0
+    try:
+        for act in activities:
+            key = (act.name or "").strip().lower()
+            if not key or key not in by_activity:
+                continue
+
+            for link in by_activity[key]:
+                m = link.material
+                mat_name = (m.name or "").strip()
+                if not mat_name:
+                    continue
+
+                unit = (m.default_unit or "unit").strip() or "unit"
+                allowed = [str(u or "").strip() for u in (m.allowed_units or []) if str(u or "").strip()]
+                if not allowed:
+                    allowed = [unit]
+                if unit not in allowed:
+                    allowed.insert(0, unit)
+
+                material = db.query(Material).filter(Material.name == mat_name).first()
+                if not material:
+                    material = Material(
+                        name=mat_name,
+                        unit=unit,
+                        standard_unit=unit,
+                        allowed_units=json.dumps(allowed),
+                    )
+                    db.add(material)
+                    db.commit()
+                    db.refresh(material)
+                else:
+                    changed = False
+                    if getattr(material, "standard_unit", None) in (None, "") and unit:
+                        material.standard_unit = unit
+                        changed = True
+                    if getattr(material, "allowed_units", None) in (None, "") and allowed:
+                        material.allowed_units = json.dumps(allowed)
+                        changed = True
+                    if changed:
+                        db.add(material)
+                        db.commit()
+
+                pm_exists = (
+                    db.query(PlannedMaterial)
+                    .filter(PlannedMaterial.project_id == project_id, PlannedMaterial.material_id == material.id)
+                    .first()
+                )
+                if not pm_exists:
+                    db.add(PlannedMaterial(project_id=project_id, material_id=material.id, planned_quantity=0))
+                    db.commit()
+
+                exists = (
+                    db.query(ActivityMaterial)
+                    .filter(ActivityMaterial.activity_id == act.id, ActivityMaterial.material_id == material.id)
+                    .first()
+                )
+                if exists:
+                    continue
+
+                db.add(
+                    ActivityMaterial(
+                        activity_id=int(act.id),
+                        material_id=int(material.id),
+                        consumption_rate=max(float(link.consumption_rate or 0), 0.0),
+                    )
+                )
+                db.commit()
+                created += 1
+    except Exception:
+        db.rollback()
+        flash(request, "Failed to apply preset mappings.", "error")
+        return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+    flash(request, f"Preset mappings applied. Added {created} mappings.", "success")
+    return RedirectResponse(f"/projects/{project_id}/activity-materials", status_code=302)
+
+
+@router.get("/{project_id}/documents", response_class=HTMLResponse)
+def project_documents_page(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project:
+        flash(request, "Project not found", "error")
+        return RedirectResponse("/projects", status_code=302)
+
+    # Documents module not implemented under /projects — keep URL valid by
+    # redirecting back to the project overview (avoids 404 while preserving UX)
+    return RedirectResponse(f"/projects/{project_id}", status_code=302)
+
+# =================================================
+# ARCHIVE / COMPLETE
+# =================================================
+@router.post("/{project_id}/archive")
+def archive_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    project, role = get_project_access(db, project_id, user)
+
+    # Allow owners, admins and managers to archive/restore
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to archive/restore this project.", "error")
+        return RedirectResponse("/projects/manage", status_code=302)
+
+    old = model_to_dict(project)
+
+    project.is_active = not project.is_active
+    project.status = "archived" if not project.is_active else "active"
+    db.commit()
+
+    log_action(
+        db=db,
+        request=request,
+        action="ARCHIVE",
+        entity_type="Project",
+        entity_id=project.id,
+        description=("Project restored" if project.is_active else "Project archived"),
+        old_value=old,
+        new_value=model_to_dict(project),
+    )
+
+    # User-facing message
+    if project.is_active:
+        flash(request, "Project restored successfully", "success")
+    else:
+        flash(request, "Project archived successfully", "success")
+
+    return RedirectResponse("/projects/manage", status_code=302)
+
+
+# =================================================
+# COMPLETE PROJECT
+# Marks a project completed (sets completed_at and status)
+# Accessible to owner/admin/manager
+# =================================================
+@router.post("/{project_id}/complete")
+def complete_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    project, role = get_project_access(db, project_id, user)
+
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to complete this project.", "error")
+        return RedirectResponse("/projects/manage", status_code=302)
+
+    project.completed_at = datetime.utcnow()
+    project.status = "completed"
+    db.commit()
+
+    flash(request, "Project marked as completed", "success")
+
+    return RedirectResponse(f"/projects/{project_id}", status_code=302)
+
+# =================================================
+# 🗑 DELETE PROJECT (FIXED FK ISSUE)
+# =================================================
+@router.post("/{project_id}/delete")
+def delete_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    project, role = get_project_access(db, project_id, user)
+
+    if not project or role != "admin":
+        flash(request, "Only admins can delete projects.", "error")
+        return RedirectResponse("/projects/manage", status_code=302)
+
+    old = model_to_dict(project)
+
+    # 🔥 DELETE DEPENDENCIES FIRST (explicit deletes to avoid FK errors)
+    # Use synchronize_session=False for performance and to avoid stale session issues
+    # Delete in required order to respect foreign key dependencies and
+    # to satisfy project deletion policy:
+    # 1) Project alignment points
+    db.query(ProjectAlignmentPoint).filter(ProjectAlignmentPoint.project_id == project_id).delete(synchronize_session=False)
+
+    # 2) ProjectUser entries
+    db.query(ProjectUser).filter(ProjectUser.project_id == project_id).delete(synchronize_session=False)
+
+    # 3) Other child tables (project-scoped)
+    # Rows that reference activities (material usages, daily entries, progress)
+    db.query(MaterialUsage).filter(MaterialUsage.project_id == project_id).delete(synchronize_session=False)
+    db.query(DailyEntry).filter(DailyEntry.project_id == project_id).delete(synchronize_session=False)
+    db.query(ActivityProgress).filter(ActivityProgress.project_id == project_id).delete(synchronize_session=False)
+
+    # Project-activity mappings and activities
+    db.query(ProjectActivity).filter(ProjectActivity.project_id == project_id).delete(synchronize_session=False)
+    db.query(Activity).filter(Activity.project_id == project_id).delete(synchronize_session=False)
+
+    # Material / stock / planning records
+    db.query(PlannedMaterial).filter(PlannedMaterial.project_id == project_id).delete(synchronize_session=False)
+    db.query(MaterialUsageDaily).filter(MaterialUsageDaily.project_id == project_id).delete(synchronize_session=False)
+    db.query(MaterialStock).filter(MaterialStock.project_id == project_id).delete(synchronize_session=False)
+
+    # Finally delete project object
+    db.delete(project)
+    db.commit()
+
+    log_action(
+        db=db,
+        request=request,
+        action="DELETE",
+        entity_type="Project",
+        entity_id=project_id,
+        description="Project deleted",
+        old_value=old,
+        new_value=None,
+    )
+
+    flash(request, "Project deleted successfully", "success")
+
+    return RedirectResponse("/projects/manage", status_code=302)

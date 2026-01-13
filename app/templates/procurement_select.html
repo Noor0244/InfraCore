@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Procurement</h1>
+
+<div class="card card--md card-pad">
+  <p style="color:var(--text-muted);margin-bottom:16px">Select a project to create and review procurement logs.</p>
+
+  {% if projects %}
+    <div style="display:flex;flex-direction:column;gap:12px">
+      {% for p in projects %}
+        <a
+          href="/procurement/{{ p.id }}"
+          style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:filter 0.2s ease;"
+          onmouseover="this.style.filter='brightness(1.05)'"
+          onmouseout="this.style.filter='none'"
+        >
+          <div>
+            <strong>{{ p.name }}</strong><br>
+            <span style="color:var(--text-muted);font-size:13px">{{ p.city }}, {{ p.state }}</span>
+          </div>
+          <span style="color:var(--text-muted)">➜</span>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p style="color:var(--text-muted)">No projects available.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

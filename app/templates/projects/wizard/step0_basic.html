@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">New Project (Step 0 of 5)</h1>
+<div class="help-text" style="margin-top:-8px">Basic info only. Road details come later.</div>
+
+<div class="card card--page">
+  <form method="post" action="/projects/wizard/start">
+    {% if wid %}<input type="hidden" name="wid" value="{{ wid }}">{% endif %}
+
+    <div class="form-grid">
+      <div>
+        <label>Project Name <span class="required">*</span></label>
+        <input type="text" name="name" value="{{ data.get('name','') }}" required>
+      </div>
+
+      <div>
+        <label>Project Code / Package No</label>
+        <input type="text" name="project_code" value="{{ data.get('project_code','') or '' }}">
+      </div>
+
+      <div>
+        <label>Client / Authority</label>
+        <input type="text" name="client_authority" value="{{ data.get('client_authority','') or '' }}">
+      </div>
+
+      <div>
+        <label>Contractor</label>
+        <input type="text" name="contractor" value="{{ data.get('contractor','') or '' }}">
+      </div>
+
+      <div>
+        <label>Consultant / PMC</label>
+        <input type="text" name="consultant_pmc" value="{{ data.get('consultant_pmc','') or '' }}">
+      </div>
+
+      <div>
+        <label>Country</label>
+        <input type="text" name="country" value="{{ data.get('country','India') }}">
+      </div>
+
+      <div>
+        <label>State</label>
+        <input type="text" name="state" value="{{ data.get('state','') or '' }}">
+        <div class="help-text">Used later to suggest SOR.</div>
+      </div>
+
+      <div>
+        <label>City <span class="required">*</span></label>
+        <input type="text" name="city" value="{{ data.get('city','') }}" required>
+      </div>
+
+      <div>
+        <label>Start Date <span class="required">*</span></label>
+        <input type="text" name="planned_start_date" value="{{ data.get('planned_start_date','') }}" placeholder="DD/MM/YYYY" required>
+      </div>
+
+      <div>
+        <label>End Date <span class="required">*</span></label>
+        <input type="text" name="planned_end_date" value="{{ data.get('planned_end_date','') }}" placeholder="DD/MM/YYYY" required>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-primary" type="submit">Next → Select Project Type</button>
+      <a class="btn" href="/projects">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

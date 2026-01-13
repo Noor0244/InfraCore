@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header" style="margin-bottom:24px">
+    <h1 class="page-title">{{ title }}</h1>
+</div>
+
+<div class="card" style="max-width:1100px;margin:auto;padding:24px">
+
+<!-- ================================================= -->
+<!-- USER SAVE FORM (UNCHANGED LOGIC) -->
+<!-- ================================================= -->
+<form
+    method="post"
+    action="{% if user_data %}/admin/users/{{ user_data.id }}/update{% else %}/admin/users/create{% endif %}"
+>
+
+    <h3 class="section-title">User Details</h3>
+
+    <div class="form-grid" style="margin-bottom:20px">
+
+        <div>
+            <label>Username</label>
+            {% if user_data %}
+                <input type="text" value="{{ user_data.username }}" disabled>
+            {% else %}
+                <input type="text" name="username" required>
+            {% endif %}
+        </div>
+
+        <div>
+            <label>Password {% if user_data %}(leave blank to keep same){% endif %}</label>
+            <input type="password" name="password" {% if not user_data %}required{% endif %}>
+        </div>
+
+        <div>
+            <label>System Role</label>
+            <select name="role" required>
+                <option value="user" {% if user_data and user_data.role == "user" %}selected{% endif %}>
+                    User
+                </option>
+                <option value="admin" {% if user_data and user_data.role == "admin" %}selected{% endif %}>
+                    Admin
+                </option>
+            </select>
+        </div>
+
+    </div>
+
+    <div style="margin-top:28px;display:flex;gap:12px">
+        <button
+            type="submit"
+            style="
+                background:#16a34a;
+                color:#fff;
+                padding:10px 18px;
+                border:none;
+                border-radius:6px;
+                font-weight:600;
+                cursor:pointer;
+            ">
+            💾 Save User
+        </button>
+
+        <a href="/admin/users"
+           style="
+               background:#374151;
+               color:#fff;
+               padding:10px 18px;
+               border-radius:6px;
+               text-decoration:none;
+               font-weight:500;
+           ">
+            Cancel
+        </a>
+    </div>
+
+</form>
+
+<!-- ================================================= -->
+<!-- PROJECT ASSIGNMENTS -->
+<!-- ================================================= -->
+{% if user_data %}
+<hr style="margin:32px 0">
+
+<h3 class="section-title">Project Assignments</h3>
+
+<!-- CURRENT ASSIGNMENTS -->
+<div class="card" style="margin-bottom:20px;padding:16px">
+
+    <h4 style="margin-top:0;margin-bottom:12px">Assigned Projects</h4>
+
+    {% if project_users %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Project</th>
+                <th style="width:160px">Role</th>
+                <th style="width:120px">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for pu in project_users %}
+            <tr>
+                <td><strong>{{ pu.project.name }}</strong></td>
+                <td>
+                    <span class="badge badge-info">
+                        {{ pu.role_in_project|capitalize }}
+                    </span>
+                </td>
+                <td>
+                    <form
+                        method="post"
+                        action="/admin/projects/{{ pu.project_id }}/users/{{ user_data.id }}/remove"
+                    >
+                        <button
+                            style="
+                                background:#dc2626;
+                                color:#fff;
+                                padding:5px 10px;
+                                border:none;
+                                border-radius:5px;
+                                cursor:pointer;
+                            ">
+                            Remove
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p style="opacity:0.7">No project assignments.</p>
+    {% endif %}
+</div>
+
+<!-- ADD TO PROJECT (✅ FIXED & WORKING) -->
+<div class="card" style="padding:16px">
+
+    <h4 style="margin-top:0;margin-bottom:12px">Add to Project</h4>
+
+    <form method="post" action="/admin/projects/assign-user">
+
+        <!-- REQUIRED -->
+        <input type="hidden" name="user_id" value="{{ user_data.id }}">
+
+        <div class="form-grid">
+
+            <div>
+                <label>Project</label>
+                <select name="project_id" required>
+                    {% for p in all_projects %}
+                        <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>Role in Project</label>
+                <select name="role_in_project">
+                    <option value="manager">Manager</option>
+                    <option value="member" selected>Member</option>
+                    <option value="viewer">Viewer</option>
+                </select>
+            </div>
+
+        </div>
+
+        <div style="margin-top:14px">
+            <button
+                type="submit"
+                style="
+                    background:#1f6feb;
+                    color:#fff;
+                    padding:8px 14px;
+                    border:none;
+                    border-radius:6px;
+                    font-weight:600;
+                    cursor:pointer;
+                ">
+                ➕ Assign to Project
+            </button>
+        </div>
+
+    </form>
+</div>
+{% endif %}
+
+</div>
+
+{% endblock %}

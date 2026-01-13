@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Add Report</h2>
+
+<form method="post">
+    <label>Type</label>
+    <select name="report_type" required>
+        <option value="">Select type</option>
+        <option value="Labour">Labour</option>
+        <option value="Machinery">Machinery</option>
+        <option value="Material">Material</option>
+    </select>
+
+    <label>Description</label>
+    <textarea name="description" rows="4" required></textarea>
+
+    <label>Date</label>
+    <input type="text" name="report_date" placeholder="DD/MM/YYYY" inputmode="numeric" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required>
+
+    <button type="submit" class="button">Save Report</button>
+    <a href="/reports" class="button secondary">Cancel</a>
+</form>
+{% endblock %}

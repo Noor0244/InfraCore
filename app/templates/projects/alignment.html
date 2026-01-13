@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="page-title">
+    Alignment & Levels — {{ project.name }}
+</h1>
+
+<p style="color: #666; margin-bottom: 16px;">
+    Chainage-wise centerline coordinates with OGL and FRL.
+</p>
+
+<!-- =========================
+     AUTO-GENERATE ALIGNMENT
+     ========================= -->
+<div class="card" style="max-width: 1200px; margin-bottom: 20px;">
+    <h3 style="margin-bottom: 10px;">Generate Alignment by Interval</h3>
+
+    <form method="post"
+          action="/projects/{{ project.id }}/design-data/alignment/generate"
+          style="display: flex; gap: 12px; align-items: center;">
+
+        <label for="interval_m" style="font-weight: 600;">
+            Interval (m):
+        </label>
+
+        <select name="interval_m" id="interval_m" required>
+            <option value="10">10 m</option>
+            <option value="25">25 m</option>
+            <option value="50">50 m</option>
+        </select>
+
+        <button type="submit" class="btn btn-primary">
+            Generate Alignment Points
+        </button>
+    </form>
+
+    <p style="margin-top: 8px; color: #777; font-size: 13px;">
+        Existing chainages will not be duplicated.
+    </p>
+</div>
+
+<!-- =========================
+     ALIGNMENT TABLE (EDITABLE)
+     ========================= -->
+<div class="card" style="max-width: 1200px;">
+
+{% if alignment_points|length == 0 %}
+
+    <p style="color: #999;">
+        No alignment data available yet.
+    </p>
+
+{% else %}
+
+<table class="table table-bordered table-sm">
+    <thead>
+        <tr>
+            <th>Chainage</th>
+            <th>Northing</th>
+            <th>Easting</th>
+            <th style="width: 140px;">OGL</th>
+            <th style="width: 140px;">FRL</th>
+            <th>Cut / Fill</th>
+            <th style="width: 90px;">Action</th>
+        </tr>
+    </thead>
+    <tbody>
+
+    {% for pt in alignment_points %}
+    <tr>
+        <form method="post"
+              action="/projects/{{ project.id }}/design-data/alignment/{{ pt.id }}/update">
+
+            <td>
+                {{ (pt.chainage_m // 1000) }}+{{ "%03d"|format(pt.chainage_m % 1000) }}
+            </td>
+
+            <td>{{ "%.3f"|format(pt.northing) }}</td>
+            <td>{{ "%.3f"|format(pt.easting) }}</td>
+
+            <td>
+                <input type="number"
+                       name="ogl"
+                       step="0.001"
+                       value="{{ "%.3f"|format(pt.ogl) }}"
+                       style="width: 120px;">
+            </td>
+
+            <td>
+                <input type="number"
+                       name="frl"
+                       step="0.001"
+                       value="{{ "%.3f"|format(pt.frl) }}"
+                       style="width: 120px;">
+            </td>
+
+            <td>
+                {% set diff = pt.frl - pt.ogl %}
+                {% if diff > 0 %}
+                    <span style="color: green;">
+                        Fill {{ "%.3f"|format(diff) }}
+                    </span>
+                {% elif diff < 0 %}
+                    <span style="color: red;">
+                        Cut {{ "%.3f"|format(diff|abs) }}
+                    </span>
+                {% else %}
+                    <span style="color: #666;">0.000</span>
+                {% endif %}
+            </td>
+
+            <td>
+                <button type="submit" class="btn btn-sm btn-primary">
+                    Save
+                </button>
+            </td>
+
+        </form>
+    </tr>
+    {% endfor %}
+
+    </tbody>
+</table>
+
+{% endif %}
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="/projects/{{ project.id }}/design-data" class="btn">
+        ← Back to Design Data
+    </a>
+</div>
+
+{% endblock %}

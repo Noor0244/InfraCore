@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    .exec-shell { max-width: 1200px; margin: 0 auto; }
+    .exec-hero { display:flex; align-items:flex-start; justify-content:space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .exec-hero h1 { margin: 0; }
+    .exec-sub { opacity: 0.78; margin-top: 6px; font-size: 13px; }
+
+    .exec-tools { display:flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .exec-search { min-width: 320px; max-width: 520px; width: 44vw; }
+    .exec-search input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.03); }
+    .exec-chips { display:flex; gap: 8px; flex-wrap: wrap; }
+    .chip { padding: 7px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.03); cursor: pointer; font-size: 12px; user-select: none; }
+    .chip.active { border-color: rgba(30,111,216,0.55); background: rgba(30,111,216,0.18); }
+
+    .exec-stats { display:flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .stat { border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); border-radius: 12px; padding: 10px 12px; min-width: 160px; }
+    .stat .k { font-size: 12px; opacity: 0.75; }
+    .stat .v { font-size: 18px; font-weight: 800; margin-top: 2px; }
+
+    .exec-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+    .proj-card { position: relative; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)); text-decoration: none; color: #fff; overflow: hidden; }
+    .proj-card:before { content:""; position:absolute; inset:-1px; background: radial-gradient(800px 220px at 30% 10%, rgba(30,111,216,0.20), transparent 60%); opacity: 0; transition: opacity 160ms ease; }
+    .proj-card:hover:before { opacity: 1; }
+    .proj-card:hover { border-color: rgba(30,111,216,0.35); }
+    .proj-top { position: relative; display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+    .proj-title { font-weight: 900; font-size: 15px; line-height: 1.2; }
+    .proj-meta { position: relative; margin-top: 8px; display:grid; gap: 6px; font-size: 12px; opacity: 0.86; }
+    .badge-row { position: relative; display:flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+    .badge { font-size: 11px; padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.03); }
+    .badge.blue { border-color: rgba(30,111,216,0.40); background: rgba(30,111,216,0.18); }
+    .badge.green { border-color: rgba(25,135,84,0.40); background: rgba(25,135,84,0.18); }
+    .proj-cta { position: relative; margin-top: 12px; display:flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .proj-cta .go { opacity: 0.85; font-size: 12px; }
+    .proj-cta .arrow { opacity: 0.70; font-weight: 900; }
+
+    .empty { border: 1px dashed rgba(255,255,255,0.16); background: rgba(255,255,255,0.02); border-radius: 14px; padding: 18px; }
+    .empty h3 { margin: 0; }
+    .empty p { opacity: 0.78; margin-top: 6px; }
+</style>
+
+<div class="exec-shell">
+    <div class="exec-hero">
+        <div>
+            <h1 class="page-title">Daily Execution</h1>
+            <div class="exec-sub">Pick a project to record Daily Work Execution (DPR) with validation, materials linkage, and audit trail.</div>
+        </div>
+        <div class="exec-tools">
+            <div class="exec-search">
+                <input id="projectSearch" type="text" placeholder="Search project by name, location, type…" autocomplete="off">
+            </div>
+            <div class="exec-chips" aria-label="Quick filters">
+                <span class="chip active" data-filter="all">All</span>
+                <span class="chip" data-filter="road">Road</span>
+                <span class="chip" data-filter="building">Building</span>
+                <span class="chip" data-filter="bridge">Bridge</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="exec-stats" aria-label="Summary">
+        <div class="stat"><div class="k">Visible projects</div><div class="v" id="visibleCount">0</div></div>
+        <div class="stat"><div class="k">Total projects</div><div class="v">{{ projects|length if projects else 0 }}</div></div>
+    </div>
+
+    {% if projects %}
+        <div class="exec-grid" id="projectGrid">
+            {% for p in projects %}
+                <a
+                    class="proj-card"
+                    href="/execution/{{ p.id }}"
+                    data-name="{{ (p.name or '')|lower }}"
+                    data-location="{{ ((p.city or '') ~ ' ' ~ (p.state or '') ~ ' ' ~ (p.country or ''))|lower }}"
+                    data-type="{{ (p.project_type or '')|lower }}"
+                >
+                    <div class="proj-top">
+                        <div>
+                            <div class="proj-title">{{ p.name }}</div>
+                            <div class="proj-meta">
+                                <div>📍 {{ p.city }}{% if p.state %}, {{ p.state }}{% endif %}</div>
+                                <div>🗓 {{ p.planned_start_date|ddmmyyyy }} → {{ p.planned_end_date|ddmmyyyy }}</div>
+                                <div>⛓ {{ p.chainage_start or '—' }} → {{ p.chainage_end or '—' }}</div>
+                            </div>
+                        </div>
+                        <div class="badge-row" style="justify-content:flex-end">
+                            <span class="badge blue">#{{ p.id }}</span>
+                            {% if p.project_type %}
+                                <span class="badge">{{ p.project_type }}</span>
+                            {% endif %}
+                            {% if p.road_type %}
+                                <span class="badge green">{{ p.road_type }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="proj-cta">
+                        <span class="go">Open DPR</span>
+                        <span class="arrow">→</span>
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+
+        <div class="empty" id="noResults" style="display:none; margin-top: 12px;">
+            <h3>No matching projects</h3>
+            <p>Try clearing the filter or searching with fewer words.</p>
+        </div>
+    {% else %}
+        <div class="empty">
+            <h3>No projects available for execution</h3>
+            <p>Create a project first, then plan activities to unlock the full DPR workflow.</p>
+            {% if user and user["role"] in ["admin","manager"] %}
+                <a href="/projects/new" class="btn-primary" style="margin-top:10px; display:inline-block">Create Project</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/execution_project_select.js"></script>
+{% endblock %}

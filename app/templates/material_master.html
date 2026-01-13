@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">Material Master</h1>
+    <div class="help-text">Define default lead time and manage vendors. Used by activity material planning (order → delivery → activity start).</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a href="/dashboard" class="btn">← Dashboard</a>
+  </div>
+</div>
+
+<div class="card" style="padding:16px;max-width:1100px">
+  {% if materials|length == 0 %}
+    <div style="opacity:0.8">No materials found yet. Add materials via the Materials API or project materials presets.</div>
+  {% else %}
+  <table class="table" style="margin:0">
+    <thead>
+      <tr>
+        <th style="width:34%">Material</th>
+        <th style="width:16%">Unit</th>
+        <th style="width:20%">Default Lead Time (days)
+          <span title="Used when no vendor is selected. Vendor lead time overrides this.">ⓘ</span>
+        </th>
+        <th style="width:14%">Vendors</th>
+        <th style="width:16%">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in materials %}
+      <tr>
+        <td>
+          <strong>{{ m.name }}</strong>
+          {% if m.category %}<div class="meta">{{ m.category }}</div>{% endif %}
+        </td>
+        <td>{{ m.unit }}</td>
+        <td>
+          <form method="post" action="/material-master/materials/update" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="material_id" value="{{ m.id }}" />
+            <input name="default_lead_time_days" type="number" step="1" min="0" value="{{ m.default_lead_time_days if m.default_lead_time_days is not none else '' }}" placeholder="(optional)" style="max-width:160px" />
+            <button class="btn-primary btn-sm" type="submit">Save</button>
+          </form>
+          <div class="help-text">Vendor overrides default. Leave blank to inherit legacy value if present.</div>
+        </td>
+        <td>
+          {% set vc = vendor_counts.get(m.id, 0) %}
+          <span class="badge badge-info">{{ vc }} active</span>
+        </td>
+        <td>
+          <a class="btn-secondary btn-sm" href="/material-master/materials/{{ m.id }}/vendors">Manage Vendors</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{% endblock %}

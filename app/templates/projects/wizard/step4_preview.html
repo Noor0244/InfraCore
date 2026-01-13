@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Preset Preview (Step 4 of 5)</h1>
+<div class="help-text" style="margin-top:-8px">Toggle optional activities, add custom items, then confirm.</div>
+
+<div class="card card--page">
+  {% if preset_title %}
+    <div style="font-weight:700;font-size:16px;margin-bottom:10px">{{ preset_title }}</div>
+  {% endif %}
+
+  <form method="post" action="/projects/wizard/preview">
+    <input type="hidden" name="wid" value="{{ wid }}">
+
+    <div class="preset-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="preset-card" style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-weight:700">Activities</div>
+          <div class="help-text">Non-optional are highlighted.</div>
+        </div>
+
+        {% for cat, acts in grouped_activities.items() %}
+          <details open style="margin-top:10px">
+            <summary style="cursor:pointer;font-weight:600">{{ cat }} ({{ acts|length }})</summary>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+              {% for a in acts %}
+                <label style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12)">
+                  <input type="checkbox" name="enabled_activity_codes" value="{{ a.activity_code }}" checked>
+                  <div style="flex:1">
+                    <div style="font-weight:600">{{ a.sequence_no }}. {{ a.activity_name }}</div>
+                    <div class="help-text">Code: {{ a.activity_code }}{% if not a.is_optional %} • <b>CRITICAL</b>{% endif %}</div>
+
+                    <details style="margin-top:8px">
+                      <summary style="cursor:pointer">Materials for this activity</summary>
+                      <div class="help-text" style="margin-top:6px">Unchecking a material removes it from this activity’s mapping.</div>
+                      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+                        {% set mapped_codes = mapping_by_activity_code.get(a.activity_code) or [] %}
+                        {% for m in materials %}
+                          <label style="display:flex;gap:8px;align-items:center">
+                            <input type="checkbox" name="selected_mappings" value="{{ a.activity_code }}|{{ m.material_code }}"
+                              {% if m.material_code in mapped_codes %}checked{% endif %}
+                            >
+                            <span>{{ m.material_name }}</span>
+                            <span class="help-text">({{ m.material_code }})</span>
+                          </label>
+                        {% endfor %}
+                      </div>
+                    </details>
+                  </div>
+                </label>
+              {% endfor %}
+            </div>
+          </details>
+        {% endfor %}
+
+        <div style="margin-top:12px">
+          <label>Add custom activity (optional)</label>
+          <input type="text" name="custom_activity" placeholder="e.g. Additional QA / local requirement">
+        </div>
+      </div>
+
+      <div class="preset-card" style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-weight:700">Materials</div>
+          <div class="help-text">Quantities come later.</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          {% for m in materials %}
+            <div style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12)">
+              <div style="font-weight:600">{{ m.material_name }}</div>
+              <div class="help-text">Code: {{ m.material_code }} • Unit: {{ m.unit or 'unit' }}{% if m.default_spec %} • Spec: {{ m.default_spec }}{% endif %}</div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="help-text" style="margin-top:10px">Material specs can be expanded after project generation.</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <a class="btn" href="/projects/wizard/engineering?wid={{ wid }}">← Back</a>
+      <button class="btn btn-primary" type="submit">Confirm & Generate Project Plan</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

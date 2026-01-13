@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">
+    Add Activity – {{ project.name }}
+</h1>
+
+<div class="card card--sm card-pad">
+
+<form method="post" action="/projects/{{ project.id }}/activities/create">
+
+    <!-- SUGGESTED ACTIVITIES (BY PROJECT CLASSIFICATION) -->
+    {% if suggested_activities and suggested_activities|length %}
+    <div class="form-group">
+        <label>Pick from presets (optional)</label>
+        <select id="activitySuggestion">
+            <option value="">-- Select a standard activity --</option>
+            {% for a in suggested_activities %}
+                <option value="{{ a }}">{{ a }}</option>
+            {% endfor %}
+        </select>
+        <small style="opacity:0.7">Selecting a preset will auto-fill the name and mark it as standard.</small>
+    </div>
+    {% endif %}
+
+    <!-- ACTIVITY NAME -->
+    <div class="form-group">
+        <label>Activity Name</label>
+        <input
+            type="text"
+            name="name"
+            id="activityName"
+            placeholder="Earthwork / WMM / DBM / Custom"
+            required
+        >
+    </div>
+
+    <!-- STANDARD / CUSTOM -->
+    <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" name="is_standard" id="isStandard">
+            Standard Activity
+        </label>
+        <small style="opacity:0.7">
+            Check for standard activities like Earthwork, WMM, DBM
+        </small>
+    </div>
+
+    <!-- ACTIONS -->
+    <div style="margin-top:20px;display:flex;gap:12px">
+        <button class="btn-primary" type="submit">
+            ➕ Create Activity
+        </button>
+
+        <a href="/projects/{{ project.id }}/activities" class="btn-secondary">
+            Cancel
+        </a>
+    </div>
+
+</form>
+
+<script>
+(function(){
+    var sel = document.getElementById('activitySuggestion');
+    var name = document.getElementById('activityName');
+    var std = document.getElementById('isStandard');
+    if(!sel || !name || !std) return;
+    sel.addEventListener('change', function(){
+        if(!sel.value) return;
+        name.value = sel.value;
+        std.checked = true;
+    });
+})();
+</script>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,28 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+
+from app.db.base import Base
+
+
+class DailyWorkDelay(Base):
+    __tablename__ = "daily_work_delays"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    report_id = Column(Integer, ForeignKey("daily_work_reports.id"), nullable=False)
+
+    delay_type = Column(String(100), nullable=False)  # Rain/Utility/Material/Labour/Land
+    start_time = Column(String(10), nullable=True)  # HH:MM
+    end_time = Column(String(10), nullable=True)    # HH:MM
+    responsible_party = Column(String(150), nullable=True)
+    impact_hours = Column(Float, nullable=True)
+    impact_quantity = Column(Float, nullable=True)
+    remarks = Column(String(2000), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    report = relationship("DailyWorkReport", back_populates="delay_rows")

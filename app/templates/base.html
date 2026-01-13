@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>InfraCore</title>
+
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- UI v2 overrides (modern spacing + polish) -->
+    <link rel="stylesheet" href="/static/css/ui_v2.css">
+    <!-- Small helper styles (use theme variables from style.css) -->
+    <style>
+        a, a:visited { color: var(--text); text-decoration: none; }
+        a:hover, a:focus { color: var(--accent-color); text-decoration: underline; }
+        label { color: var(--text); font-weight: 600; margin-bottom: 6px; }
+
+        .form-section { padding: 14px 0; margin-bottom: 18px; }
+        .section-title { font-size: 16px; color: var(--text); font-weight: 700; }
+        .help-text { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+
+        .btn-primary {
+            background: var(--btn);
+            color: #fff;
+            padding: 9px 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-secondary {
+            background: #6b7280;
+            color: #fff;
+            padding: 9px 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+        }
+        .required { color: #dc2626; }
+        .project-helper { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    </style>
+
+    <!-- Dark mode script (runs before page paint) -->
+    <script>
+        (function () {
+            const theme = localStorage.getItem("theme");
+            if (theme === "dark") {
+                document.documentElement.classList.add("dark");
+                return;
+            }
+
+            if (theme === "light") {
+                document.documentElement.classList.remove("dark");
+                return;
+            }
+
+            // "system" or unset => follow OS preference
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+                document.documentElement.classList.add("dark");
+            } else {
+                document.documentElement.classList.remove("dark");
+            }
+        })();
+    </script>
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InfraCore</h2>
+        </div>
+
+        {% if user is defined and user is not none %}
+        <div class="sidebar-user">
+            <strong>{{ user["username"] }}</strong>
+            <span class="role">
+                {{ user["role"] | upper }}
+                {% if project_role %}
+                    · {{ project_role | upper }}
+                {% endif %}
+            </span>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <!-- ================= DASHBOARD ================= -->
+            <a href="/dashboard"
+               class="{% if request.url.path == '/dashboard' %}active{% endif %}">
+                📊 Dashboard
+            </a>
+
+            <!-- ================= PROJECTS ================= -->
+            <a href="/projects"
+               class="{% if request.url.path.startswith('/projects') %}active{% endif %}">
+                🏗️ Projects
+            </a>
+
+            <!-- ================= REPORTS ================= -->
+            {% set can_reports = (user["role"] in ["admin", "manager"]) or (project_role in ["admin", "manager"]) %}
+            {% if can_reports %}
+            <a href="/reports"
+               class="{% if request.url.path.startswith('/reports') %}active{% endif %}">
+                📄 Reports
+            </a>
+            {% endif %}
+
+            <!-- ================= SETTINGS ================= -->
+            <a href="/settings"
+               class="{% if request.url.path == '/settings' %}active{% endif %}">
+                ⚙️ Settings
+            </a>
+
+            <!-- ================= PROCUREMENT ================= -->
+            {% set can_procure = (user["role"] in ["admin", "manager"]) or (project_role in ["admin", "manager"]) %}
+            {% if can_procure %}
+            <a href="{% if project_id %}/procurement/{{ project_id }}{% else %}/procurement{% endif %}"
+               class="{% if request.url.path.startswith('/procurement') %}active{% endif %}">
+                📦 Procurement
+            </a>
+            {% endif %}
+
+            <!-- ================= ADMIN CONSOLE ================= -->
+            {% if user["role"] == "admin" %}
+            <a href="/admin/users"
+               class="{% if request.url.path.startswith('/admin') %}active{% endif %}">
+                🛠️ Admin Console
+            </a>
+            {% endif %}
+
+            <!-- ================= LOGOUT ================= -->
+            <a href="/logout" class="danger">
+                🚪 Logout
+            </a>
+        </nav>
+
+        <div class="sidebar-footer"></div>
+        {% endif %}
+    </aside>
+
+    <!-- ================= MAIN ================= -->
+    <main class="main">
+
+        <!-- ================= FLASH MESSAGES ================= -->
+        {% if request.state is defined and request.state.flashes is defined %}
+        <div class="flash-container">
+            {% for flash in request.state.flashes %}
+                <div class="flash flash-{{ flash.category }}">
+                    {{ flash.message }}
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+
+    </main>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Auto Units (material -> standard unit + allowed units dropdown) -->
+<script src="/static/js/material_units.js"></script>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

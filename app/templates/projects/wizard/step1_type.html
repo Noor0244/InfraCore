@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Project Type (Step 1 of 5)</h1>
+<div class="help-text" style="margin-top:-8px">Selecting <b>Road</b> enables the Road Preset Engine.</div>
+
+<div class="card card--page">
+  <form method="post" action="/projects/wizard/type">
+    <input type="hidden" name="wid" value="{{ wid }}">
+
+    <div class="form-grid">
+      <div style="min-width:260px">
+        <label>Project Type <span class="required">*</span></label>
+        <select name="project_type" required>
+          {% set cur = (data.get('project_type') or '') %}
+          <option value="">-- Select --</option>
+          <option value="Building" {% if cur=='Building' %}selected{% endif %}>Building</option>
+          <option value="Road" {% if cur=='Road' %}selected{% endif %}>Road</option>
+          <option value="Bridge" {% if cur=='Bridge' %}selected{% endif %}>Bridge</option>
+          <option value="Other Infrastructure" {% if cur=='Other Infrastructure' %}selected{% endif %}>Other Infrastructure</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <a class="btn" href="/projects/wizard/start?wid={{ wid }}">← Back</a>
+      <button class="btn btn-primary" type="submit">Next</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ================= PAGE HEADER ================= -->
+<div class="page-header"
+     style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+
+    <div>
+        <h1 class="page-title">Projects</h1>
+        <p style="opacity:0.7;margin-top:4px">
+            Manage all projects: create, edit, archive, or delete
+        </p>
+    </div>
+
+    <!-- ➕ CREATE PROJECT (ADMIN + MANAGER ONLY) -->
+    {% if user["role"] in ["admin", "manager"] %}
+    <div style="display:flex;gap:10px">
+        <a href="/projects/new" class="btn-primary">
+            ➕ Create New Project
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ================= PROJECT LIST ================= -->
+<div class="card">
+
+    {% if projects %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Project Name</th>
+                <th>Road Type</th>
+                <th>City</th>
+                <th>Country</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Status</th>
+                <th style="width:240px">Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for project in projects %}
+            <tr>
+                <td>{{ project.id }}</td>
+
+                <td>
+                    <strong>{{ project.name }}</strong>
+                </td>
+
+                <td>{{ project.road_type }}</td>
+                <td>{{ project.city }}</td>
+                <td>{{ project.country }}</td>
+                <td>{{ project.planned_start_date|ddmmyyyy }}</td>
+                <td>{{ project.planned_end_date|ddmmyyyy }}</td>
+
+                <td>
+                    {% if project.is_active %}
+                        <span class="badge badge-success">Active</span>
+                    {% else %}
+                        <span class="badge badge-danger">Archived</span>
+                    {% endif %}
+                </td>
+
+                <td style="display:flex;gap:6px;flex-wrap:wrap">
+
+                    <!-- ✏️ EDIT (ADMIN + MANAGER ONLY) -->
+                    {% if user["role"] in ["admin", "manager"] %}
+                    <a href="/projects/{{ project.id }}/edit"
+                       class="btn-secondary btn-sm">
+                        ✏️ Edit
+                    </a>
+                    {% endif %}
+
+                    <!-- 📦 ARCHIVE / RESTORE (ADMIN + MANAGER ONLY) -->
+                    {% if user["role"] in ["admin", "manager"] %}
+                    <form method="post"
+                          action="/projects/{{ project.id }}/archive"
+                          onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
+                        <button class="btn-warning btn-sm" type="submit">
+                            {% if project.is_active %}
+                                📦 Archive
+                            {% else %}
+                                ♻ Restore
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <!-- 🗑 DELETE (ADMIN ONLY) -->
+                    {% if user["role"] == "admin" %}
+                    <form method="post"
+                          action="/projects/{{ project.id }}/delete"
+                          onsubmit="return confirm('Delete this project permanently? This cannot be undone.')">
+                        <button class="btn-danger btn-sm" type="submit">
+                            🗑 Delete
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <!-- 👁 VIEW ONLY -->
+                    {% if user["role"] not in ["admin", "manager"] %}
+                        <span class="badge badge-info">View Only</span>
+                    {% endif %}
+
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% else %}
+    <!-- ================= EMPTY STATE ================= -->
+    <div style="text-align:center;padding:48px">
+        <h3>No projects found</h3>
+        <p style="opacity:0.7;margin:8px 0 20px">
+            Create your first project to start planning and tracking progress.
+        </p>
+
+        {% if user["role"] in ["admin", "manager"] %}
+        <a href="/projects/new" class="btn-primary">
+            ➕ Create Project
+        </a>
+        {% else %}
+        <span class="badge badge-info">No access to create projects</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Schedule</h1>
+
+<table>
+    <tr>
+        <th>Task</th>
+        <th>Status</th>
+    </tr>
+    {% for s in schedule %}
+    <tr>
+        <td>{{ s.get("Task_Name", "") }}</td>
+        <td>{{ s.get("Status", "") }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">Road Preset Management</h1>
+    <div class="help-text" style="margin-top:-6px">Admins only. Presets are engineering knowledge—edit safely.</div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/users">← Users</a>
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/logs">🧾 Audit Logs</a>
+  </div>
+</div>
+
+<div class="card card--page">
+  <form method="get" action="/admin/presets/road" class="form-grid" style="grid-template-columns:2fr 1fr auto;align-items:end">
+    <div>
+      <label>Search</label>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Search by key/title/category/type">
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status">
+        <option value="" {% if not filters.status %}selected{% endif %}>All</option>
+        <option value="active" {% if filters.status=='active' %}selected{% endif %}>Active</option>
+        <option value="disabled" {% if filters.status=='disabled' %}selected{% endif %}>Disabled</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" type="submit">Filter</button>
+      <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road">Reset</a>
+    </div>
+  </form>
+</div>
+
+<div class="card card--page" style="margin-top:14px">
+  <div style="overflow:auto">
+    <table class="table" style="min-width:980px">
+      <thead>
+        <tr>
+          <th>Preset Name</th>
+          <th>Road Category</th>
+          <th>Engineering Type</th>
+          <th>Construction Type</th>
+          <th>Status</th>
+          <th>User Modified</th>
+          <th>Last Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in presets %}
+          <tr>
+            <td>
+              <div style="font-weight:700">{{ p.title or p.preset_key }}</div>
+              <div class="help-text">Key: {{ p.preset_key }}</div>
+            </td>
+            <td>{{ p.road_category }}</td>
+            <td>{{ p.engineering_type or (p.road_engineering_type or '') }}</td>
+            <td>{{ p.construction_type or '' }}</td>
+            <td>
+              {% if p.is_active %}
+                <span class="badge" style="background:#14532d;color:#dcfce7;padding:4px 8px;border-radius:999px">Active</span>
+              {% else %}
+                <span class="badge" style="background:#3f3f46;color:#e5e7eb;padding:4px 8px;border-radius:999px">Disabled</span>
+              {% endif %}
+            </td>
+            <td>{{ 'Yes' if p.user_modified else 'No' }}</td>
+            <td>{{ p.updated_at }}</td>
+            <td style="white-space:nowrap">
+              <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road/{{ p.id }}">View</a>
+              <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road/{{ p.id }}/edit">Edit</a>
+              <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road/{{ p.id }}/clone">Clone</a>
+
+              <form method="post" action="/admin/presets/road/{{ p.id }}/toggle" style="display:inline">
+                <button class="btn-secondary" type="submit" onclick="return confirm('Toggle preset availability?')">
+                  {{ 'Disable' if p.is_active else 'Enable' }}
+                </button>
+              </form>
+
+              <form method="post" action="/admin/presets/road/{{ p.id }}/reset" style="display:inline">
+                <button class="btn-secondary" type="submit" onclick="return confirm('Reset this preset to JSON seed default? This is blocked if linked to active projects.')">Reset</button>
+              </form>
+
+              <form method="post" action="/admin/presets/road/{{ p.id }}/delete" style="display:inline">
+                <button class="btn-danger" type="submit" onclick="return confirm('Soft delete this preset? This is blocked if linked to active projects.')">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

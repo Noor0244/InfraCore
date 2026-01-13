@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  .amp-layout{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;align-items:start}
+  .amp-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .amp-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .amp-actions .btn{white-space:nowrap}
+
+  .amp-card-head{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+  .amp-card-head strong{font-size:14px}
+
+  .amp-activity-table th{font-size:12px;letter-spacing:0.2px}
+  .amp-activity-table td{vertical-align:top}
+  .amp-row{min-height:56px}
+  .amp-row.is-active{background:rgba(30,111,216,0.10)}
+
+  .amp-col-activity{min-width:220px}
+  .amp-col-date{min-width:110px}
+  .amp-col-qty{min-width:150px}
+  .amp-col-status{min-width:120px}
+  .amp-col-action{min-width:120px;text-align:right}
+
+  .amp-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
+  .amp-pill.ok{border-color:rgba(34,197,94,0.35);background:rgba(34,197,94,0.10)}
+  .amp-pill.warn{border-color:rgba(245,158,11,0.45);background:rgba(245,158,11,0.10)}
+  .amp-pill.neutral{border-color:rgba(148,163,184,0.25);background:rgba(148,163,184,0.08)}
+  .amp-kv{display:grid;grid-template-columns:110px 1fr;gap:8px 10px}
+  .amp-kv .k{font-size:12px;color:var(--text-muted)}
+  .amp-kv .v{font-size:13px;color:var(--text)}
+
+  .amp-panel{position:sticky;top:14px}
+  .amp-panel-card{padding:0;overflow:hidden}
+  .amp-panel-head{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .amp-panel-title{margin:0;font-size:16px;font-weight:800;color:var(--text)}
+  .amp-panel-body{padding:14px 16px}
+  .amp-panel-section{padding:12px 0;border-top:1px dashed rgba(255,255,255,0.10)}
+  .amp-panel-section:first-child{border-top:0;padding-top:0}
+  .amp-panel-section h3{margin:0 0 8px 0;font-size:13px;letter-spacing:0.2px}
+  .amp-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .amp-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+  .amp-inline-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px}
+  .amp-muted{color:var(--text-muted)}
+  .amp-small{font-size:12px}
+  .amp-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;font-size:12px;background:#111827;border:1px solid rgba(255,255,255,0.10)}
+  .amp-badge.draft{opacity:0.75}
+  .amp-badge.planned{background:rgba(30,111,216,0.20);border-color:rgba(30,111,216,0.35)}
+  .amp-badge.linked{background:rgba(34,197,94,0.14);border-color:rgba(34,197,94,0.30)}
+
+  details.amp-details{border:1px solid rgba(255,255,255,0.10);border-radius:10px;background:rgba(255,255,255,0.03);overflow:hidden}
+  details.amp-details > summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+  details.amp-details > summary::-webkit-details-marker{display:none}
+  .amp-details-body{padding:14px}
+
+  @media (max-width: 1120px){
+    .amp-layout{grid-template-columns:1fr}
+    .amp-panel{position:relative;top:auto}
+    .amp-col-action{text-align:left}
+  }
+</style>
+
+<div class="amp-toolbar">
+  <div>
+    <h1 class="page-title">Activity Planning & Material Management — {{ project.name }}</h1>
+    <div class="help-text">Plan → Assign → Review. Configure one activity at a time (order date = start date − supply lead time).</div>
+
+    {% if projects is defined and projects|length > 0 %}
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <label style="margin:0;font-size:12px;color:var(--text-muted)">Project:</label>
+      <select onchange="if(this.value) window.location.href='/activity-material-planning/' + this.value" style="padding:6px 8px;font-size:13px;max-width:420px">
+        {% for p in projects %}
+          <option value="{{ p.id }}" {% if project.id == p.id %}selected{% endif %}>{{ p.name }} — {{ p.city }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="amp-actions">
+    <a href="/projects/{{ project.id }}/activities/new" class="btn-primary">➕ Add Activity</a>
+    <a href="/projects/{{ project.id }}/activity-materials" class="btn-secondary" title="Advanced mapping screen">Open Activity→Material Mapping</a>
+    <button type="button" class="btn" onclick="document.getElementById('ampMaterialMaster').scrollIntoView({behavior:'smooth',block:'start'}); document.getElementById('ampMaterialMaster').open = true;">🧱 Material Master</button>
+  </div>
+</div>
+
+<div class="amp-layout">
+
+  <!-- ================= SECTION 1: ACTIVITY LIST (PRIMARY) ================= -->
+  <div>
+    <div class="card" style="padding:0">
+      <div class="amp-card-head">
+        <div>
+          <strong>Activities</strong>
+          <div class="help-text">Select an activity → Configure → Save. No material fields in the list.</div>
+        </div>
+        <div style="min-width:240px;max-width:420px;flex:1">
+          <input id="ampActivitySearch" type="search" placeholder="Search activities (code/name)…" style="width:100%" />
+        </div>
+      </div>
+
+      {% if activities %}
+      <table class="table amp-activity-table" style="margin:0">
+        <thead>
+          <tr>
+            <th class="amp-col-activity">Activity</th>
+            <th class="amp-col-date">Start</th>
+            <th class="amp-col-date">End</th>
+            <th class="amp-col-qty">Planned Work Qty</th>
+            <th class="amp-col-status">Status</th>
+            <th class="amp-col-action">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in activities %}
+          {% set pa = planned_map.get(a.id) %}
+          {% set existing = activity_material_rows_by_activity_id.get(a.id, []) %}
+          {% set is_planned = (pa is not none) %}
+          {% set is_linked = (existing|length > 0) %}
+
+          <tr class="amp-row" data-activity-id="{{ a.id }}">
+            <td class="amp-col-activity">
+              <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+                {% if a.code %}<span class="badge">{{ a.code }}</span>{% endif %}
+                <strong>{{ a.name }}</strong>
+              </div>
+              {% if is_linked %}
+                <div class="help-text" style="margin-top:6px" title="Linked materials">
+                  <span class="badge badge-info">{{ existing|length }} materials linked</span>
+                </div>
+              {% endif %}
+            </td>
+            <td class="amp-col-date"><span class="amp-small">{{ pa.start_date|ddmmyyyy if pa and pa.start_date else '—' }}</span></td>
+            <td class="amp-col-date"><span class="amp-small">{{ pa.end_date|ddmmyyyy if pa and pa.end_date else '—' }}</span></td>
+            <td class="amp-col-qty">
+              {% if pa %}
+                <span class="amp-small"><strong>{{ pa.planned_quantity }}</strong> <span class="amp-muted">{{ pa.unit }}</span></span>
+              {% else %}
+                <span class="amp-small amp-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="amp-col-status">
+              {% if is_linked %}
+                <span class="amp-badge linked" title="Planned and materials linked">🧷 Linked</span>
+              {% elif is_planned %}
+                <span class="amp-badge planned" title="Planned schedule/qty saved">🗓 Planned</span>
+              {% else %}
+                <span class="amp-badge draft" title="Not planned yet">• Draft</span>
+              {% endif %}
+            </td>
+            <td class="amp-col-action">
+              <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+                <button type="button" class="btn-primary btn-sm amp-configure" data-activity-id="{{ a.id }}">Configure</button>
+                <form method="post" action="/activity-material-planning/activities/{{ a.id }}/archive" onsubmit="return confirm('Remove this activity? It will be archived (not deleted) and all linked materials will be unlinked.');" style="margin:0">
+                  <input type="hidden" name="project_id" value="{{ project.id }}" />
+                  <button type="submit" class="btn-secondary btn-sm">Remove</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div style="padding:24px;text-align:center;opacity:0.7">No activities yet.</div>
+      {% endif %}
+    </div>
+
+    <!-- ================= SECTION 3: MATERIAL MASTER (COLLAPSIBLE) ================= -->
+    <div style="margin-top:14px" id="ampMaterialMasterWrap">
+      <details class="amp-details" id="ampMaterialMaster">
+        <summary>
+          <div style="display:flex;gap:10px;align-items:center">
+            <strong>Material Master</strong>
+            <span class="badge">{{ materials_active|length }} materials</span>
+          </div>
+          <span class="amp-muted amp-small">Collapsed by default</span>
+        </summary>
+        <div class="amp-details-body">
+          <div class="help-text" style="margin-top:0">Edit default lead time. Vendor management opens in modal.</div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px">
+            <input id="ampMaterialSearch" type="search" placeholder="Search materials (code/name)…" style="flex:1;min-width:240px" />
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div class="amp-small amp-muted" style="margin-bottom:8px">Add Material</div>
+            <form method="post" action="/material-master/materials/create" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end;flex-wrap:wrap">
+              <input type="hidden" name="project_id" value="{{ project.id }}" />
+              <div>
+                <label style="font-size:12px">Name</label>
+                <input name="name" placeholder="Material name" required />
+              </div>
+              <div>
+                <label style="font-size:12px">Unit</label>
+                <input name="unit" placeholder="e.g. m3" required />
+              </div>
+              <div>
+                <label style="font-size:12px">Category</label>
+                <input name="category" placeholder="(optional)" />
+              </div>
+              <div>
+                <label style="font-size:12px">Default LT</label>
+                <input name="default_lead_time_days" type="number" step="1" min="0" placeholder="(optional)" />
+              </div>
+              <button class="btn-primary" type="submit">Add</button>
+            </form>
+            <div class="help-text" style="margin-top:8px">If the name already exists but was archived, it will be re-activated.</div>
+          </div>
+
+          {% if materials_active|length == 0 %}
+            <div style="opacity:0.8;margin-top:10px">No materials found.</div>
+          {% else %}
+            <table class="table" style="margin-top:10px">
+              <thead>
+                <tr>
+                  <th style="width:16%">Code</th>
+                  <th style="width:28%">Material</th>
+                  <th style="width:12%">Unit</th>
+                  <th style="width:22%">Default LT (days)</th>
+                  <th style="width:22%">Vendors</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in materials_active %}
+                <tr>
+                  <td><span class="amp-small">{{ m.code or '—' }}</span></td>
+                  <td>
+                    <strong>{{ m.name }}</strong>
+                    {% if m.category %}<div class="meta">{{ m.category }}</div>{% endif %}
+                  </td>
+                  <td><span class="amp-small">{{ m.unit }}</span></td>
+                  <td>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                      <form class="mm-update-form" method="post" action="/material-master/materials/update" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0">
+                        <input type="hidden" name="project_id" value="{{ project.id }}" />
+                        <input type="hidden" name="material_id" value="{{ m.id }}" />
+                        <input name="default_lead_time_days" type="number" step="1" min="0" value="{{ m.default_lead_time_days if m.default_lead_time_days is not none else '' }}" placeholder="(optional)" style="max-width:140px" />
+                        <button class="btn-primary btn-sm" type="submit">Save</button>
+                        <span class="help-text mm-save-hint" style="margin:0"></span>
+                      </form>
+                      <form method="post" action="/material-master/materials/{{ m.id }}/archive" onsubmit="return confirm('Remove this material? It will be archived (not deleted) and unlinked from all activities in this project.');" style="margin:0">
+                        <input type="hidden" name="project_id" value="{{ project.id }}" />
+                        <button class="btn-secondary btn-sm" type="submit">Remove</button>
+                      </form>
+                    </div>
+                  </td>
+                  <td>
+                    {% set vc = vendor_counts.get(m.id, 0) %}
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                      <span class="badge" title="Active vendors">{{ vc }}</span>
+                      <button type="button" class="btn-secondary btn-sm" onclick="openVendorModal('/material-master/materials/{{ m.id }}/vendors')">Manage Vendors</button>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+        </div>
+      </details>
+    </div>
+
+  </div>
+
+  <!-- ================= SECTION 2: ACTIVITY DETAIL PANEL (RIGHT) ================= -->
+  <div class="amp-panel" aria-live="polite">
+    <div class="card amp-panel-card">
+      <div class="amp-panel-head">
+        <div>
+          <div class="amp-small amp-muted">Configure</div>
+          <div class="amp-panel-title" id="ampPanelTitle">Select an activity</div>
+        </div>
+        <button type="button" class="btn-secondary btn-sm" id="ampPanelClose" style="display:none">Close</button>
+      </div>
+
+      <div class="amp-panel-body">
+        <div id="ampPanelEmpty" class="amp-muted">
+          Click <strong>Configure</strong> on an activity to edit schedule and assign a material requirement.
+        </div>
+
+        <form id="ampPanelForm" method="post" action="/activity-material-planning/save" style="display:none">
+          <input type="hidden" name="project_id" value="{{ project.id }}">
+          <input type="hidden" name="activity_id" id="ampActivityId" value="">
+          <input type="hidden" name="unlock_override" id="ampUnlockOverride" value="0">
+
+          <div class="amp-panel-section">
+            <h3>A) Schedule</h3>
+            <div id="ampLockBanner" class="badge badge-warning" style="display:none; margin: 6px 0 10px 0;">
+              Planning locked (execution started). Baseline fields are read-only.
+            </div>
+            <div class="amp-kv">
+              <div class="k">Start</div><div class="v" id="ampSummaryStart">—</div>
+              <div class="k">End</div><div class="v" id="ampSummaryEnd">—</div>
+              <div class="k">Duration</div><div class="v" id="ampSummaryDuration">—</div>
+            </div>
+
+            <details class="amp-details" style="margin-top:10px">
+              <summary>
+                <div style="display:flex;gap:10px;align-items:center"><strong>Edit schedule</strong><span class="amp-muted amp-small">(optional)</span></div>
+                <span class="amp-muted amp-small">Show/Hide</span>
+              </summary>
+              <div class="amp-details-body">
+                <div class="amp-grid-2">
+                  <div>
+                    <label>Start Date</label>
+                    <input type="text" name="start_date" id="ampStartDate" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}">
+                    <div class="help-text">Format: DD/MM/YYYY</div>
+                  </div>
+                  <div>
+                    <label>End Date</label>
+                    <input type="text" name="end_date" id="ampEndDate" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}">
+                    <div class="help-text">Format: DD/MM/YYYY</div>
+                  </div>
+                </div>
+
+                <div class="amp-grid-2" style="margin-top:10px">
+                  <div>
+                    <label>Planned Work Qty</label>
+                    <input type="number" step="0.01" min="0" name="planned_quantity" id="ampPlannedQty" required>
+                  </div>
+                  <div>
+                    <label>Unit</label>
+                    <input type="text" name="unit" id="ampUnit" placeholder="m3 / sqm / m / km / nos" required>
+                  </div>
+                </div>
+
+                <details class="amp-details" style="margin-top:10px">
+                  <summary>
+                    <div style="display:flex;gap:10px;align-items:center"><strong>Time planning</strong><span class="amp-muted amp-small">(stored as hours)</span></div>
+                    <span class="amp-muted amp-small">Show/Hide</span>
+                  </summary>
+                  <div class="amp-details-body">
+                    <div class="amp-grid-3">
+                      <div>
+                        <label>Planned (time)</label>
+                        <input class="activity-planned-display" type="number" step="0.001" min="0" name="planned_time_display" id="ampPlannedTimeDisplay" required title="Stored internally as hours; display can be hours or days">
+                        <div class="help-text" style="margin-top:6px"><span class="activity-hpd-helper" id="ampHpdHelper">1 day = 8 working hours</span></div>
+                        <input class="activity-planned-hours" type="hidden" name="planned_quantity_hours" id="ampPlannedTimeHours" value="0">
+                      </div>
+                      <div>
+                        <label>Time Unit</label>
+                        <select class="activity-display-unit" name="display_unit" id="ampDisplayUnit">
+                          <option value="hours">Hours</option>
+                          <option value="days">Days</option>
+                        </select>
+                        <div class="help-text" style="margin-top:6px">Controls display only</div>
+                      </div>
+                      <div>
+                        <label>Hours/Day</label>
+                        <input class="activity-hours-per-day" type="number" step="0.1" min="0.1" name="hours_per_day" id="ampHoursPerDay" required>
+                        <div class="help-text" style="margin-top:6px">Used when unit is Days</div>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </details>
+          </div>
+
+          <div class="amp-panel-section">
+            <h3>B) Material Requirement</h3>
+            <div class="amp-grid-2">
+              <div>
+                <label>Material</label>
+                <select name="material_id" id="ampMaterialId" title="Choose a material to assign (optional)">
+                  <option value="">(Select material)</option>
+                  {% for m in materials_for_ui %}
+                    <option value="{{ m.id }}">{% if m.code %}{{ m.code }} — {% endif %}{{ m.name }}{% if m.is_active is defined and not m.is_active %} (archived){% endif %}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label>Material Required</label>
+                <input name="required_qty" id="ampRequiredQty" type="number" step="0.001" min="0" placeholder="Material Required" />
+              </div>
+            </div>
+
+            <div style="margin-top:10px">
+              <label>Vendor</label>
+              <select name="vendor_id" id="ampVendorId" title="Optional vendor (lead time from vendor overrides default)">
+                <option value="">(No vendor)</option>
+              </select>
+              <div class="help-text">Supply lead time priority: override → vendor → material default.</div>
+            </div>
+
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <span class="amp-pill neutral" id="ampLeadTimePill" title="Computed lead time">⏱ LT: —</span>
+              <span class="amp-pill neutral" id="ampOrderDatePill" title="Suggested order date">📦 Order: —</span>
+              <span class="amp-pill neutral" id="ampOrderStatusPill" title="Order status">—</span>
+            </div>
+            <div class="help-text" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <span id="ampSaveHint" class="amp-muted">—</span>
+              <span id="ampReorderHint" style="color:#f59e0b"></span>
+            </div>
+
+            <div style="margin-top:12px">
+              <div class="amp-small amp-muted" style="margin-bottom:6px">Linked materials (read-only)</div>
+              <div id="ampLinkedMaterials" class="amp-small amp-muted">—</div>
+            </div>
+          </div>
+
+          <div class="amp-panel-section">
+            <h3>C) Actions</h3>
+            <div class="amp-inline-actions">
+              <button class="btn-secondary" type="button" id="ampClearBtn" title="Clear material requirement fields">Clear</button>
+              <button class="btn-primary" type="submit" id="ampSaveBtn">Save</button>
+            </div>
+
+            {% if user and user["role"] == "admin" %}
+            <div id="ampAdminUnlock" style="display:none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(127,127,127,0.35);">
+              <div class="amp-small amp-muted" style="margin-bottom:8px">Admin unlock (baseline change protection)</div>
+              <div style="display:flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <label style="margin:0; font-size: 12px;">
+                  <input type="checkbox" id="ampUnlockCheckbox"> Unlock planning for this save
+                </label>
+              </div>
+              <div style="margin-top:8px">
+                <label style="font-size:12px">Unlock reason (required)</label>
+                <textarea name="unlock_reason" id="ampUnlockReason" rows="2" placeholder="Why are you changing baseline planning after execution started?" style="width:100%"></textarea>
+                <div class="help-text">This is logged for audit.</div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Vendors modal (uses existing vendors page inside iframe) -->
+<div id="vendorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="width:min(1100px, 98vw);height:min(720px, 92vh);background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.08)">
+      <strong>Manage Vendors</strong>
+      <button class="btn-secondary btn-sm" type="button" onclick="closeVendorModal()">Close</button>
+    </div>
+    <iframe id="vendorModalFrame" src="" style="border:0;flex:1;background:transparent"></iframe>
+  </div>
+</div>
+
+<script id="vendorsByMaterialJson" type="application/json">{{ vendors_by_material_json | tojson }}</script>
+
+<script id="materialsByIdJson" type="application/json">{{ materials_by_id_json | tojson }}</script>
+<script id="activityDataByIdJson" type="application/json">{{ activity_data_by_id_json | tojson }}</script>
+<script id="activityMaterialsByActivityJson" type="application/json">{{ activity_material_rows_by_activity_id | tojson }}</script>
+
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/activity_units.js"></script>
+  <script src="/static/js/activity_time_planning.js"></script>
+  <script src="/static/js/activity_material_planning.js"></script>
+{% endblock %}

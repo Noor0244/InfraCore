@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">View Road Preset</h1>
+    <div class="help-text" style="margin-top:-6px">Read-only inspection mode.</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road">← Presets</a>
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road/{{ data.preset.id }}/edit">Edit</a>
+    <a class="btn-secondary" style="text-decoration:none" href="/admin/presets/road/{{ data.preset.id }}/clone">Clone</a>
+  </div>
+</div>
+
+<div class="card card--page">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div>
+      <div style="font-weight:700">{{ data.preset.title or data.preset.preset_key }}</div>
+      <div class="help-text">Key: {{ data.preset.preset_key }}</div>
+      <div class="help-text">Road Category: {{ data.preset.road_category }}</div>
+      <div class="help-text">Engineering Type: {{ data.preset.engineering_type or data.preset.road_engineering_type }}</div>
+      <div class="help-text">Construction Type: {{ data.preset.construction_type or '' }}</div>
+    </div>
+    <div>
+      <div class="help-text">Status: <b>{{ 'Active' if data.preset.is_active else 'Disabled' }}</b></div>
+      <div class="help-text">User Modified: <b>{{ 'Yes' if data.preset.user_modified else 'No' }}</b></div>
+      <div class="help-text">Last Updated: {{ data.preset.updated_at }}</div>
+      {% if linked %}
+        <div class="flash flash-warning" style="margin-top:10px">Linked to active projects → Reset/Delete are blocked.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
+  <div class="card card--page">
+    <div style="font-weight:800;margin-bottom:10px">Activities (ordered)</div>
+    <ol style="margin:0;padding-left:18px">
+      {% for a in data.activities %}
+        <li style="margin:8px 0;opacity:{{ 1 if a.is_active else 0.45 }}">
+          <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+            <div style="font-weight:700">{{ a.sequence_no }}. {{ a.activity_name }}</div>
+            {% if a.is_core %}<span class="badge" style="background:#7c2d12;color:#ffedd5;padding:2px 8px;border-radius:999px">CORE</span>{% endif %}
+            {% if a.is_optional %}<span class="badge" style="background:#1e3a8a;color:#dbeafe;padding:2px 8px;border-radius:999px">Optional</span>{% endif %}
+            {% if not a.is_active %}<span class="badge" style="background:#3f3f46;color:#e5e7eb;padding:2px 8px;border-radius:999px">Disabled</span>{% endif %}
+          </div>
+          <div class="help-text">Code: {{ a.activity_code }}{% if a.category %} • Category: {{ a.category }}{% endif %}</div>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  <div class="card card--page">
+    <div style="font-weight:800;margin-bottom:10px">Materials</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      {% for m in data.materials %}
+        <div style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12);opacity:{{ 1 if m.is_active else 0.45 }}">
+          <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+            <div style="font-weight:700">{{ m.material_name }}</div>
+            {% if m.is_core %}<span class="badge" style="background:#7c2d12;color:#ffedd5;padding:2px 8px;border-radius:999px">CORE</span>{% endif %}
+            {% if not m.is_active %}<span class="badge" style="background:#3f3f46;color:#e5e7eb;padding:2px 8px;border-radius:999px">Disabled</span>{% endif %}
+          </div>
+          <div class="help-text">Code: {{ m.material_code }} • Unit: {{ m.unit or 'unit' }}{% if m.default_spec %} • Spec: {{ m.default_spec }}{% endif %}</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card card--page" style="margin-top:14px">
+  <div style="font-weight:800;margin-bottom:10px">Activity ↔ Material Mapping</div>
+
+  {% set map = {} %}
+  {% for mp in data.mappings %}
+    {% set _ = map.setdefault(mp.activity_code, []) %}
+    {% set _ = map[mp.activity_code].append(mp.material_code) %}
+  {% endfor %}
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    {% for a in data.activities if a.is_active %}
+      <div style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02)">
+        <div style="font-weight:700">{{ a.sequence_no }}. {{ a.activity_name }}</div>
+        <div class="help-text">Linked materials: {{ (map.get(a.activity_code) or [])|length }}</div>
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px">
+          {% for m in data.materials if m.is_active %}
+            {% if m.material_code in (map.get(a.activity_code) or []) %}
+              <span class="badge" style="background:#0f766e;color:#ccfbf1;padding:4px 10px;border-radius:999px">{{ m.material_name }}</span>
+            {% endif %}
+          {% endfor %}
+          {% if (map.get(a.activity_code) or [])|length == 0 %}
+            <span class="help-text">(No materials linked)</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

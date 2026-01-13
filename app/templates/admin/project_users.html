@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">{{ title }}</h1>
+
+<!-- ================= PROJECT INFO ================= -->
+<div class="card" style="margin-bottom:16px">
+    <strong>Project:</strong> {{ project.name }} <br>
+    <strong>Location:</strong>
+    {{ project.city }}{% if project.state %}, {{ project.state }}{% endif %}
+</div>
+
+<!-- ================= ASSIGNED USERS ================= -->
+<div class="card" style="margin-bottom:20px">
+    <h3>Assigned Users</h3>
+
+    {% if project_users %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Role in Project</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for pu in project_users %}
+                <tr>
+                    <td>{{ pu.user.username }}</td>
+                    <td>
+                        <span class="badge badge-info">
+                            {{ pu.role_in_project | upper }}
+                        </span>
+                    </td>
+                    <td>
+                        <form
+                            method="post"
+                            action="/admin/projects/{{ project.id }}/users/{{ pu.user.id }}/remove"
+                        >
+                            <button type="submit" class="btn-danger">
+                                ❌ Remove
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No users assigned to this project.</p>
+    {% endif %}
+</div>
+
+<!-- ================= ADD USER ================= -->
+<div class="card">
+    <h3>Add User to Project</h3>
+
+    {% if available_users %}
+        <form
+            method="post"
+            action="/admin/projects/{{ project.id }}/users/add"
+            style="display:flex;gap:12px;flex-wrap:wrap"
+        >
+
+            <select name="user_id" class="form-select" required>
+                <option value="">Select User</option>
+                {% for u in available_users %}
+                    <option value="{{ u.id }}">{{ u.username }}</option>
+                {% endfor %}
+            </select>
+
+            <select name="role_in_project" class="form-select" required>
+                <option value="manager">Manager</option>
+                <option value="member" selected>Member</option>
+                <option value="viewer">Viewer</option>
+            </select>
+
+            <button type="submit" class="btn-primary">
+                ➕ Assign User
+            </button>
+        </form>
+    {% else %}
+        <p>All active users are already assigned to this project.</p>
+    {% endif %}
+</div>
+
+<div style="margin-top:16px">
+    <a href="/projects/manage" class="btn-secondary">
+        ← Back to Projects
+    </a>
+</div>
+
+{% endblock %}

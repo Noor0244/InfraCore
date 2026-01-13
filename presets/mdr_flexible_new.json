@@ -1,0 +1,85 @@
+{
+  "preset_id": "in.road.mdr.flexible.new",
+  "road_category": "MDR",
+  "engineering_type": "Flexible",
+  "construction_type": "New Construction",
+  "region": "India",
+  "standards": ["MoRTH", "IRC", "State SOR"],
+  "activity_preset": [
+    {"sequence": 1, "activity_code": "ACT-001", "activity_name": "Site clearance & grubbing", "category": "Pre-Construction", "is_optional": false},
+    {"sequence": 2, "activity_code": "ACT-002", "activity_name": "Survey, setting out & benchmarks", "category": "Pre-Construction", "is_optional": false},
+    {"sequence": 3, "activity_code": "ACT-003", "activity_name": "Traffic management (basic)", "category": "Pre-Construction", "is_optional": false},
+    {"sequence": 4, "activity_code": "ACT-004", "activity_name": "Utility shifting (if required)", "category": "Utilities", "is_optional": true},
+
+    {"sequence": 5, "activity_code": "ACT-005", "activity_name": "Earthwork excavation", "category": "Earthwork", "is_optional": false},
+    {"sequence": 6, "activity_code": "ACT-006", "activity_name": "Embankment construction – Layer 1", "category": "Earthwork", "is_optional": false},
+    {"sequence": 7, "activity_code": "ACT-007", "activity_name": "Embankment construction – Layer 2", "category": "Earthwork", "is_optional": false},
+    {"sequence": 8, "activity_code": "ACT-008", "activity_name": "Subgrade preparation & compaction", "category": "Earthwork", "is_optional": false},
+
+    {"sequence": 9, "activity_code": "ACT-009", "activity_name": "Granular Sub-Base (GSB)", "category": "Pavement", "is_optional": false},
+    {"sequence": 10, "activity_code": "ACT-010", "activity_name": "Prime coat", "category": "Pavement", "is_optional": false},
+    {"sequence": 11, "activity_code": "ACT-011", "activity_name": "Wet Mix Macadam (WMM)", "category": "Pavement", "is_optional": false},
+    {"sequence": 12, "activity_code": "ACT-012", "activity_name": "Tack coat", "category": "Pavement", "is_optional": false},
+    {"sequence": 13, "activity_code": "ACT-013", "activity_name": "Dense Bituminous Macadam (DBM)", "category": "Pavement", "is_optional": false},
+    {"sequence": 14, "activity_code": "ACT-014", "activity_name": "Bituminous Concrete (BC)", "category": "Pavement", "is_optional": false},
+
+    {"sequence": 15, "activity_code": "ACT-015", "activity_name": "Earthen / paved shoulder construction", "category": "Pavement", "is_optional": false},
+
+    {"sequence": 16, "activity_code": "ACT-016", "activity_name": "Side drains (where required)", "category": "Drainage", "is_optional": false},
+    {"sequence": 17, "activity_code": "ACT-017", "activity_name": "Minor cross drainage works", "category": "Drainage", "is_optional": false},
+
+    {"sequence": 18, "activity_code": "ACT-018", "activity_name": "Road signage", "category": "Safety", "is_optional": false},
+    {"sequence": 19, "activity_code": "ACT-019", "activity_name": "Road markings", "category": "Safety", "is_optional": false},
+    {"sequence": 20, "activity_code": "ACT-020", "activity_name": "Road studs / reflectors", "category": "Safety", "is_optional": false},
+
+    {"sequence": 21, "activity_code": "ACT-021", "activity_name": "Final finishing & inspection", "category": "Finishing", "is_optional": false}
+  ],
+  "material_preset": [
+    {"material_code": "MAT-001", "material_name": "Earthwork soil", "unit": "m³", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-002", "material_name": "Granular Sub-Base (GSB)", "unit": "m³", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-003", "material_name": "Wet Mix Macadam (WMM)", "unit": "m³", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-004", "material_name": "Dense Bituminous Macadam (DBM)", "unit": "MT", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-005", "material_name": "Bituminous Concrete (BC)", "unit": "MT", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-006", "material_name": "Bitumen (VG-30)", "unit": "MT", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-007", "material_name": "Aggregates", "unit": "m³", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-008", "material_name": "Cement", "unit": "Bags", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-009", "material_name": "Steel", "unit": "MT", "default_spec": "MoRTH", "is_expandable": false},
+    {"material_code": "MAT-010", "material_name": "Road marking paint", "unit": "kg", "default_spec": "MoRTH", "is_expandable": false}
+  ],
+  "activity_material_map": [
+    {"activity_code": "ACT-005", "material_code": "MAT-001"},
+    {"activity_code": "ACT-006", "material_code": "MAT-001"},
+    {"activity_code": "ACT-007", "material_code": "MAT-001"},
+    {"activity_code": "ACT-008", "material_code": "MAT-001"},
+
+    {"activity_code": "ACT-009", "material_code": "MAT-002"},
+    {"activity_code": "ACT-010", "material_code": "MAT-006"},
+
+    {"activity_code": "ACT-011", "material_code": "MAT-003"},
+    {"activity_code": "ACT-011", "material_code": "MAT-007"},
+
+    {"activity_code": "ACT-012", "material_code": "MAT-006"},
+
+    {"activity_code": "ACT-013", "material_code": "MAT-004"},
+    {"activity_code": "ACT-013", "material_code": "MAT-006"},
+    {"activity_code": "ACT-013", "material_code": "MAT-007"},
+
+    {"activity_code": "ACT-014", "material_code": "MAT-005"},
+    {"activity_code": "ACT-014", "material_code": "MAT-006"},
+    {"activity_code": "ACT-014", "material_code": "MAT-007"},
+
+    {"activity_code": "ACT-015", "material_code": "MAT-001"},
+    {"activity_code": "ACT-015", "material_code": "MAT-002"},
+
+    {"activity_code": "ACT-016", "material_code": "MAT-008"},
+    {"activity_code": "ACT-016", "material_code": "MAT-007"},
+    {"activity_code": "ACT-016", "material_code": "MAT-009"},
+
+    {"activity_code": "ACT-017", "material_code": "MAT-008"},
+    {"activity_code": "ACT-017", "material_code": "MAT-007"},
+    {"activity_code": "ACT-017", "material_code": "MAT-009"},
+
+    {"activity_code": "ACT-019", "material_code": "MAT-010"}
+  ],
+  "ui_rules": {"auto_load": true, "allow_reorder": true, "allow_remove": true, "highlight_critical": false}
+}

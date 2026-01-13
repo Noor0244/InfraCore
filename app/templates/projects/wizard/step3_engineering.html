@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Engineering Type (Step 3 of 5)</h1>
+<div class="help-text" style="margin-top:-8px">Choose pavement + construction. InfraCore will filter valid presets.</div>
+
+<div class="card card--page">
+  <form method="post" action="/projects/wizard/engineering">
+    <input type="hidden" name="wid" value="{{ wid }}">
+
+    <div class="form-grid">
+      <div style="min-width:240px">
+        <label>Pavement Type <span class="required">*</span></label>
+        <select name="pavement_type" required>
+          {% set pv = (data.get('pavement_type') or '') %}
+          <option value="">-- Select --</option>
+          {% for t in pavement_types %}
+            <option value="{{ t }}" {% if pv==t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:280px">
+        <label>Construction Type <span class="required">*</span></label>
+        <select name="construction_type" required>
+          {% set ct = (data.get('construction_type') or '') %}
+          <option value="">-- Select --</option>
+          {% for t in construction_types %}
+            <option value="{{ t }}" {% if ct==t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <hr style="margin:16px 0">
+
+    <div>
+      <label>Available Presets</label>
+      <div class="help-text">Select one preset to preview activities & materials.</div>
+
+      {% if preset_options and preset_options|length > 0 %}
+        {% set chosen = (data.get('preset_key') or '') %}
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          {% for p in preset_options %}
+            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid rgba(255,255,255,0.08);border-radius:10px;background:rgba(255,255,255,0.02)">
+              <input type="radio" name="preset_key" value="{{ p.preset_key }}" {% if chosen==p.preset_key %}checked{% endif %}>
+              <div>
+                <div style="font-weight:600">{{ p.title }}</div>
+                <div class="help-text">Key: {{ p.preset_key }}</div>
+              </div>
+            </label>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="help-text" style="margin-top:10px">Select pavement + construction type to see matching presets.</div>
+      {% endif %}
+    </div>
+
+    {% if admin_all_presets and admin_all_presets|length > 0 %}
+      <hr style="margin:16px 0">
+      <details>
+        <summary style="cursor:pointer">Admin override</summary>
+        <div class="help-text" style="margin-top:6px">Admins can force-load any active preset.</div>
+        <select name="admin_preset_key" style="margin-top:10px;max-width:520px">
+          <option value="">-- Select preset (override) --</option>
+          {% for p in admin_all_presets %}
+            <option value="{{ p.preset_key }}">{{ p.title }} ({{ p.preset_key }})</option>
+          {% endfor %}
+        </select>
+      </details>
+    {% endif %}
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <a class="btn" href="/projects/wizard/road-classification?wid={{ wid }}">← Back</a>
+      <button class="btn btn-primary" type="submit">Preview Activities & Materials</button>
+    </div>
+
+    <div class="help-text" style="margin-top:10px">Tip: If you changed pavement/construction, click Preview again to refresh the list.</div>
+  </form>
+</div>
+
+{% endblock %}

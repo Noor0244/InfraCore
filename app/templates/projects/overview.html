@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="page-title">
+    Project Overview — {{ project.name }}
+</h1>
+
+<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
+    <h3>Basic Information</h3>
+
+    <table class="table">
+        <tr>
+            <th>Project Name</th>
+            <td>{{ project.name }}</td>
+        </tr>
+        <tr>
+            <th>Project Code</th>
+            <td>{{ project.project_code or "-" }}</td>
+        </tr>
+        <tr>
+            <th>Client / Authority</th>
+            <td>{{ project.client_authority or "-" }}</td>
+        </tr>
+        <tr>
+            <th>Contractor</th>
+            <td>{{ project.contractor or "-" }}</td>
+        </tr>
+        <tr>
+            <th>Consultant / PMC</th>
+            <td>{{ project.consultant_pmc or "-" }}</td>
+        </tr>
+    </table>
+</div>
+
+<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
+    <h3>Road & Location Details</h3>
+
+    <table class="table">
+        <tr>
+            <th>Road Type</th>
+            <td>{{ project.road_type }}</td>
+        </tr>
+        <tr>
+            <th>Lanes</th>
+            <td>{{ project.lanes }}</td>
+        </tr>
+        <tr>
+            <th>Road Length (km)</th>
+            <td>{{ project.road_length_km }}</td>
+        </tr>
+        <tr>
+            <th>Chainage</th>
+            <td>
+                {{ project.chainage_start or "N/A" }}
+                —
+                {{ project.chainage_end or "N/A" }}
+            </td>
+        </tr>
+        <tr>
+            <th>Location</th>
+            <td>
+                {{ project.city }}
+                {% if project.district %}, {{ project.district }}{% endif %}
+                {% if project.state %}, {{ project.state }}{% endif %}
+                , {{ project.country }}
+            </td>
+        </tr>
+    </table>
+</div>
+
+{% if project.project_type|lower == "road" %}
+<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
+    <h3>Road Preset Snapshot (Read-only)</h3>
+
+    <div style="display:flex; justify-content: flex-end; gap: 10px; margin: 6px 0 12px;">
+        <a class="btn" href="/projects/{{ project.id }}/preset-snapshot.json" download>
+            Download Snapshot (JSON)
+        </a>
+    </div>
+
+    <table class="table">
+        <tr>
+            <th>Road Category</th>
+            <td>{{ project.road_category or "-" }}</td>
+        </tr>
+        <tr>
+            <th>Road Engineering Type</th>
+            <td>{{ project.road_engineering_type or "-" }}</td>
+        </tr>
+        <tr>
+            <th>Preset Key</th>
+            <td>{{ preset_snapshot.preset_key or "-" }}</td>
+        </tr>
+        <tr>
+            <th>Selected Activities</th>
+            <td>
+                {% if preset_snapshot.activity_names %}
+                    {{ preset_snapshot.activity_names|length }} activities
+                    <details style="margin-top: 6px;">
+                        <summary style="cursor: pointer;">Show list</summary>
+                        <div style="max-height: 240px; overflow: auto; margin-top: 8px;">
+                            <ol style="margin: 0 0 0 18px;">
+                                {% for a in preset_snapshot.activity_names %}
+                                    <li>{{ a }}</li>
+                                {% endfor %}
+                            </ol>
+                        </div>
+                    </details>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Selected Materials</th>
+            <td>
+                {% if preset_snapshot.material_defs %}
+                    {{ preset_snapshot.material_defs|length }} materials
+                    <details style="margin-top: 6px;">
+                        <summary style="cursor: pointer;">Show list</summary>
+                        <div style="max-height: 240px; overflow: auto; margin-top: 8px;">
+                            <ol style="margin: 0 0 0 18px;">
+                                {% for m in preset_snapshot.material_defs %}
+                                    <li>{{ m.name }} <span style="color:#666;">({{ m.unit }})</span></li>
+                                {% endfor %}
+                            </ol>
+                        </div>
+                    </details>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    {% if preset_snapshot.mapping_by_activity %}
+        <h4 style="margin-top: 10px;">Activity → Material Map (Preset Codes)</h4>
+        <table class="table">
+            <tr>
+                <th style="width: 220px;">Activity Code</th>
+                <th>Material Codes</th>
+            </tr>
+            {% for act_code, mat_codes in preset_snapshot.mapping_by_activity.items() %}
+                <tr>
+                    <td><code>{{ act_code }}</code></td>
+                    <td>
+                        {% if mat_codes %}
+                            {% for mc in mat_codes %}
+                                <code style="margin-right: 6px;">{{ mc }}</code>
+                            {% endfor %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+        <p style="margin-top: 8px; color: #666;">
+            This snapshot is stored at create-time for traceability and admin safety checks.
+        </p>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
+    <h3>Planned Timeline</h3>
+
+    <table class="table">
+        <tr>
+            <th>Planned Start Date</th>
+            <td>{{ project.planned_start_date|ddmmyyyy }}</td>
+        </tr>
+        <tr>
+            <th>Planned End Date</th>
+            <td>{{ project.planned_end_date|ddmmyyyy }}</td>
+        </tr>
+        <tr>
+            <th>Status</th>
+            <td>{{ project.status|capitalize }}</td>
+        </tr>
+    </table>
+</div>
+
+<div class="card" style="max-width: 1100px;">
+    <h3>Project Modules</h3>
+
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <a href="/projects/{{ project.id }}/design-data" class="btn">
+            Design Data
+        </a>
+
+        <a href="/projects/{{ project.id }}/activities" class="btn">
+            Activities
+        </a>
+
+        <a href="/projects/{{ project.id }}/materials" class="btn">
+            Materials
+        </a>
+
+        <a href="/projects/{{ project.id }}/activity-materials" class="btn">
+            Activity → Material Map
+        </a>
+
+        <a href="/projects/{{ project.id }}/documents" class="btn">
+            Documents
+        </a>
+    </div>
+
+    <p style="margin-top: 10px; color: #666;">
+        Complete project information step-by-step using the modules above.
+    </p>
+</div>
+
+{% endblock %}

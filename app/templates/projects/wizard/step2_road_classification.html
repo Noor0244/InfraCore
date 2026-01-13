@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Road Classification (Step 2 of 5)</h1>
+<div class="help-text" style="margin-top:-8px">Pick the functional category. Context is optional.</div>
+
+<div class="card card--page">
+  <form method="post" action="/projects/wizard/road-classification">
+    <input type="hidden" name="wid" value="{{ wid }}">
+
+    <div class="form-grid">
+      <div style="min-width:260px">
+        <label>Road Category <span class="required">*</span></label>
+        <select name="road_category" required>
+          {% set cur = (data.get('road_category') or '') %}
+          <option value="">-- Select --</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if cur==c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+        <div class="help-text">Expressway / NH / SH / MDR / ODR / Village / Urban</div>
+      </div>
+
+      <div style="min-width:260px">
+        <label>Road Context (Optional)</label>
+        <select name="road_context">
+          {% set rc = (data.get('road_context') or '') %}
+          {% for c in contexts %}
+            <option value="{{ c }}" {% if rc==c %}selected{% endif %}>{{ c if c else '-- None --' }}</option>
+          {% endfor %}
+        </select>
+        <div class="help-text">Used to refine suggestions later.</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <a class="btn" href="/projects/wizard/type?wid={{ wid }}">← Back</a>
+      <button class="btn btn-primary" type="submit">Next → Engineering Type</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

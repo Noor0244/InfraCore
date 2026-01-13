@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="page-title">Activity Log</h1>
+
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.timestamp }}</td>
+                <td>{{ log.username }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.details }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4">No activity recorded</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

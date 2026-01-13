@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">Activity → Material Mapping — {{ project.name }}</h1>
+    <div style="opacity:0.8;font-size:13px">These mappings drive auto-linked materials and planned consumption in Daily Entry.</div>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+      <span class="badge">Type: {{ project.project_type or '—' }}</span>
+      {% if project.project_type == 'Road' and project.road_engineering_type %}
+        <span class="badge badge-info">{{ project.road_engineering_type }}</span>
+      {% endif %}
+      <span class="badge">Activities: {{ activities|length }}</span>
+      <span class="badge">Planned Materials: {{ planned_materials|length }}</span>
+      <span class="badge">Mappings: {{ mapping_rows|length }}</span>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a href="/projects/{{ project.id }}/materials" class="btn">← Materials</a>
+    <a href="/execution/{{ project.id }}" class="btn">Daily Entry</a>
+  </div>
+</div>
+
+<div class="card" style="padding:16px;max-width:1200px">
+  {% if can_edit %}
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div>
+      <strong>Bulk tools</strong>
+      <div class="help-text">Applies starter mappings for this project classification. You can edit rates after.</div>
+    </div>
+    <form method="post" action="/projects/{{ project.id }}/activity-materials/apply-presets" onsubmit="return confirm('Apply preset mappings? This will only add missing mappings.');">
+      <button class="btn-primary" type="submit">⚡ Apply Preset Mappings</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if unmapped_activities|length > 0 %}
+    <div style="margin-top:12px;padding:10px 12px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;background:rgba(255,255,255,0.02)">
+      <div style="font-weight:600;margin-bottom:6px">Unmapped activities ({{ unmapped_activities|length }})</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        {% for a in unmapped_activities[:20] %}
+          <span class="badge">{{ a.name }}</span>
+        {% endfor %}
+        {% if unmapped_activities|length > 20 %}
+          <span class="badge badge-info">+{{ unmapped_activities|length - 20 }} more</span>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if can_edit %}
+  <div style="margin-top:14px;display:grid;grid-template-columns:1.2fr 0.8fr;gap:12px">
+    <div style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
+      <div style="font-weight:600;margin-bottom:8px">Add mapping</div>
+      <form id="addMappingForm" method="post" action="/projects/{{ project.id }}/activity-materials/add" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select name="activity_id" required style="min-width:260px">
+          <option value="">Select activity…</option>
+          {% for a in activities %}
+            <option value="{{ a.id }}">{{ a.name }}</option>
+          {% endfor %}
+        </select>
+
+        <select id="add_material_id" name="material_id" required style="min-width:260px">
+          <option value="">Select material (planned)…</option>
+          {% for m in planned_materials %}
+            <option value="{{ m.id }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+
+        {% if can_edit_lead_time %}
+          <select id="add_vendor_id" name="vendor_id" style="min-width:220px" title="Vendor lead time overrides material default lead time">
+            <option value="">(No vendor)</option>
+          </select>
+
+          <input name="order_date" type="text" value="{{ today|ddmmyyyy }}" placeholder="DD/MM/YYYY" inputmode="numeric" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" style="max-width:170px" title="Order Date (Expected delivery = order date + lead time)" />
+          <input id="add_leadtime_override" name="lead_time_days_override" type="number" step="1" min="0" placeholder="Override LT (days)" style="max-width:170px" title="Optional override of lead time (admin/manager only)" />
+          <span id="add_leadtime_hint" class="help-text" style="margin:0">Select a vendor to use vendor lead time.</span>
+        {% endif %}
+
+        <input name="consumption_rate" type="number" step="0.0001" min="0" value="0" placeholder="Rate" style="max-width:140px" />
+        <button class="btn-secondary btn-sm" type="submit">+ Add</button>
+      </form>
+      <div class="help-text" style="margin-top:8px">Tip: add materials first in the Materials module, then map them here.</div>
+    </div>
+
+    <div style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
+      <div style="font-weight:600;margin-bottom:8px">How rates work</div>
+      <div class="help-text">Consumption Rate = material required per 1 unit of activity. Example: if activity unit is m3 and rate is 8 (bags), planned cement for 2 m3 is 16 bags.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:14px">
+    {% if mapping_rows|length > 0 %}
+      <table class="table" style="margin:0">
+        <thead>
+          <tr>
+            <th style="width:34%">Activity</th>
+            <th style="width:28%">Material</th>
+            <th style="width:28%">Rate · Lead time · Delivery
+              <span title="Expected delivery = order date + lead time. If delivery is after activity start, the activity is marked Material Risk.">ⓘ</span>
+            </th>
+            <th style="width:10%">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in mapping_rows %}
+          <tr class="activity-material-row" data-material-id="{{ r.material_id }}">
+            <td>
+              <strong>{{ r.activity }}</strong>
+              <div class="meta">Start: {{ (r.activity_start_date|ddmmyyyy) if r.activity_start_date else '—' }}</div>
+            </td>
+            <td>
+              {{ r.material }}
+              {% if r.reorder_hint %}
+                <div class="meta" style="color:#f59e0b" title="Auto-suggest reorder based on stock vs required">⚠ {{ r.reorder_hint }}</div>
+              {% endif %}
+              <div class="meta">Required: {{ '%.3f'|format(r.required_qty) }} · Stock: {{ '%.3f'|format(r.available_qty) }}</div>
+            </td>
+            <td>
+              {% if can_edit %}
+              <form method="post" action="/projects/{{ project.id }}/activity-materials/update" style="display:grid;grid-template-columns:1fr;gap:8px">
+                <input type="hidden" name="mapping_id" value="{{ r.id }}" />
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input name="consumption_rate" type="number" step="0.0001" min="0" value="{{ r.consumption_rate }}" style="max-width:180px" />
+
+                  {% if can_edit_lead_time %}
+                    <select class="vendor-select" name="vendor_id" style="min-width:200px" title="Vendor lead time overrides material default">
+                      <option value="">(No vendor)</option>
+                      {% set vlist = vendors_by_material_id.get(r.material_id, []) %}
+                      {% for v in vlist %}
+                        <option value="{{ v.id }}" {% if r.vendor_id and v.id == r.vendor_id %}selected{% endif %}>
+                          {{ v.vendor_name }}{% if not v.is_active %} (inactive){% endif %}
+                        </option>
+                      {% endfor %}
+                    </select>
+                    <input name="order_date" type="text" value="{{ (r.order_date|ddmmyyyy) if r.order_date else (today|ddmmyyyy) }}" placeholder="DD/MM/YYYY" inputmode="numeric" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" style="max-width:170px" title="Order Date (Expected delivery = order date + lead time)" />
+                    <input class="leadtime-override" name="lead_time_days_override" type="number" step="1" min="0" value="{{ r.lead_time_override if r.lead_time_override is not none else '' }}" placeholder="Override LT" style="max-width:150px" title="Optional lead time override (admin/manager only)" />
+                    <span class="help-text leadtime-hint" style="margin:0">—</span>
+                  {% endif %}
+                </div>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                  <button class="btn-primary btn-sm" type="submit">Save</button>
+
+                  {% if r.material_is_risk %}
+                    <span class="badge" style="background:#7f1d1d" title="Material will arrive after activity start date">🔴 Material late ({{ r.material_days_late }}d)</span>
+                  {% elif r.material_status == 'PENDING' %}
+                    <span class="badge badge-warning" title="Ordered but not yet delivered">🟡 Pending</span>
+                  {% elif r.material_status == 'AVAILABLE' %}
+                    <span class="badge badge-success" title="Expected delivery is before activity start, and already delivered">🟢 Available</span>
+                  {% else %}
+                    <span class="badge" title="Set vendor + order date to calculate delivery">—</span>
+                  {% endif %}
+
+                  <span class="meta" title="Expected delivery = order date + lead time">
+                    Delivery: {{ (r.expected_delivery_date|ddmmyyyy) if r.expected_delivery_date else '—' }} · LT: {{ r.lead_time_days }}d
+                  </span>
+                </div>
+              </form>
+              {% else %}
+                {{ r.consumption_rate }}
+              {% endif %}
+            </td>
+
+            <td>
+              {% if can_edit %}
+              <form method="post" action="/projects/{{ project.id }}/activity-materials/remove" onsubmit="return confirm('Remove this mapping?')">
+                <input type="hidden" name="mapping_id" value="{{ r.id }}" />
+                <button class="btn-danger btn-sm" type="submit">Remove</button>
+              </form>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div style="padding:16px;opacity:0.75">No mappings yet. Apply presets or add mappings manually.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script id="vendorsByMaterialJson" type="application/json">{{ vendors_by_material_json | tojson }}</script>
+<script src="/static/js/activity_material_leadtime.js"></script>
+
+{% endblock %}

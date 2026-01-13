@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Confirm & Generate (Step 5 of 5)</h1>
+<div class="help-text" style="margin-top:-8px">This will create the project and copy activities/materials into project data.</div>
+
+<div class="card card--page">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div>
+      <div style="font-weight:700;margin-bottom:6px">Project</div>
+      <div class="help-text">Name: <b>{{ data.get('name') }}</b></div>
+      <div class="help-text">Location: {{ data.get('state') or '' }} {{ data.get('city') or '' }}</div>
+      <div class="help-text">Dates: {{ data.get('planned_start_date') }} → {{ data.get('planned_end_date') }}</div>
+      <div class="help-text">Type: {{ data.get('project_type') }}</div>
+    </div>
+    <div>
+      <div style="font-weight:700;margin-bottom:6px">Preset</div>
+      {% if preset_title %}
+        <div class="help-text"><b>{{ preset_title }}</b></div>
+      {% else %}
+        <div class="help-text">(No preset selected)</div>
+      {% endif %}
+      <div class="help-text">You can customize freely after generation.</div>
+    </div>
+  </div>
+
+  <hr style="margin:16px 0">
+
+  <form method="post" action="/projects/create">
+    <input type="hidden" name="wizard_id" value="{{ wid }}">
+    <!-- Basic info -->
+    <input type="hidden" name="name" value="{{ data.get('name') }}">
+    <input type="hidden" name="project_code" value="{{ data.get('project_code') or '' }}">
+    <input type="hidden" name="client_authority" value="{{ data.get('client_authority') or '' }}">
+    <input type="hidden" name="contractor" value="{{ data.get('contractor') or '' }}">
+    <input type="hidden" name="consultant_pmc" value="{{ data.get('consultant_pmc') or '' }}">
+
+    <!-- Location + dates -->
+    <input type="hidden" name="country" value="{{ data.get('country') or 'India' }}">
+    <input type="hidden" name="state" value="{{ data.get('state') or '' }}">
+    <input type="hidden" name="city" value="{{ data.get('city') or '' }}">
+    <input type="hidden" name="planned_start_date" value="{{ data.get('planned_start_date') }}">
+    <input type="hidden" name="planned_end_date" value="{{ data.get('planned_end_date') }}">
+
+    <!-- Project type -->
+    <input type="hidden" name="project_type" value="{{ data.get('project_type') }}">
+
+    {% if preset %}
+      <!-- Road classification -->
+      <input type="hidden" name="road_category" value="{{ preset.road_category }}">
+      <input type="hidden" name="road_engineering_type" value="{{ preset.road_engineering_type }}">
+      <input type="hidden" name="road_extras_json" value="{{ {'road_context': data.get('road_context'), 'preset_key': data.get('preset_key'), 'activity_material_map': data.get('activity_material_map') } | tojson }}">
+
+      <!-- Selected preset payloads -->
+      <input type="hidden" name="activity_preset_defs_json" value='{{ data.get("activity_preset_defs_json") or "[]" }}'>
+      <input type="hidden" name="material_preset_defs_json" value='{{ data.get("material_preset_defs_json") or "[]" }}'>
+    {% endif %}
+
+    <div style="display:flex;gap:10px">
+      <a class="btn" href="/projects/wizard/preview?wid={{ wid }}">← Back</a>
+      <button class="btn btn-primary" type="submit">Generate Project Plan</button>
+    </div>
+
+    <div class="help-text" style="margin-top:10px">After generation, presets are not linked to the project.</div>
+  </form>
+
+</div>
+
+{% endblock %}

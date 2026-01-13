@@ -1,0 +1,170 @@
+/* InfraCore UI v2 (override layer)
+   Loaded after style.css to modernize spacing, cards, forms, tables.
+*/
+
+:root{
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.08);
+  --shadow-md: 0 10px 30px rgba(0,0,0,0.18);
+
+  --ring: 0 0 0 3px rgba(59,130,246,0.25);
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  line-height: 1.35;
+}
+
+.container{
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 22px;
+}
+
+/* Background polish */
+.main{
+  background:
+    radial-gradient(1000px 600px at 20% -10%, rgba(59,130,246,0.12), transparent 60%),
+    radial-gradient(900px 500px at 100% 10%, rgba(16,185,129,0.10), transparent 55%),
+    var(--bg-primary);
+}
+
+/* Sidebar */
+.sidebar{
+  background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.sidebar-header h2{
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+}
+
+.sidebar-nav a{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.sidebar-nav a:hover{
+  transform: translateX(1px);
+}
+
+.sidebar-nav a.active{
+  box-shadow: var(--shadow-sm);
+}
+
+/* Titles */
+.page-title{
+  margin: 0 0 14px 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+/* Cards */
+.card{
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+}
+
+.card--page{
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.card--sm{ max-width: 680px; margin: 0 auto; }
+.card--md{ max-width: 900px; margin: 0 auto; }
+.card--lg{ max-width: 1180px; margin: 0 auto; }
+
+.card-pad{ padding: 18px; }
+
+hr{
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  margin: 18px 0;
+}
+
+/* Forms */
+input, select, textarea{
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+}
+
+input:focus, select:focus, textarea:focus{
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: var(--ring);
+}
+
+label{
+  display:block;
+  margin-bottom: 6px;
+}
+
+.form-section{
+  padding: 6px 0 10px;
+  margin-bottom: 10px;
+}
+
+.section-title{
+  margin: 6px 0 10px;
+}
+
+.form-grid{
+  gap: 14px;
+}
+
+/* Buttons (unify .button + .btn-*) */
+button, .button, .btn-primary, .btn-secondary, .btn-danger{
+  border-radius: var(--radius-sm);
+}
+
+.btn-primary, .button{
+  box-shadow: 0 8px 20px rgba(37,99,235,0.18);
+}
+
+.btn-secondary{
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+}
+
+/* Tables */
+.table, table{
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+table thead th{
+  background: color-mix(in srgb, var(--card) 92%, black 8%);
+}
+
+table tbody tr:hover{
+  background: color-mix(in srgb, var(--hover-bg) 60%, transparent);
+}
+
+/* Small helpers */
+.help-text{
+  opacity: 0.85;
+}
+
+@media (max-width: 900px){
+  .container{ padding: 16px; }
+  .card--page{ max-width: 100%; }
+}

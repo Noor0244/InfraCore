@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+    <div>
+        <h1 class="page-title" style="margin-bottom:6px">Audit Logs</h1>
+        <div class="help-text">Read-only. Latest first. Use filters to narrow results.</div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="/admin/users" class="btn-secondary" style="text-decoration:none">← Users</a>
+        <a href="/admin/presets/road" class="btn-secondary" style="text-decoration:none">🧩 Road Presets</a>
+    </div>
+</div>
+
+<div class="card" style="padding:16px;margin-bottom:16px">
+    <form method="get" action="/admin/logs" class="form-grid">
+        <div class="form-group">
+            <label>Action</label>
+            <select name="action">
+                <option value="">All</option>
+                {% for a in actions %}
+                    <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Entity Type</label>
+            <select name="entity_type">
+                <option value="">All</option>
+                {% for e in entity_types %}
+                    <option value="{{ e }}" {% if filters.entity_type == e %}selected{% endif %}>{{ e }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>User</label>
+            <select name="user_id">
+                <option value="">All</option>
+                {% for u in users %}
+                    <option value="{{ u[0] }}" {% if filters.user_id|string == u[0]|string %}selected{% endif %}>{{ u[1] }} ({{ u[0] }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Username Contains</label>
+            <input type="text" name="username" value="{{ filters.username }}" placeholder="search…">
+        </div>
+
+        <div class="form-group">
+            <label>Start Date</label>
+            <input type="text" name="start_date" value="{{ filters.start_date|ddmmyyyy }}" placeholder="DD/MM/YYYY" inputmode="numeric" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}">
+        </div>
+
+        <div class="form-group">
+            <label>End Date</label>
+            <input type="text" name="end_date" value="{{ filters.end_date|ddmmyyyy }}" placeholder="DD/MM/YYYY" inputmode="numeric" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}">
+        </div>
+
+        <div class="form-group" style="display:flex;align-items:flex-end;gap:10px">
+            <button class="btn-primary" type="submit">Apply</button>
+            <a class="btn-secondary" href="/admin/logs" style="text-decoration:none">Reset</a>
+        </div>
+    </form>
+</div>
+
+<div class="card" style="padding:0">
+    <div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <strong>Logs</strong>
+        <span style="opacity:0.75;font-size:13px">
+            Total: {{ total }}
+        </span>
+    </div>
+
+    <table class="table" style="margin:0">
+        <thead>
+            <tr style="background:rgba(255,255,255,0.04)">
+                <th style="width:170px">Date &amp; Time</th>
+                <th style="width:140px">Username</th>
+                <th style="width:110px">Role</th>
+                <th style="width:90px">Action</th>
+                <th style="width:140px">Entity</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if logs and logs|length > 0 %}
+                {% for l in logs %}
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+                        <td style="white-space:nowrap">{{ l.created_at|ddmmyyyy_dt }}</td>
+                        <td><strong>{{ l.username }}</strong></td>
+                        <td>{{ l.role or "" }}</td>
+                        <td>
+                            <span class="badge badge-info">{{ l.action }}</span>
+                        </td>
+                        <td>
+                            {{ l.entity_type or "" }}
+                            {% if l.entity_id %}
+                                #{{ l.entity_id }}
+                            {% endif %}
+                        </td>
+                        <td style="opacity:0.9">{{ l.description or l.details or "" }}</td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" style="padding:24px;text-align:center;opacity:0.75">
+                        No audit logs found for the selected filters.
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+{% set total_pages = (total // page_size) + (1 if total % page_size else 0) %}
+{% if total_pages > 1 %}
+<div style="display:flex;justify-content:center;gap:10px;margin-top:16px;flex-wrap:wrap">
+    {% if page > 1 %}
+        <a class="btn-secondary" style="text-decoration:none" href="/admin/logs?page={{ page - 1 }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&user_id={{ filters.user_id }}&username={{ filters.username }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">← Prev</a>
+    {% endif %}
+
+    <div style="align-self:center;opacity:0.8">Page {{ page }} / {{ total_pages }}</div>
+
+    {% if page < total_pages %}
+        <a class="btn-secondary" style="text-decoration:none" href="/admin/logs?page={{ page + 1 }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&user_id={{ filters.user_id }}&username={{ filters.username }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Next →</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

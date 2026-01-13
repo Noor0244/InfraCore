@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Manage Projects</h1>
+
+<!-- ================= TABS ================= -->
+<div style="display:flex;gap:10px;margin-bottom:20px">
+    <a href="/projects/manage?view=active"
+       class="btn-secondary {% if view=='active' %}btn-primary{% endif %}">
+        Active
+    </a>
+    <a href="/projects/manage?view=archived"
+       class="btn-secondary {% if view=='archived' %}btn-primary{% endif %}">
+        Archived
+    </a>
+
+    <!-- ✅ CREATE PROJECT (ADMIN + MANAGER ONLY) -->
+    {% if user["role"] in ["admin", "manager"] %}
+    <div style="margin-left:auto">
+        <a href="/projects/new" class="btn-primary">
+            + New Project
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ================= PROJECT TABLE ================= -->
+<div class="card">
+<table class="table">
+<thead>
+<tr>
+    <th>Name</th>
+    <th>Location</th>
+    <th>Status</th>
+    <th>Timeline</th>
+    <th>Actions</th>
+</tr>
+</thead>
+
+<tbody>
+{% for p in projects %}
+<tr>
+    <td><a href="/projects/{{ p.id }}" class="project-link" title="Open project overview">{{ p.name }}</a></td>
+    <td>{{ p.city }}{% if p.state %}, {{ p.state }}{% endif %}</td>
+    <td>{{ p.status|capitalize }}</td>
+    <td>{{ p.planned_start_date|ddmmyyyy }} → {{ p.planned_end_date|ddmmyyyy }}</td>
+
+    <td style="display:flex;gap:8px;flex-wrap:wrap">
+
+        <!-- 👁 VIEW PROJECT OVERVIEW (ALL USERS) -->
+        <a href="/projects/{{ p.id }}" class="btn-primary">
+            👁 View
+        </a>
+
+        <!-- ✏️ EDIT -->
+        {% if user["role"] in ["admin", "manager"] %}
+        <a href="/projects/{{ p.id }}/edit" class="btn-secondary">
+            ✏️ Edit
+        </a>
+        {% endif %}
+
+        <!-- 📦 ARCHIVE / RESTORE -->
+        {% if user["role"] in ["admin", "manager"] %}
+        <form method="post" action="/projects/{{ p.id }}/archive"
+              onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
+            <button class="btn-warning">
+                {% if p.is_active %}
+                    Archive
+                {% else %}
+                    Restore
+                {% endif %}
+            </button>
+        </form>
+        {% endif %}
+
+        <!-- 🗑 DELETE -->
+                {% if user["role"] == "admin" %}
+                <form method="post"
+                            action="/projects/{{ p.id }}/delete"
+                            onsubmit="return confirm('Delete this project permanently? This action is irreversible and will remove all project data.')">
+                        <button class="btn-danger">Delete</button>
+                </form>
+                {% endif %}
+
+        <!-- 👁 VIEW ONLY (LABEL FOR NON-EDITORS) -->
+        {% if user["role"] not in ["admin", "manager"] %}
+            <span class="badge badge-info">View Only</span>
+        {% endif %}
+
+    </td>
+</tr>
+{% else %}
+<tr>
+    <td colspan="5">No projects found.</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+{% endblock %}

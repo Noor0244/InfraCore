@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">{{ title }}</h1>
+
+<!-- ================= PROJECT CONTEXT ================= -->
+<script id="projectIdJson" type="application/json">{{ project_id | tojson }}</script>
+
+<!-- ================= KPI / SUMMARY ================= -->
+<div class="kpi-grid">
+    <a href="/reports" class="kpi-card kpi-primary">
+        <div class="kpi-icon">📄</div>
+        <div class="kpi-content">
+            <div class="kpi-value">{{ summary.total_reports }}</div>
+            <div class="kpi-label">Total Reports</div>
+        </div>
+    </a>
+
+    <div class="kpi-card kpi-success">
+        <div class="kpi-icon">📅</div>
+        <div class="kpi-content">
+            <div class="kpi-value">{{ summary.reports_today }}</div>
+            <div class="kpi-label">Reports Today</div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= PROJECT OVERVIEW ================= -->
+<h2 class="section-title">Project Overview</h2>
+
+{% if not has_projects %}
+<div class="card">
+    <p style="margin:0;opacity:0.8">
+        Create a project to get started.
+    </p>
+</div>
+
+{% elif project %}
+<div class="card" style="margin-bottom:20px">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <h3 style="margin:0">Active Project</h3>
+
+        {% if projects|length > 1 %}
+        <select
+            class="form-select"
+            onchange="if(this.value) window.location.href='?project_id=' + this.value"
+        >
+            {% for p in projects %}
+                <option value="{{ p.id }}" {% if project.id == p.id %}selected{% endif %}>
+                    {{ p.name }} — {{ p.city }}
+                    {% if not p.is_active %}(Archived){% endif %}
+                </option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
+
+    <hr style="margin:12px 0">
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+
+        <div>
+            <strong>Project Name</strong><br>
+            {{ project.name }}
+        </div>
+
+        <div>
+            <strong>Location</strong><br>
+            {{ project.city }}
+            {% if project.state %}, {{ project.state }}{% endif %}
+        </div>
+
+        <div>
+            <strong>Road Details</strong><br>
+            {{ project.road_type }},
+            {{ project.lanes }} lanes,
+            {{ project.road_length_km }} km
+        </div>
+
+        <div>
+            <strong>Status</strong><br>
+            <span class="badge badge-info">
+                {{ project.status|capitalize }}
+            </span>
+        </div>
+
+        <div>
+            <strong>Timeline</strong><br>
+            {{ project.planned_start_date|ddmmyyyy }} → {{ project.planned_end_date|ddmmyyyy }}
+        </div>
+
+    </div>
+
+    <hr style="margin:14px 0; opacity:0.45">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn-primary" href="/projects/{{ project.id }}/prediction">🔮 Prediction</a>
+        <a class="btn-secondary" href="/execution/{{ project.id }}">🧾 Daily Execution</a>
+        <a class="btn-secondary" href="/activity-material-planning/{{ project.id }}">🗓🧱 Activity & Materials</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- ================= PROJECT KPI ================= -->
+{% if project %}
+<div class="kpi-grid">
+    <div class="kpi-card kpi-primary">
+        <div class="kpi-content">
+            <div class="kpi-value" id="totalActivities">–</div>
+            <div class="kpi-label">Total Activities</div>
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-warning">
+        <div class="kpi-content">
+            <div class="kpi-value" id="inProgressActivities">–</div>
+            <div class="kpi-label">In Progress</div>
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-success">
+        <div class="kpi-content">
+            <div class="kpi-value" id="completedActivities">–</div>
+            <div class="kpi-label">Completed</div>
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-danger">
+        <div class="kpi-content">
+            <div class="kpi-value" id="delayedActivities">–</div>
+            <div class="kpi-label">Delayed</div>
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-warning">
+        <div class="kpi-content">
+            <div class="kpi-value" id="materialRiskActivities">–</div>
+            <div class="kpi-label">Material Risk</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0">Overall Project Progress</h3>
+    <div class="meta" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <div>
+            <strong>Time view:</strong>
+            <select id="timeUnitSelect" style="padding:6px 8px">
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+            </select>
+        </div>
+        <div>
+            <span class="pill">Planned: <span id="timePlanned">–</span> <span id="timeUnitLabel">hrs</span></span>
+            <span class="pill">Executed: <span id="timeExecuted">–</span> <span id="timeUnitLabel2">hrs</span></span>
+        </div>
+    </div>
+    <div class="progress-bar-container">
+        <div class="progress-bar" id="overallProgressBar">0%</div>
+    </div>
+    <div class="meta" style="margin-top:8px">Time progress: <strong id="overallTimeProgress">0%</strong></div>
+</div>
+
+<!-- ================= WARNING / UPDATE SYSTEM ================= -->
+{% if alerts %}
+<h2 class="section-title">Upcoming Updates & Warnings</h2>
+
+<div class="card" style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+            <h3 style="margin:0">What’s Next + What to Order</h3>
+            <div class="meta" style="margin-top:6px">
+                Based on plan (Activity & Materials) + current stock + lead time. Today: <strong>{{ alerts.today }}</strong>
+            </div>
+        </div>
+        <div>
+            {% if alerts.warnings_count and alerts.warnings_count > 0 %}
+                <span class="badge badge-warning">{{ alerts.warnings_count }} urgent</span>
+            {% else %}
+                <span class="badge badge-success">No urgent warnings</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <hr style="margin:14px 0; opacity:0.45">
+
+    {% if alerts.next_activity %}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <span class="badge badge-info">Next Activity</span>
+            <span>
+                {% if alerts.next_activity.activity_code %}<strong>{{ alerts.next_activity.activity_code }}</strong> —{% endif %}
+                <strong>{{ alerts.next_activity.activity_name }}</strong>
+                <span class="meta">(Start: {{ alerts.next_activity.start_date }}, Progress: {{ alerts.next_activity.progress_percent }}%)</span>
+            </span>
+        </div>
+    {% else %}
+        <div class="meta">No upcoming activities found (check planning dates / progress).</div>
+    {% endif %}
+
+    <div style="margin-top:14px">
+        {% if alerts.procurement_snapshot and alerts.procurement_snapshot|length > 0 %}
+        <div style="margin: 0 0 12px 0;">
+            <h4 style="margin:0 0 8px 0">Materials needing action this week</h4>
+            <div class="meta" style="margin-bottom:8px">Compact summary for managers (urgent items only).</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+                {% for s in alerts.procurement_snapshot %}
+                    <span class="pill" title="{{ s.status_label }}{% if s.earliest_order_by %} | Order-by: {{ s.earliest_order_by }}{% endif %}">
+                        {% if s.material_code %}{{ s.material_code }} — {% endif %}{{ s.material_name }}:
+                        <strong>{{ "%.3f"|format(s.total_to_order_qty or 0) }}</strong> {{ s.unit }}
+                        {% if s.earliest_order_by %}<span class="meta">(by {{ s.earliest_order_by }})</span>{% endif %}
+                        {% if s.status_kind == 'LATE' %}<span class="badge badge-danger" style="margin-left:6px">Late</span>{% endif %}
+                        {% if s.status_kind == 'DUE' %}<span class="badge badge-warning" style="margin-left:6px">Due</span>{% endif %}
+                        {% if s.status_kind == 'DUE_SOON' %}<span class="badge badge-warning" style="margin-left:6px">Due Soon</span>{% endif %}
+                    </span>
+                {% endfor %}
+            </div>
+            <hr style="margin:14px 0; opacity:0.35">
+        </div>
+        {% endif %}
+
+        <h4 style="margin:0 0 8px 0">Material Order Alerts (Top {{ alerts.cfg.max_rows }})</h4>
+
+        {% if alerts.material_orders and alerts.material_orders|length > 0 %}
+        <div style="overflow:auto">
+            <table class="table" style="min-width:980px">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Order By</th>
+                        <th>Supply Lead Time</th>
+                        <th>Activity</th>
+                        <th>Material</th>
+                        <th style="text-align:right">Material Required</th>
+                        <th style="text-align:right">In Stock</th>
+                        <th style="text-align:right">Order Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in alerts.material_orders %}
+                    {% set urgent = r.status_kind in ['LATE','DUE','DUE_SOON'] and (r.to_order_qty or 0) > 0 %}
+                    <tr {% if urgent %}style="background:rgba(245,158,11,0.10)"{% endif %}>
+                        <td>
+                            {% if r.status_kind == 'LATE' %}
+                                <span class="badge badge-danger" title="{{ r.explain or '' }}">{{ r.status_label }}</span>
+                            {% elif r.status_kind == 'DUE' %}
+                                <span class="badge badge-warning" title="{{ r.explain or '' }}">{{ r.status_label }}</span>
+                            {% elif r.status_kind == 'DUE_SOON' %}
+                                <span class="badge badge-warning" title="{{ r.explain or '' }}">{{ r.status_label }}</span>
+                            {% elif r.status_kind == 'OK' %}
+                                <span class="badge badge-success" title="{{ r.explain or '' }}">{{ r.status_label }}</span>
+                            {% else %}
+                                <span class="badge" title="{{ r.explain or '' }}">{{ r.status_label }}</span>
+                            {% endif %}
+                        </td>
+                        <td title="{{ r.explain or '' }}">{{ r.order_by }}</td>
+                        <td title="{{ r.explain or '' }}">{{ r.lead_time_days }} day(s)</td>
+                        <td>
+                            {% if r.activity_code %}<span class="badge">{{ r.activity_code }}</span>{% endif %}
+                            {{ r.activity_name }}
+                            <div class="meta">Start: {{ r.activity_start }}</div>
+                        </td>
+                        <td>
+                            {% if r.material_code %}<span class="badge">{{ r.material_code }}</span>{% endif %}
+                            {{ r.material_name }}
+                            <div class="meta">Unit: {{ r.unit }}</div>
+                        </td>
+                        <td style="text-align:right">{{ r.required_qty }}</td>
+                        <td style="text-align:right">{{ r.available_qty }}</td>
+                        <td style="text-align:right">
+                            {% if (r.to_order_qty or 0) > 0 %}
+                                <strong>{{ r.to_order_qty }}</strong>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="meta" style="margin-top:8px">
+            Tip: Update stock in Inventory and consumption in Daily Execution to keep this accurate.
+        </div>
+        {% else %}
+            <div class="meta">No material links found for upcoming activities (link materials in Activity & Materials page).</div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- ================= ACTIVITIES ================= -->
+{% if project %}
+<h2 class="section-title">
+    Project Activities
+
+    {% if not project.is_active %}
+        <span class="badge badge-warning" style="float:right">
+            Archived Project
+        </span>
+    {% endif %}
+</h2>
+
+<div class="card">
+<table class="table">
+<thead>
+<tr>
+    <th>ID</th>
+    <th>Start</th>
+    <th>End</th>
+    <th>Progress</th>
+    <th>Status</th>
+    <th>Delay</th>
+    <th>Materials</th>
+    <th>Update</th>
+</tr>
+</thead>
+<tbody id="activityTableBody">
+<tr>
+    <td colspan="8" style="opacity:0.7">
+        Loading activities…
+    </td>
+</tr>
+</tbody>
+</table>
+</div>
+{% endif %}
+
+<script src="/static/js/dashboard.js"></script>
+
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="page-title">
+    Design Data — {{ project.name }}
+</h1>
+
+<p style="color: #888; margin-bottom: 20px;">
+    Enter and manage engineering design information for this project.
+</p>
+
+<!-- ================= ALIGNMENT & LEVELS ================= -->
+<div class="card" style="max-width: 1100px; margin-bottom: 24px;">
+    <h3>Alignment & Levels</h3>
+
+    <p style="color: #666;">
+        Centerline coordinates, chainage-wise FRL and OGL data.
+    </p>
+
+    {% if alignment_summary and alignment_summary.count > 0 %}
+        <!-- ALIGNMENT EXISTS -->
+        <div style="margin-top: 12px;">
+            <span class="badge badge-success">DATA AVAILABLE</span>
+        </div>
+
+        <ul style="margin-top: 12px; color: #555;">
+            <li><strong>Total Points:</strong> {{ alignment_summary.count }}</li>
+            <li>
+                <strong>Chainage Range:</strong>
+                {{ alignment_summary.start }} → {{ alignment_summary.end }}
+            </li>
+        </ul>
+
+        <div style="margin-top: 16px;">
+            <a href="/projects/{{ project.id }}/design-data/alignment"
+               class="btn btn-primary">
+                Open Alignment & Levels
+            </a>
+        </div>
+    {% else %}
+        <!-- NO ALIGNMENT YET -->
+        <div style="margin-top: 12px;">
+            <span class="badge badge-warning">NO DATA</span>
+        </div>
+
+        <p style="margin-top: 10px; color: #777;">
+            Alignment data has not been generated yet.
+        </p>
+
+        <div style="margin-top: 16px;">
+            <a href="/projects/{{ project.id }}/design-data/alignment"
+               class="btn btn-primary">
+                Generate Alignment Data
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- ================= VERTICAL PROFILE ================= -->
+<div class="card" style="max-width: 1100px; margin-bottom: 24px;">
+    <h3>Vertical Profile</h3>
+
+    <p style="color: #666;">
+        Gradients, summit curves, valley curves.
+    </p>
+
+    <span class="badge badge-secondary">Coming Soon</span>
+</div>
+
+<!-- ================= SUPERELEVATION & CAMBER ================= -->
+<div class="card" style="max-width: 1100px; margin-bottom: 24px;">
+    <h3>Superelevation & Camber</h3>
+
+    <p style="color: #666;">
+        Chainage-wise superelevation and camber details.
+    </p>
+
+    <span class="badge badge-secondary">Coming Soon</span>
+</div>
+
+<!-- ================= SOIL & CBR ================= -->
+<div class="card" style="max-width: 1100px; margin-bottom: 24px;">
+    <h3>Soil Investigation & CBR</h3>
+
+    <p style="color: #666;">
+        Soil type, silt factor, and CBR values along alignment.
+    </p>
+
+    <span class="badge badge-secondary">Coming Soon</span>
+</div>
+
+<!-- ================= UTILITIES ================= -->
+<div class="card" style="max-width: 1100px; margin-bottom: 24px;">
+    <h3>Utility Mapping</h3>
+
+    <p style="color: #666;">
+        Underground and overhead utilities affecting construction.
+    </p>
+
+    <span class="badge badge-secondary">Coming Soon</span>
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="/projects/{{ project.id }}" class="btn">
+        ← Back to Project Overview
+    </a>
+</div>
+
+{% endblock %}

@@ -1,0 +1,93 @@
+{
+  "preset_key": "in.road.odr.flexible.new_construction",
+  "region": "India",
+  "title": "Other District Road (ODR) – Flexible Pavement (New Construction)",
+  "standards": ["MoRTH", "IRC"],
+  "road_category": "Other District Road (ODR)",
+  "road_engineering_type": "Flexible Pavement – New Construction",
+  "detail_level": "FULL_EXECUTION_LAYER_WISE",
+  "material_depth": "LAYER_SPEC_LEVEL_DEFAULT",
+  "notes": "ODR preset derived from MDR baseline; minimal but technically correct scope for ODR works. Edit per DPR/soil/spec/SOR.",
+
+  "materials": [
+    {"code": "MAT_EARTH_SOIL", "name": "Earthwork soil", "default_unit": "m3", "allowed_units": ["m3"], "tags": ["Earthwork", "Default"]},
+
+    {"code": "MAT_GSB", "name": "Granular Sub-Base (GSB)", "default_unit": "m3", "allowed_units": ["m3", "MT"], "tags": ["GSB", "Default"]},
+    {"code": "MAT_WMM", "name": "Wet Mix Macadam (WMM)", "default_unit": "m3", "allowed_units": ["m3", "MT"], "tags": ["WMM", "Default"]},
+
+    {"code": "MAT_BC", "name": "Bituminous Concrete (BC)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["BC", "Default"]},
+
+    {"code": "MAT_BIT_VG30", "name": "Bitumen (VG-30)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Bitumen", "Default"]},
+    {"code": "MAT_BIT_VG40", "name": "Bitumen (VG-40)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Bitumen", "Optional"]},
+    {"code": "MAT_BIT_MOD", "name": "Modified Bitumen (PMB/CRMB)", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Bitumen", "Optional"]},
+
+    {"code": "MAT_AGG_BASE", "name": "Aggregates (Base & Sub-base)", "default_unit": "m3", "allowed_units": ["m3", "MT"], "tags": ["Aggregates", "Default"]},
+    {"code": "MAT_AGG_SURF", "name": "Aggregates (Surface)", "default_unit": "m3", "allowed_units": ["m3", "MT"], "tags": ["Aggregates", "Default"]},
+
+    {"code": "MAT_CEMENT", "name": "Cement", "default_unit": "bags", "allowed_units": ["bags", "MT"], "tags": ["Cement", "Default"]},
+    {"code": "MAT_CEMENT_OPC", "name": "Cement (OPC) [Optional]", "default_unit": "bags", "allowed_units": ["bags", "MT"], "tags": ["Cement", "Optional"]},
+    {"code": "MAT_CEMENT_PPC", "name": "Cement (PPC) [Optional]", "default_unit": "bags", "allowed_units": ["bags", "MT"], "tags": ["Cement", "Optional"]},
+
+    {"code": "MAT_STEEL", "name": "Steel", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Steel", "Default"]},
+    {"code": "MAT_STEEL_FE500", "name": "Steel (Fe500) [Optional]", "default_unit": "MT", "allowed_units": ["MT", "kg"], "tags": ["Steel", "Optional"]},
+
+    {"code": "MAT_MARKING_PAINT", "name": "Road marking paint", "default_unit": "kg", "allowed_units": ["kg", "MT"], "tags": ["Marking", "Default"]}
+  ],
+
+  "activities": [
+    {"code": "ACT_001", "name": "Site clearance & grubbing", "phase": "Pre-Construction"},
+    {"code": "ACT_002", "name": "Survey, setting out & benchmarks", "phase": "Pre-Construction"},
+
+    {"code": "ACT_003", "name": "Earthwork excavation", "phase": "Earthwork & Formation"},
+    {"code": "ACT_004", "name": "Embankment construction", "phase": "Earthwork & Formation"},
+    {"code": "ACT_005", "name": "Subgrade preparation & compaction", "phase": "Earthwork & Formation"},
+
+    {"code": "ACT_006", "name": "Granular Sub-Base (GSB)", "phase": "Granular & Pavement Layers"},
+    {"code": "ACT_007", "name": "Prime coat", "phase": "Granular & Pavement Layers"},
+    {"code": "ACT_008", "name": "Wet Mix Macadam (WMM)", "phase": "Granular & Pavement Layers"},
+    {"code": "ACT_009", "name": "Tack coat", "phase": "Granular & Pavement Layers"},
+    {"code": "ACT_010", "name": "Bituminous Concrete (BC)", "phase": "Granular & Pavement Layers"},
+
+    {"code": "ACT_011", "name": "Earthen shoulder construction", "phase": "Shoulders"},
+
+    {"code": "ACT_012", "name": "Side drains (where required)", "phase": "Drainage"},
+    {"code": "ACT_013", "name": "Minor cross drainage works", "phase": "Drainage"},
+
+    {"code": "ACT_014", "name": "Road signage", "phase": "Safety & Furniture"},
+    {"code": "ACT_015", "name": "Road markings", "phase": "Safety & Furniture"},
+    {"code": "ACT_016", "name": "Road studs / reflectors", "phase": "Safety & Furniture"},
+
+    {"code": "ACT_017", "name": "Final finishing & inspection", "phase": "Finishing"}
+  ],
+
+  "activity_materials": [
+    {"activity_code": "ACT_003", "material_code": "MAT_EARTH_SOIL", "consumption_rate": 0.0},
+    {"activity_code": "ACT_004", "material_code": "MAT_EARTH_SOIL", "consumption_rate": 0.0},
+    {"activity_code": "ACT_005", "material_code": "MAT_EARTH_SOIL", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_006", "material_code": "MAT_GSB", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_007", "material_code": "MAT_BIT_VG30", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_008", "material_code": "MAT_WMM", "consumption_rate": 0.0},
+    {"activity_code": "ACT_008", "material_code": "MAT_AGG_BASE", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_009", "material_code": "MAT_BIT_VG30", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_010", "material_code": "MAT_BC", "consumption_rate": 0.0},
+    {"activity_code": "ACT_010", "material_code": "MAT_BIT_VG30", "consumption_rate": 0.0},
+    {"activity_code": "ACT_010", "material_code": "MAT_AGG_SURF", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_011", "material_code": "MAT_EARTH_SOIL", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_012", "material_code": "MAT_CEMENT", "consumption_rate": 0.0},
+    {"activity_code": "ACT_012", "material_code": "MAT_AGG_BASE", "consumption_rate": 0.0},
+    {"activity_code": "ACT_012", "material_code": "MAT_STEEL", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_013", "material_code": "MAT_CEMENT", "consumption_rate": 0.0},
+    {"activity_code": "ACT_013", "material_code": "MAT_AGG_BASE", "consumption_rate": 0.0},
+    {"activity_code": "ACT_013", "material_code": "MAT_STEEL", "consumption_rate": 0.0},
+
+    {"activity_code": "ACT_015", "material_code": "MAT_MARKING_PAINT", "consumption_rate": 0.0}
+  ]
+}

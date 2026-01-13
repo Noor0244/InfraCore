@@ -1,0 +1,1807 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Create New Project</h1>
+
+<div class="help-text" style="margin:-6px 0 14px;opacity:0.9">
+    Prefer a guided flow? <a href="/projects/wizard/start">Start the Project Wizard</a>
+</div>
+
+<div class="card card--page">
+
+<style>
+    .form-errors{display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)}
+    .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
+    .btn-primary[disabled]{opacity:0.65;cursor:not-allowed}
+
+    /* Presets editor (Create Project) */
+    .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+    @media (max-width: 980px){.preset-grid{grid-template-columns:1fr}}
+    .preset-card{border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);border-radius:12px;padding:12px}
+    .preset-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .preset-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .btn-small{padding:7px 10px;font-size:12px;line-height:1}
+    .preset-legend{font-size:12px;opacity:0.85;margin:-4px 0 10px;line-height:1.35}
+    .preset-list{display:flex;flex-direction:column;gap:8px}
+    .preset-row{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.15)}
+    .preset-row input[type="text"]{flex:1;min-width:160px}
+    .preset-row .pill{font-size:11px;opacity:0.8;border:1px solid rgba(255,255,255,0.12);padding:3px 8px;border-radius:999px}
+    .icon-btn{border:1px solid rgba(255,255,255,0.12);background:transparent;color:var(--text-primary);border-radius:10px;padding:6px 10px;cursor:pointer}
+    .icon-btn:hover{background:rgba(255,255,255,0.06)}
+    .muted{opacity:0.85}
+
+    .hidden{display:none !important}
+</style>
+
+<form id="createProjectForm" method="post" action="/projects/create">
+
+    <div id="formErrors" class="form-errors"></div>
+
+    <!-- ================= BASIC INFO ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Basic Information</h3>
+
+        <div class="form-grid">
+
+            <div>
+                <label>Project Name <span class="required">*</span></label>
+                <input type="text" name="name" required>
+                <div class="help-text">Use a concise, descriptive name (e.g. NH-66 Upgrade)</div>
+            </div>
+
+            <div>
+                <label>Project Code / Package No</label>
+                <input type="text" name="project_code">
+            </div>
+
+            <div>
+                <label>Client / Authority</label>
+                <input type="text" name="client_authority">
+            </div>
+
+            <div>
+                <label>Contractor</label>
+                <input type="text" name="contractor">
+            </div>
+
+            <div>
+                <label>Consultant / PMC</label>
+                <input type="text" name="consultant_pmc">
+            </div>
+
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= PROJECT CLASSIFICATION & ROAD DETAILS ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Project Classification</h3>
+
+        <div class="form-grid">
+            <div style="min-width:260px">
+                <label>Project Type <span class="required">*</span></label>
+                <select name="project_type" id="project_type" required aria-describedby="project-type-help">
+                    <option value="">-- Select project type --</option>
+                </select>
+                <div id="project-type-help" class="help-text">This determines activities, materials & workflow presets.</div>
+            </div>
+        </div>
+
+        <!-- Road classification is shown only when Project Type == Road -->
+        <div id="road_block" style="display:none">
+            <h3 class="section-title" style="margin-top:14px">Road Classification</h3>
+
+            <div id="road_classification" class="form-grid" style="display:none">
+
+            <div id="road_category_field" style="display:none;min-width:260px">
+                <label>Road Category <span class="required">*</span></label>
+                <select id="road_category" name="road_category" disabled>
+                    <option value="">-- Select road category --</option>
+                </select>
+                <div class="help-text">Functional class (NH/SH/MDR/Urban/etc.).</div>
+            </div>
+
+            <div id="road_engineering_field" style="display:none;min-width:320px">
+                <label>Road Engineering Type <span class="required">*</span></label>
+                <select id="road_engineering_type" name="road_engineering_type" disabled>
+                    <option value="">-- Select engineering type --</option>
+                </select>
+                <div class="help-text">Drives presets (Flexible/Rigid/Urban/Rural variants).</div>
+            </div>
+
+            </div>
+
+            <div id="road_questions" class="form-grid" style="display:none;margin-top:10px">
+                <div style="grid-column:1/-1">
+                    <label>Additional Questions</label>
+                    <div class="help-text">Smart questions based on Road Category.</div>
+                </div>
+                <div id="road_questions_container" style="grid-column:1/-1"></div>
+                <input type="hidden" name="road_extras_json" id="road_extras_json">
+            </div>
+
+            <!-- Road presets editor (Engineering Type-specific) -->
+            <div id="road_presets_panel" style="display:none;grid-column:1/-1">
+                <label>Road Presets</label>
+                <div class="project-helper muted">Standard presets load based on Road Engineering Type. You can add/rename/remove activities before creating the project.</div>
+
+                <div class="preset-grid">
+                    <div class="preset-card">
+                        <div class="preset-header">
+                            <div>
+                                <div style="font-weight:600">Activity Presets</div>
+                                <div class="help-text">Choose which activities should be created for this project.</div>
+                            </div>
+                            <div class="preset-actions">
+                                <button type="button" class="btn-secondary btn-small" id="btnResetActivities">Reset</button>
+                                <button type="button" class="btn-primary btn-small" id="btnAddActivity">+ Add</button>
+                            </div>
+                        </div>
+                        <div class="preset-legend">Columns: Include | Name | Start time | End time | Type | Reorder | Remove</div>
+                        <div id="activityPresetList" class="preset-list"></div>
+                    </div>
+
+                    <div class="preset-card">
+                        <div class="preset-header">
+                            <div>
+                                <div style="font-weight:600">Material Presets</div>
+                                <div class="help-text">Optional materials to add as planned materials.</div>
+                            </div>
+                            <div class="preset-actions">
+                                <button type="button" class="btn-secondary btn-small" id="btnResetMaterials">Reset</button>
+                                <button type="button" class="btn-primary btn-small" id="btnAddMaterial">+ Add</button>
+                                <button type="button" class="btn-secondary btn-small" id="btnAllMaterials">All</button>
+                                <button type="button" class="btn-secondary btn-small" id="btnNoMaterials">None</button>
+                            </div>
+                        </div>
+                        <div class="preset-legend">Columns: Include | Name | Type | Unit (editable) | Reorder | Remove</div>
+                        <div id="materialPresetList" class="preset-list"></div>
+                    </div>
+                </div>
+
+                <!-- Payloads are stored in hidden inputs below (shared across panels) -->
+            </div>
+
+            <!-- Non-Road presets editor (Project Type-specific) -->
+            <div id="type_presets_panel" class="hidden" style="grid-column:1/-1">
+                <label>Presets</label>
+                <div class="project-helper muted">Standard presets load based on Project Type. You can add/rename/remove activities before creating the project.</div>
+
+                <div class="preset-grid">
+                    <div class="preset-card">
+                        <div class="preset-header">
+                            <div>
+                                <div style="font-weight:600">Activity Presets</div>
+                                <div class="help-text">Choose which activities should be created for this project.</div>
+                            </div>
+                            <div class="preset-actions">
+                                <button type="button" class="btn-secondary btn-small" id="btnResetTypeActivities">Reset</button>
+                                <button type="button" class="btn-primary btn-small" id="btnAddTypeActivity">+ Add</button>
+                            </div>
+                        </div>
+                        <div class="preset-legend">Columns: Name | Start time | End time | Reorder | Remove</div>
+                        <div id="typeActivityPresetList" class="preset-list"></div>
+                    </div>
+
+                    <div class="preset-card">
+                        <div class="preset-header">
+                            <div>
+                                <div style="font-weight:600">Material Presets</div>
+                                <div class="help-text">Optional materials to add as planned materials.</div>
+                            </div>
+                            <div class="preset-actions">
+                                <button type="button" class="btn-secondary btn-small" id="btnResetTypeMaterials">Reset</button>
+                                <button type="button" class="btn-primary btn-small" id="btnAddTypeMaterial">+ Add</button>
+                                <button type="button" class="btn-secondary btn-small" id="btnAllTypeMaterials">All</button>
+                                <button type="button" class="btn-secondary btn-small" id="btnNoTypeMaterials">None</button>
+                            </div>
+                        </div>
+                        <div class="preset-legend">Columns: Name | Unit (editable) | Reorder | Remove</div>
+                        <div id="typeMaterialPresetList" class="preset-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shared preset payloads (Road + Non-Road) -->
+            <input type="hidden" name="activity_presets_json" id="activity_presets_json">
+            <input type="hidden" name="activity_preset_defs_json" id="activity_preset_defs_json">
+            <input type="hidden" name="material_presets_json" id="material_presets_json">
+            <input type="hidden" name="material_preset_defs_json" id="material_preset_defs_json">
+
+            <input type="hidden" name="project_team_json" id="project_team_json">
+
+            <div id="road_details_fields" style="display:none">
+                <label>Lanes <span class="required">*</span></label>
+                <input type="number" name="lanes" required min="1">
+                <div class="help-text">Number of traffic lanes per carriageway.</div>
+            </div>
+
+            <div id="road_meta_fields" class="form-grid" style="display:none;margin-top:12px">
+                <div style="grid-column:1/-1">
+                    <label>Road Metadata</label>
+                    <div class="help-text">Optional fields used for road dashboards, inventory prediction, and reporting.</div>
+                </div>
+
+                <div>
+                    <label>Road Name</label>
+                    <input type="text" name="road_name">
+                    <div class="help-text">Shown in road dashboards & reports.</div>
+                </div>
+
+                <div>
+                    <label>Lane Configuration</label>
+                    <input type="text" name="lane_configuration" id="lane_configuration" list="lane_configuration_list">
+                    <datalist id="lane_configuration_list">
+                        <option value="2L"></option>
+                        <option value="4L"></option>
+                        <option value="6L"></option>
+                        <option value="8L"></option>
+                    </datalist>
+                    <div class="help-text">Keeps a human-readable lane config; still stores numeric lanes for compatibility.</div>
+                </div>
+
+                <div>
+                    <label>Pavement Type</label>
+                    <select name="road_pavement_type" id="road_pavement_type">
+                        <option value="">-- Select --</option>
+                        <option value="Flexible">Flexible</option>
+                        <option value="Rigid">Rigid</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Terrain Type</label>
+                    <select name="terrain_type" id="terrain_type">
+                        <option value="">-- Select --</option>
+                        <option value="Plain">Plain</option>
+                        <option value="Rolling">Rolling</option>
+                        <option value="Hilly">Hilly</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Carriageway Width (m)</label>
+                    <input type="number" step="0.01" name="carriageway_width">
+                    <div class="help-text">Optional width per carriageway.</div>
+                </div>
+
+                <div>
+                    <label>Shoulder Type</label>
+                    <input type="text" name="shoulder_type">
+                </div>
+
+                <div>
+                    <label>Median Type</label>
+                    <input type="text" name="median_type">
+                </div>
+
+            </div>
+
+            <div class="form-grid" style="display:none;margin-top:12px" id="road_details_grid">
+                <div id="road_details_fields2" style="display:none">
+                    <label>Road Width (m) <span class="required">*</span></label>
+                    <input type="number" step="0.01" name="road_width" required>
+                    <div class="help-text">Total carriageway width in metres.</div>
+                </div>
+
+                <div id="road_details_fields3" style="display:none">
+                    <label>Road Length (km) <span class="required">*</span></label>
+                    <input type="number" step="0.01" name="road_length_km" required>
+                    <div class="help-text">Enter project length. Use chainages for non-linear projects.</div>
+                </div>
+            </div>
+
+            <div id="concrete_fields" class="form-grid" style="display:none;margin-top:12px">
+                <div style="grid-column:1/-1">
+                    <label>Concrete Pavement Details</label>
+                    <div class="help-text">Fill these only for rigid pavement projects.</div>
+                </div>
+
+                <div>
+                    <label>Concrete Pavement Type</label>
+                    <select name="pavement_type">
+                        <option value="">-- Select pavement type --</option>
+                        <option value="PQC">PQC</option>
+                        <option value="RCC">RCC</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Slab Thickness (mm)</label>
+                    <input type="number" name="slab_thickness_mm" min="100" step="1" placeholder="e.g. 200">
+                </div>
+
+                <div>
+                    <label>Grade of Concrete</label>
+                    <select name="grade_of_concrete">
+                        <option value="">-- Select grade --</option>
+                        <option value="M30">M30</option>
+                        <option value="M35">M35</option>
+                        <option value="M40">M40</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Joint Spacing (m)</label>
+                    <input type="number" name="joint_spacing_m" min="3" step="0.1" placeholder="e.g. 4.5">
+                </div>
+
+                <div>
+                    <label>Dowel Diameter (mm)</label>
+                    <input type="number" name="dowel_diameter_mm" min="16" step="1" placeholder="e.g. 25">
+                </div>
+
+                <div>
+                    <label>Tie Bar Diameter (mm)</label>
+                    <input type="number" name="tie_bar_diameter_mm" min="12" step="1" placeholder="e.g. 12">
+                </div>
+
+                <div class="help-text" style="grid-column:1/-1">Tip: if you don’t have these values yet, you can leave them blank and fill later.</div>
+            </div>
+
+    <hr>
+
+    <!-- ================= PROJECT TEAM & ROLES ================= -->
+    {% if user and user.role in ['admin','manager'] %}
+    <section class="form-section">
+        <h3 class="section-title">Project Team & Roles</h3>
+        <div class="help-text">Assign users to this project now (per-project roles). System Admin can assign Project Admin.</div>
+
+        <div class="form-grid" style="grid-template-columns:2fr 1fr auto;align-items:end">
+            <div>
+                <label>User</label>
+                <select id="teamUserSelect">
+                    <option value="">-- Select user --</option>
+                    {% for u in (all_users or []) %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Role In Project</label>
+                <select id="teamRoleSelect">
+                    {% if user.role == 'admin' %}
+                        <option value="admin">Admin</option>
+                    {% endif %}
+                    <option value="manager">Manager</option>
+                    <option value="member" selected>Member</option>
+                    <option value="viewer">Viewer</option>
+                </select>
+            </div>
+            <div>
+                <button type="button" class="btn-primary" id="btnAddTeamMember">Add</button>
+            </div>
+        </div>
+
+        <div id="teamList" class="preset-list" style="margin-top:12px"></div>
+    </section>
+    <hr>
+    {% endif %}
+
+    <!-- ================= LOCATION ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Location</h3>
+
+        <div class="form-grid">
+
+            <div>
+                <label>Country <span class="required">*</span></label>
+                <input type="text" name="country" id="country-input" list="country_list" required>
+                <datalist id="country_list">
+                    <option value="India">
+                </datalist>
+            </div>
+
+            <div>
+                <label>State / Province</label>
+                <input type="text" name="state" id="state-input" list="state_list">
+                <datalist id="state_list">
+                    <option value="Andhra Pradesh">
+                    <option value="Arunachal Pradesh">
+                    <option value="Assam">
+                    <option value="Bihar">
+                    <option value="Chhattisgarh">
+                    <option value="Goa">
+                    <option value="Gujarat">
+                    <option value="Haryana">
+                    <option value="Himachal Pradesh">
+                    <option value="Jharkhand">
+                    <option value="Karnataka">
+                    <option value="Kerala">
+                    <option value="Madhya Pradesh">
+                    <option value="Maharashtra">
+                    <option value="Manipur">
+                    <option value="Meghalaya">
+                    <option value="Mizoram">
+                    <option value="Nagaland">
+                    <option value="Odisha">
+                    <option value="Punjab">
+                    <option value="Rajasthan">
+                    <option value="Sikkim">
+                    <option value="Tamil Nadu">
+                    <option value="Telangana">
+                    <option value="Tripura">
+                    <option value="Uttar Pradesh">
+                    <option value="Uttarakhand">
+                    <option value="West Bengal">
+                    <option value="Andaman and Nicobar Islands">
+                    <option value="Chandigarh">
+                    <option value="Dadra and Nagar Haveli and Daman and Diu">
+                    <option value="Lakshadweep">
+                    <option value="Delhi">
+                    <option value="Puducherry">
+                </datalist>
+            </div>
+
+            <div>
+                <label>District</label>
+                <input type="text" name="district" id="district-input" list="district_list">
+                <datalist id="district_list">
+                    <option value="Mumbai">
+                    <option value="Mumbai Suburban">
+                    <option value="Thane">
+                    <option value="Pune">
+                    <option value="Nashik">
+                    <option value="Nagpur">
+                    <option value="Kolhapur">
+                    <option value="Ahmednagar">
+                    <option value="Solapur">
+                    <option value="Satara">
+                    <option value="Sangli">
+                    <option value="Bengaluru Urban">
+                    <option value="Bengaluru Rural">
+                    <option value="Mysuru">
+                    <option value="Mangalore">
+                    <option value="Belagavi">
+                    <option value="Chennai">
+                    <option value="Coimbatore">
+                    <option value="Madurai">
+                    <option value="Chittoor">
+                    <option value="Visakhapatnam">
+                    <option value="Vijayawada">
+                    <option value="Hyderabad">
+                    <option value="Secunderabad">
+                    <option value="Ahmedabad">
+                    <option value="Surat">
+                    <option value="Vadodara">
+                    <option value="Rajkot">
+                    <option value="Jaipur">
+                    <option value="Jodhpur">
+                    <option value="Udaipur">
+                    <option value="Ajmer">
+                    <option value="Lucknow">
+                    <option value="Kanpur">
+                    <option value="Varanasi">
+                    <option value="Prayagraj">
+                    <option value="Gorakhpur">
+                    <option value="Kolkata">
+                    <option value="Howrah">
+                    <option value="Durgapur">
+                    <option value="Siliguri">
+                    <option value="Patna">
+                    <option value="Gaya">
+                    <option value="Ranchi">
+                    <option value="Jamshedpur">
+                    <option value="Thiruvananthapuram">
+                    <option value="Kochi">
+                    <option value="Kozhikode">
+                    <option value="Kollam">
+                    <option value="Shillong">
+                    <option value="Imphal">
+                    <option value="Aizawl">
+                    <option value="Agartala">
+                    <option value="Port Blair">
+                    <option value="Pondicherry">
+                </datalist>
+            </div>
+
+            <div>
+                <label>City <span class="required">*</span></label>
+                <input type="text" name="city" id="city-input" required>
+            </div>
+
+        </div>
+
+        <div id="chainage_block" class="form-grid" style="margin-top:12px">
+            <div>
+                <label>Start Chainage</label>
+                <input type="text" name="chainage_start">
+                <div class="help-text">Road projects use chainage as a time-series feature for progress & inventory prediction.</div>
+            </div>
+
+            <div>
+                <label>End Chainage</label>
+                <input type="text" name="chainage_end">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= TIMELINE ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Timeline</h3>
+
+        <div class="form-grid">
+
+            <div>
+                <label>Start Date <span class="required">*</span></label>
+                <input type="text" name="planned_start_date" required inputmode="numeric" pattern="\u005cd{2}/\u005cd{2}/\u005cd{4}">
+                <div class="help-text">Format: DD/MM/YYYY</div>
+            </div>
+
+            <div>
+                <label>End Date <span class="required">*</span></label>
+                <input type="text" name="planned_end_date" required inputmode="numeric" pattern="\u005cd{2}/\u005cd{2}/\u005cd{4}">
+                <div class="help-text">Format: DD/MM/YYYY</div>
+            </div>
+
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= ACTIONS ================= -->
+    <div style="display:flex;gap:12px;margin-top:20px">
+        <button id="createProjectBtn" class="btn-primary" type="submit" disabled>
+            Create Project
+        </button>
+
+        <a href="/dashboard" class="btn-secondary">
+            Cancel
+        </a>
+    </div>
+
+</form>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/location.js"></script>
+<script src="/static/js/location_dependent.js"></script>
+<script>
+function setFormError(message){
+    var box = document.getElementById('formErrors');
+    if(!box) return;
+    if(message){
+        box.textContent = message;
+        box.style.display = 'block';
+    } else {
+        box.textContent = '';
+        box.style.display = 'none';
+    }
+}
+
+function updateCreateButtonState(){
+    var form = document.getElementById('createProjectForm');
+    var btn = document.getElementById('createProjectBtn');
+    if(!form || !btn) return;
+    btn.disabled = !form.checkValidity();
+}
+
+// Progressive disclosure and form handling
+// - Road UI is never visible by default.
+function handleProjectTypeChange(){
+    var projectType = document.getElementById('project_type');
+    var roadBlock = document.getElementById('road_block');
+    var roadClassification = document.getElementById('road_classification');
+    var roadCategoryField = document.getElementById('road_category_field');
+    var roadCategorySelect = document.getElementById('road_category');
+    var roadEngineeringField = document.getElementById('road_engineering_field');
+    var roadEngineeringSelect = document.getElementById('road_engineering_type');
+    var presetsPanel = document.getElementById('road_presets_panel');
+    var roadQuestions = document.getElementById('road_questions');
+    var details1 = document.getElementById('road_details_fields');
+    var details2 = document.getElementById('road_details_fields2');
+    var details3 = document.getElementById('road_details_fields3');
+    var roadMeta = document.getElementById('road_meta_fields');
+    var chainageBlock = document.getElementById('chainage_block');
+    var typePresetsPanel = document.getElementById('type_presets_panel');
+
+    if(!projectType || !roadBlock || !roadClassification || !roadCategoryField || !roadCategorySelect || !roadEngineeringField || !roadEngineeringSelect || !presetsPanel || !roadQuestions || !details1 || !details2 || !details3) return;
+
+    var isRoad = projectType.value === 'Road';
+
+    roadBlock.style.display = isRoad ? 'block' : 'none';
+    roadClassification.style.display = isRoad ? 'grid' : 'none';
+    roadCategoryField.style.display = isRoad ? 'block' : 'none';
+    roadEngineeringField.style.display = 'none';
+
+    if(isRoad){
+        roadCategorySelect.disabled = false;
+        roadCategorySelect.setAttribute('required','required');
+        roadEngineeringSelect.disabled = true;
+        roadEngineeringSelect.value = '';
+        roadEngineeringSelect.removeAttribute('required');
+        presetsPanel.style.display = 'none';
+        roadQuestions.style.display = 'none';
+        details1.style.display = 'none';
+        details2.style.display = 'none';
+        details3.style.display = 'none';
+        if(roadMeta) roadMeta.style.display = 'none';
+        if(chainageBlock) chainageBlock.style.display = 'grid';
+        if(typePresetsPanel) typePresetsPanel.classList.add('hidden');
+        document.querySelectorAll('[name="lanes"],[name="road_width"],[name="road_length_km"]').forEach(function(el){ el.removeAttribute('required'); });
+    } else {
+        roadCategorySelect.value = '';
+        roadCategorySelect.disabled = true;
+        roadCategorySelect.removeAttribute('required');
+
+        roadEngineeringSelect.value = '';
+        roadEngineeringSelect.disabled = true;
+        roadEngineeringSelect.removeAttribute('required');
+
+        presetsPanel.style.display = 'none';
+        roadQuestions.style.display = 'none';
+        details1.style.display = 'none';
+        details2.style.display = 'none';
+        details3.style.display = 'none';
+        if(roadMeta) roadMeta.style.display = 'none';
+        if(chainageBlock) chainageBlock.style.display = 'none';
+        if(typePresetsPanel){
+            if(projectType.value){
+                typePresetsPanel.classList.remove('hidden');
+                loadTypePresets(projectType.value);
+            } else {
+                typePresetsPanel.classList.add('hidden');
+                loadTypePresets('');
+            }
+        }
+        document.querySelectorAll('[name="lanes"],[name="road_width"],[name="road_length_km"]').forEach(function(el){ el.removeAttribute('required'); });
+    }
+}
+
+function handleRoadCategoryChange(){
+    var category = document.getElementById('road_category');
+    var engineeringField = document.getElementById('road_engineering_field');
+    var engineering = document.getElementById('road_engineering_type');
+    var presetsPanel = document.getElementById('road_presets_panel');
+    var roadQuestions = document.getElementById('road_questions');
+    var details1 = document.getElementById('road_details_fields');
+    var details2 = document.getElementById('road_details_fields2');
+    var details3 = document.getElementById('road_details_fields3');
+
+    if(!category || !engineeringField || !engineering || !presetsPanel || !roadQuestions || !details1 || !details2 || !details3) return;
+
+    presetsPanel.style.display = 'none';
+    details1.style.display = 'none';
+    details2.style.display = 'none';
+    details3.style.display = 'none';
+    document.querySelectorAll('[name="lanes"],[name="road_width"],[name="road_length_km"]').forEach(function(el){ el.removeAttribute('required'); });
+
+    var hasCategory = !!category.value;
+    engineeringField.style.display = hasCategory ? 'block' : 'none';
+    engineering.disabled = !hasCategory;
+    engineering.setAttribute('required', hasCategory ? 'required' : '');
+    if(!hasCategory){
+        engineering.value = '';
+        engineering.removeAttribute('required');
+        roadQuestions.style.display = 'none';
+    }
+}
+
+function handleRoadEngineeringChange(){
+    var engineering = document.getElementById('road_engineering_type');
+    var presetsPanel = document.getElementById('road_presets_panel');
+    var details1 = document.getElementById('road_details_fields');
+    var details2 = document.getElementById('road_details_fields2');
+    var details3 = document.getElementById('road_details_fields3');
+    var roadMeta = document.getElementById('road_meta_fields');
+    if(!engineering || !presetsPanel || !details1 || !details2 || !details3) return;
+
+    var hasEngineering = !!engineering.value;
+    presetsPanel.style.display = hasEngineering ? 'block' : 'none';
+    details1.style.display = hasEngineering ? 'block' : 'none';
+    details2.style.display = hasEngineering ? 'block' : 'none';
+    details3.style.display = hasEngineering ? 'block' : 'none';
+    if(roadMeta) roadMeta.style.display = hasEngineering ? 'grid' : 'none';
+    document.querySelectorAll('[name="lanes"],[name="road_width"],[name="road_length_km"]').forEach(function(el){
+        if(hasEngineering) el.setAttribute('required','required'); else el.removeAttribute('required');
+    });
+}
+
+// ---------------- Road presets editor logic ----------------
+var __roadPresetsCache = null;
+var __currentRoadPresets = null;
+var __typePresetsCache = null;
+var __currentTypePresets = null;
+
+function _el(id){ return document.getElementById(id); }
+
+function renderActivityPresets(){
+    var list = _el('activityPresetList');
+    if(!list) return;
+    list.innerHTML = '';
+
+    var items = (__currentRoadPresets && __currentRoadPresets.activities) ? __currentRoadPresets.activities : [];
+    items.forEach(function(item, idx){
+        var row = document.createElement('div');
+        row.className = 'preset-row';
+
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!item.enabled;
+        cb.setAttribute('data-idx', String(idx));
+        cb.setAttribute('data-kind', 'activity');
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = item.name || '';
+        input.placeholder = 'Activity name';
+        input.setAttribute('data-idx', String(idx));
+        input.setAttribute('data-kind', 'activity-name');
+
+        var timeWrap = document.createElement('div');
+        timeWrap.style.display = 'flex';
+        timeWrap.style.alignItems = 'center';
+        timeWrap.style.gap = '8px';
+
+        var st = document.createElement('input');
+        st.type = 'time';
+        st.value = item.start_time || '';
+        st.setAttribute('data-idx', String(idx));
+        st.setAttribute('data-kind', 'activity-start-time');
+        st.title = 'Start time (optional)';
+        st.style.maxWidth = '130px';
+
+        var et = document.createElement('input');
+        et.type = 'time';
+        et.value = item.end_time || '';
+        et.setAttribute('data-idx', String(idx));
+        et.setAttribute('data-kind', 'activity-end-time');
+        et.title = 'End time (optional)';
+        et.style.maxWidth = '130px';
+
+        timeWrap.appendChild(st);
+        timeWrap.appendChild(et);
+
+        var pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = (item.standard ? 'Standard' : 'Custom');
+
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'icon-btn';
+        del.textContent = 'Remove';
+        del.setAttribute('data-idx', String(idx));
+        del.setAttribute('data-kind', 'activity-remove');
+
+        var up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'icon-btn';
+        up.textContent = '↑';
+        up.title = 'Move up';
+        up.setAttribute('data-idx', String(idx));
+        up.setAttribute('data-kind', 'activity-up');
+
+        var down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'icon-btn';
+        down.textContent = '↓';
+        down.title = 'Move down';
+        down.setAttribute('data-idx', String(idx));
+        down.setAttribute('data-kind', 'activity-down');
+
+        row.appendChild(cb);
+        row.appendChild(input);
+        row.appendChild(timeWrap);
+        row.appendChild(pill);
+        row.appendChild(up);
+        row.appendChild(down);
+        row.appendChild(del);
+        list.appendChild(row);
+    });
+}
+
+function renderMaterialPresets(){
+    var list = _el('materialPresetList');
+    if(!list) return;
+    list.innerHTML = '';
+
+    var items = (__currentRoadPresets && __currentRoadPresets.materials) ? __currentRoadPresets.materials : [];
+    items.forEach(function(item, idx){
+        var row = document.createElement('div');
+        row.className = 'preset-row';
+
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!item.enabled;
+        cb.setAttribute('data-idx', String(idx));
+        cb.setAttribute('data-kind', 'material');
+
+        var nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = item.name || '';
+        nameInput.setAttribute('data-idx', String(idx));
+        nameInput.setAttribute('data-kind', 'material-name');
+
+        var pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = (item.standard ? 'Standard' : 'Custom');
+
+        var unitWrap = document.createElement('div');
+        unitWrap.style.display = 'flex';
+        unitWrap.style.alignItems = 'center';
+        unitWrap.style.gap = '8px';
+
+        var unitLabel = document.createElement('span');
+        unitLabel.className = 'pill';
+        unitLabel.textContent = 'Unit';
+        unitWrap.appendChild(unitLabel);
+
+        var allowed = Array.isArray(item.allowed_units) ? item.allowed_units : [];
+        var allowedNorm = allowed
+            .filter(function(u){ return typeof u === 'string' && u.trim(); })
+            .map(function(u){ return u.trim(); });
+        var currentUnit = (item.unit || '').trim();
+
+        if(allowedNorm.length){
+            var customInputId = 'road_mat_unit_custom_' + String(idx);
+
+            var sel = document.createElement('select');
+            sel.setAttribute('data-idx', String(idx));
+            sel.setAttribute('data-kind', 'material-unit-select');
+            sel.setAttribute('data-custom-input-id', customInputId);
+
+            allowedNorm.forEach(function(u){
+                var o = document.createElement('option');
+                o.value = u;
+                o.textContent = u;
+                sel.appendChild(o);
+            });
+            var oCustom = document.createElement('option');
+            oCustom.value = '__custom__';
+            oCustom.textContent = 'Custom…';
+            sel.appendChild(oCustom);
+
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.id = customInputId;
+            inp.style.maxWidth = '120px';
+            inp.setAttribute('data-idx', String(idx));
+            inp.setAttribute('data-kind', 'material-unit');
+
+            var allowedOnlyUnit = (allowedNorm.length === 1 && allowedNorm[0].toLowerCase() === 'unit');
+            var unitInAllowed = !!currentUnit && allowedNorm.indexOf(currentUnit) >= 0;
+
+            if(allowedOnlyUnit){
+                sel.value = '__custom__';
+                inp.value = (currentUnit && currentUnit.toLowerCase() !== 'unit') ? currentUnit : '';
+                inp.style.display = '';
+            } else if(currentUnit && !unitInAllowed){
+                sel.value = '__custom__';
+                inp.value = currentUnit;
+                inp.style.display = '';
+            } else {
+                sel.value = unitInAllowed ? currentUnit : allowedNorm[0];
+                inp.value = '';
+                inp.style.display = 'none';
+                item.unit = sel.value;
+            }
+
+            unitWrap.appendChild(sel);
+            unitWrap.appendChild(inp);
+        } else {
+            var inp2 = document.createElement('input');
+            inp2.type = 'text';
+            inp2.value = currentUnit;
+            inp2.style.maxWidth = '120px';
+            inp2.setAttribute('data-idx', String(idx));
+            inp2.setAttribute('data-kind', 'material-unit');
+            unitWrap.appendChild(inp2);
+        }
+
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'icon-btn';
+        del.textContent = 'Remove';
+        del.setAttribute('data-idx', String(idx));
+        del.setAttribute('data-kind', 'material-remove');
+
+        var up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'icon-btn';
+        up.textContent = '↑';
+        up.title = 'Move up';
+        up.setAttribute('data-idx', String(idx));
+        up.setAttribute('data-kind', 'material-up');
+
+        var down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'icon-btn';
+        down.textContent = '↓';
+        down.title = 'Move down';
+        down.setAttribute('data-idx', String(idx));
+        down.setAttribute('data-kind', 'material-down');
+
+        row.appendChild(cb);
+        row.appendChild(nameInput);
+        row.appendChild(pill);
+        row.appendChild(unitWrap);
+        row.appendChild(up);
+        row.appendChild(down);
+        row.appendChild(del);
+        list.appendChild(row);
+    });
+}
+
+function renderTypeActivityPresets(){
+    var list = _el('typeActivityPresetList');
+    if(!list) return;
+    list.innerHTML = '';
+    var items = (__currentTypePresets && __currentTypePresets.activities) ? __currentTypePresets.activities : [];
+    if(!items.length){
+        list.innerHTML = '<div class="help-text">No presets loaded yet.</div>';
+        serializePresetsToHiddenInputs();
+        return;
+    }
+    items.forEach(function(item, idx){
+        var row = document.createElement('div');
+        row.className = 'preset-row';
+
+        var name = (item && typeof item === 'object') ? (item.name || '') : (item || '');
+        var startTime = (item && typeof item === 'object') ? (item.start_time || '') : '';
+        var endTime = (item && typeof item === 'object') ? (item.end_time || '') : '';
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = name || '';
+        input.placeholder = 'Activity name';
+        input.addEventListener('input', function(){
+            if(typeof __currentTypePresets.activities[idx] !== 'object') __currentTypePresets.activities[idx] = { name: '', start_time: '', end_time: '' };
+            __currentTypePresets.activities[idx].name = (input.value || '').trim();
+            serializePresetsToHiddenInputs();
+        });
+
+        var timeWrap = document.createElement('div');
+        timeWrap.style.display = 'flex';
+        timeWrap.style.alignItems = 'center';
+        timeWrap.style.gap = '8px';
+
+        var st = document.createElement('input');
+        st.type = 'time';
+        st.value = startTime;
+        st.title = 'Start time (optional)';
+        st.style.maxWidth = '130px';
+        st.addEventListener('input', function(){
+            if(typeof __currentTypePresets.activities[idx] !== 'object') __currentTypePresets.activities[idx] = { name: (input.value||'').trim(), start_time: '', end_time: '' };
+            __currentTypePresets.activities[idx].start_time = (st.value || '').trim();
+            serializePresetsToHiddenInputs();
+        });
+
+        var et = document.createElement('input');
+        et.type = 'time';
+        et.value = endTime;
+        et.title = 'End time (optional)';
+        et.style.maxWidth = '130px';
+        et.addEventListener('input', function(){
+            if(typeof __currentTypePresets.activities[idx] !== 'object') __currentTypePresets.activities[idx] = { name: (input.value||'').trim(), start_time: '', end_time: '' };
+            __currentTypePresets.activities[idx].end_time = (et.value || '').trim();
+            serializePresetsToHiddenInputs();
+        });
+
+        timeWrap.appendChild(st);
+        timeWrap.appendChild(et);
+        var pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = 'standard';
+
+        var up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'icon-btn';
+        up.textContent = '↑';
+        up.title = 'Move up';
+        up.addEventListener('click', function(){
+            if(idx <= 0) return;
+            var tmp = __currentTypePresets.activities[idx-1];
+            __currentTypePresets.activities[idx-1] = __currentTypePresets.activities[idx];
+            __currentTypePresets.activities[idx] = tmp;
+            renderTypeActivityPresets();
+        });
+
+        var down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'icon-btn';
+        down.textContent = '↓';
+        down.title = 'Move down';
+        down.addEventListener('click', function(){
+            if(idx >= (__currentTypePresets.activities.length-1)) return;
+            var tmp = __currentTypePresets.activities[idx+1];
+            __currentTypePresets.activities[idx+1] = __currentTypePresets.activities[idx];
+            __currentTypePresets.activities[idx] = tmp;
+            renderTypeActivityPresets();
+        });
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'icon-btn';
+        del.textContent = '✕';
+        del.addEventListener('click', function(){
+            __currentTypePresets.activities.splice(idx,1);
+            renderTypeActivityPresets();
+            renderTypeMaterialPresets();
+        });
+        row.appendChild(input);
+        row.appendChild(timeWrap);
+        row.appendChild(pill);
+        row.appendChild(up);
+        row.appendChild(down);
+        row.appendChild(del);
+        list.appendChild(row);
+    });
+    serializePresetsToHiddenInputs();
+}
+
+function renderTypeMaterialPresets(){
+    var list = _el('typeMaterialPresetList');
+    if(!list) return;
+    list.innerHTML = '';
+    var items = (__currentTypePresets && __currentTypePresets.materials) ? __currentTypePresets.materials : [];
+    if(!items.length){
+        list.innerHTML = '<div class="help-text">No materials selected.</div>';
+        serializePresetsToHiddenInputs();
+        return;
+    }
+    items.forEach(function(m, idx){
+        var row = document.createElement('div');
+        row.className = 'preset-row';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = (m && m.name) ? m.name : '';
+        input.addEventListener('input', function(){
+            __currentTypePresets.materials[idx].name = (input.value || '').trim();
+            serializePresetsToHiddenInputs();
+        });
+        var unitWrap = document.createElement('div');
+        unitWrap.style.display = 'flex';
+        unitWrap.style.alignItems = 'center';
+        unitWrap.style.gap = '8px';
+
+        var unitLabel = document.createElement('span');
+        unitLabel.className = 'pill';
+        unitLabel.textContent = 'Unit';
+        unitWrap.appendChild(unitLabel);
+
+        var unitInput = document.createElement('input');
+        unitInput.type = 'text';
+        unitInput.value = (m && (m.default_unit || m.unit)) ? (m.default_unit || m.unit) : '';
+        unitInput.style.maxWidth = '110px';
+        unitInput.addEventListener('input', function(){
+            __currentTypePresets.materials[idx].default_unit = (unitInput.value || '').trim();
+            __currentTypePresets.materials[idx].allowed_units = __currentTypePresets.materials[idx].default_unit ? [__currentTypePresets.materials[idx].default_unit] : [];
+            serializePresetsToHiddenInputs();
+        });
+        unitWrap.appendChild(unitInput);
+
+        var up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'icon-btn';
+        up.textContent = '↑';
+        up.title = 'Move up';
+        up.addEventListener('click', function(){
+            if(idx <= 0) return;
+            var tmp = __currentTypePresets.materials[idx-1];
+            __currentTypePresets.materials[idx-1] = __currentTypePresets.materials[idx];
+            __currentTypePresets.materials[idx] = tmp;
+            renderTypeMaterialPresets();
+        });
+
+        var down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'icon-btn';
+        down.textContent = '↓';
+        down.title = 'Move down';
+        down.addEventListener('click', function(){
+            if(idx >= (__currentTypePresets.materials.length-1)) return;
+            var tmp = __currentTypePresets.materials[idx+1];
+            __currentTypePresets.materials[idx+1] = __currentTypePresets.materials[idx];
+            __currentTypePresets.materials[idx] = tmp;
+            renderTypeMaterialPresets();
+        });
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'icon-btn';
+        del.textContent = '✕';
+        del.addEventListener('click', function(){
+            __currentTypePresets.materials.splice(idx,1);
+            renderTypeMaterialPresets();
+        });
+        row.appendChild(input);
+        row.appendChild(unitWrap);
+        row.appendChild(up);
+        row.appendChild(down);
+        row.appendChild(del);
+        list.appendChild(row);
+    });
+    serializePresetsToHiddenInputs();
+}
+
+function loadTypePresets(projectType){
+    if(!projectType) {
+        __typePresetsCache = null;
+        __currentTypePresets = null;
+        renderTypeActivityPresets();
+        renderTypeMaterialPresets();
+        return;
+    }
+    var url = '/projects/type-presets?project_type=' + encodeURIComponent(projectType);
+    return fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            var activities = Array.isArray(data.activities) ? data.activities : [];
+            var materials = Array.isArray(data.materials) ? data.materials : [];
+            __typePresetsCache = { project_type: data.project_type || projectType, activities: activities, materials: materials };
+            __currentTypePresets = {
+                project_type: __typePresetsCache.project_type,
+                activities: (activities || []).map(function(a){ return { name: String(a || ''), start_time: '', end_time: '' }; }),
+                materials: (materials || []).slice(),
+            };
+            renderTypeActivityPresets();
+            renderTypeMaterialPresets();
+        })
+        .catch(function(){
+            __typePresetsCache = null;
+            __currentTypePresets = null;
+            renderTypeActivityPresets();
+            renderTypeMaterialPresets();
+        });
+}
+
+function loadRoadPresets(engineeringType, roadCategory, roadExtrasJson){
+    if(!engineeringType){
+        __roadPresetsCache = null;
+        __currentRoadPresets = null;
+        renderActivityPresets();
+        renderMaterialPresets();
+        return;
+    }
+
+    var url = '/projects/road-presets?engineering_type=' + encodeURIComponent(engineeringType);
+    if(roadCategory){
+        url += '&road_category=' + encodeURIComponent(String(roadCategory || ''));
+    }
+    if(roadExtrasJson){
+        url += '&road_extras_json=' + encodeURIComponent(String(roadExtrasJson || ''));
+    }
+    return fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            var activities = (data.activities || []).map(function(n){
+                return { name: String(n || ''), enabled: true, standard: true, start_time: '', end_time: '' };
+            });
+            var materials = (data.materials || []).map(function(m){
+                var defaultUnit = String(m.default_unit || 'unit');
+                var allowed = Array.isArray(m.allowed_units) ? m.allowed_units.map(function(u){ return String(u || '').trim(); }).filter(Boolean) : [];
+                if(!allowed.length) allowed = [defaultUnit];
+                // Keep unit display/edit as the default unit for clarity
+                return { name: String(m.name || ''), unit: defaultUnit, allowed_units: allowed, enabled: true, standard: true };
+            });
+
+            __roadPresetsCache = { engineering_type: data.engineering_type || engineeringType, activities: activities, materials: materials };
+            // Clone for current edits
+            __currentRoadPresets = {
+                engineering_type: __roadPresetsCache.engineering_type,
+                activities: activities.map(function(a){ return { name: a.name, enabled: a.enabled, standard: a.standard }; }),
+                materials: materials.map(function(m){ return { name: m.name, unit: m.unit, allowed_units: (m.allowed_units || []), enabled: m.enabled, standard: m.standard }; }),
+            };
+            renderActivityPresets();
+            renderMaterialPresets();
+        })
+        .catch(function(){
+            // Silent failure: do not block project creation UI
+        });
+}
+
+// Classification metadata (no hardcoded options in template)
+var __classification = null;
+
+function populateSelect(selectEl, options){
+    if(!selectEl) return;
+    // Keep first placeholder option
+    var first = selectEl.querySelector('option');
+    selectEl.innerHTML = '';
+    if(first){
+        selectEl.appendChild(first);
+    } else {
+        var ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = '-- Select --';
+        selectEl.appendChild(ph);
+    }
+    (options || []).forEach(function(opt){
+        var o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt;
+        selectEl.appendChild(o);
+    });
+}
+
+function loadClassificationMetadata(){
+    return fetch('/projects/classification-metadata', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            __classification = data;
+
+            var projectType = document.getElementById('project_type');
+            var roadCategory = document.getElementById('road_category');
+
+            if(projectType){
+                // strict list first
+                populateSelect(projectType, (data.project_types || []).concat(data.legacy_project_types || []));
+            }
+            if(roadCategory){
+                populateSelect(roadCategory, data.road_categories || []);
+            }
+        })
+        .catch(function(){
+            // if metadata fails, keep the page usable (basic form still works)
+        });
+}
+
+function updateEngineeringOptions(){
+    var category = document.getElementById('road_category');
+    var engineering = document.getElementById('road_engineering_type');
+    if(!category || !engineering || !__classification) return;
+    var map = __classification.engineering_types_by_category || {};
+    var opts = map[category.value] || [];
+    populateSelect(engineering, opts);
+}
+
+function renderConditionalQuestions(){
+    var category = document.getElementById('road_category');
+    var block = document.getElementById('road_questions');
+    var container = document.getElementById('road_questions_container');
+    if(!category || !block || !container || !__classification) return;
+
+    var qsMap = __classification.conditional_questions_by_category || {};
+    var qs = qsMap[category.value] || [];
+    container.innerHTML = '';
+
+    if(!qs.length){
+        block.style.display = 'none';
+        return;
+    }
+    block.style.display = 'block';
+
+    // Render as simple grid
+    var grid = document.createElement('div');
+    grid.className = 'form-grid';
+    qs.forEach(function(q){
+        var wrap = document.createElement('div');
+        var label = document.createElement('label');
+        label.textContent = q.label || q.key;
+        wrap.appendChild(label);
+
+        if(q.type === 'yesno'){
+            var sel = document.createElement('select');
+            sel.setAttribute('data-qkey', q.key);
+            var o0 = document.createElement('option'); o0.value=''; o0.textContent='-- Select --';
+            var o1 = document.createElement('option'); o1.value='Yes'; o1.textContent='Yes';
+            var o2 = document.createElement('option'); o2.value='No'; o2.textContent='No';
+            sel.appendChild(o0); sel.appendChild(o1); sel.appendChild(o2);
+            wrap.appendChild(sel);
+        } else {
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.placeholder = 'Enter value';
+            inp.setAttribute('data-qkey', q.key);
+            wrap.appendChild(inp);
+        }
+        grid.appendChild(wrap);
+    });
+    container.appendChild(grid);
+}
+
+function serializeRoadExtras(){
+    var hidden = document.getElementById('road_extras_json');
+    var container = document.getElementById('road_questions_container');
+    if(!hidden || !container) return;
+    var extras = {};
+    container.querySelectorAll('[data-qkey]').forEach(function(el){
+        var key = el.getAttribute('data-qkey');
+        if(!key) return;
+        var val = (el.value || '').trim();
+        if(val){ extras[key] = val; }
+    });
+    hidden.value = JSON.stringify(extras);
+}
+
+function serializePresetsToHiddenInputs(){
+    var aHidden = _el('activity_presets_json');
+    var aDefsHidden = _el('activity_preset_defs_json');
+    var mHidden = _el('material_presets_json');
+    var mDefsHidden = _el('material_preset_defs_json');
+    if(!aHidden || !aDefsHidden || !mHidden || !mDefsHidden) return;
+
+    var activities = [];
+    var activityDefs = [];
+    var materials = [];
+    var materialDefs = [];
+
+    var projectType = (_el('project_type') && _el('project_type').value) ? _el('project_type').value : '';
+    var isRoad = projectType === 'Road';
+
+    if(isRoad && __currentRoadPresets){
+        (__currentRoadPresets.activities || []).forEach(function(a){
+            var name = (a.name || '').trim();
+            if(name){
+                activityDefs.push({
+                    name: name,
+                    enabled: !!a.enabled,
+                    start_time: (a.start_time || '').trim() || null,
+                    end_time: (a.end_time || '').trim() || null,
+                });
+            }
+            if(a.enabled && name){ activities.push(name); }
+        });
+        (__currentRoadPresets.materials || []).forEach(function(m){
+            var name = (m.name || '').trim();
+            if(m.enabled && name){
+                var unit = (m.unit || 'unit').trim() || 'unit';
+                var allowed = Array.isArray(m.allowed_units) ? m.allowed_units.map(function(u){ return String(u||'').trim(); }).filter(Boolean) : [];
+                if(!allowed.length) allowed = [unit];
+                if(allowed.indexOf(unit) === -1) allowed.unshift(unit);
+                materials.push(name);
+                materialDefs.push({ name: name, default_unit: unit, allowed_units: allowed });
+            }
+        });
+    }
+
+    if(!isRoad && __currentTypePresets){
+        (__currentTypePresets.activities || []).forEach(function(a){
+            var name = '';
+            var start_time = null;
+            var end_time = null;
+            if(a && typeof a === 'object'){
+                name = String(a.name || '').trim();
+                start_time = String(a.start_time || '').trim() || null;
+                end_time = String(a.end_time || '').trim() || null;
+            } else {
+                name = String(a || '').trim();
+            }
+            if(name){
+                activities.push(name);
+                activityDefs.push({ name: name, enabled: true, start_time: start_time, end_time: end_time });
+            }
+        });
+        (__currentTypePresets.materials || []).forEach(function(m){
+            var name = (m && m.name) ? String(m.name).trim() : '';
+            if(!name) return;
+            var unit = (m.default_unit || m.unit || 'unit');
+            unit = String(unit || 'unit').trim() || 'unit';
+            var allowed = Array.isArray(m.allowed_units) ? m.allowed_units.map(function(u){ return String(u||'').trim(); }).filter(Boolean) : [];
+            if(!allowed.length) allowed = [unit];
+            if(allowed.indexOf(unit) === -1) allowed.unshift(unit);
+            materials.push(name);
+            materialDefs.push({ name: name, default_unit: unit, allowed_units: allowed });
+        });
+    }
+
+    aHidden.value = JSON.stringify(activities);
+    aDefsHidden.value = JSON.stringify(activityDefs);
+    mHidden.value = JSON.stringify(materials);
+    mDefsHidden.value = JSON.stringify(materialDefs);
+}
+
+// Init on DOM ready
+document.addEventListener('DOMContentLoaded', function(){
+    // Attach handlers
+    var projectType = document.getElementById('project_type');
+    var roadCategory = document.getElementById('road_category');
+    var roadEngineering = document.getElementById('road_engineering_type');
+    var form = document.getElementById('createProjectForm');
+    var btn = document.getElementById('createProjectBtn');
+
+    // ---------------- Project team & roles ----------------
+    var teamUserSelect = document.getElementById('teamUserSelect');
+    var teamRoleSelect = document.getElementById('teamRoleSelect');
+    var teamList = document.getElementById('teamList');
+    var teamHidden = document.getElementById('project_team_json');
+    var btnAddTeam = document.getElementById('btnAddTeamMember');
+    var __projectTeam = [];
+
+    function serializeProjectTeam(){
+        if(!teamHidden) return;
+        var payload = (__projectTeam || []).map(function(x){
+            return { user_id: x.user_id, role_in_project: x.role_in_project };
+        });
+        teamHidden.value = JSON.stringify(payload);
+    }
+
+    function renderProjectTeam(){
+        if(!teamList) return;
+        teamList.innerHTML = '';
+        if(!__projectTeam.length){
+            teamList.innerHTML = '<div class="help-text">No team members added.</div>';
+            serializeProjectTeam();
+            return;
+        }
+        __projectTeam.forEach(function(item, idx){
+            var row = document.createElement('div');
+            row.className = 'preset-row';
+
+            var pill = document.createElement('span');
+            pill.className = 'pill';
+            pill.textContent = item.username || ('User #' + String(item.user_id));
+
+            var roleSel = document.createElement('select');
+            roleSel.style.maxWidth = '160px';
+            ['admin','manager','member','viewer'].forEach(function(r){
+                var o = document.createElement('option');
+                o.value = r;
+                o.textContent = r;
+                roleSel.appendChild(o);
+            });
+            roleSel.value = item.role_in_project || 'member';
+            roleSel.addEventListener('change', function(){
+                __projectTeam[idx].role_in_project = String(roleSel.value || 'member');
+                serializeProjectTeam();
+            });
+
+            // If the Admin option isn't available in the top selector (non-system-admin), hide it here too.
+            if(teamRoleSelect && !Array.from(teamRoleSelect.options || []).some(function(o){ return o.value === 'admin'; })){
+                Array.from(roleSel.options || []).forEach(function(o){
+                    if(o.value === 'admin') o.disabled = true;
+                });
+                if(roleSel.value === 'admin') roleSel.value = 'member';
+            }
+
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'icon-btn';
+            del.textContent = 'Remove';
+            del.addEventListener('click', function(){
+                __projectTeam.splice(idx, 1);
+                renderProjectTeam();
+            });
+
+            row.appendChild(pill);
+            row.appendChild(roleSel);
+            row.appendChild(del);
+            teamList.appendChild(row);
+        });
+        serializeProjectTeam();
+    }
+
+    if(btnAddTeam && teamUserSelect && teamRoleSelect){
+        btnAddTeam.addEventListener('click', function(){
+            var uid = parseInt(String(teamUserSelect.value || '0'), 10) || 0;
+            if(uid <= 0) return;
+
+            var username = '';
+            var opt = teamUserSelect.options[teamUserSelect.selectedIndex];
+            if(opt) username = String(opt.textContent || '').trim();
+
+            var role = String(teamRoleSelect.value || 'member');
+
+            // Prevent duplicates; update role if already present
+            var existingIdx = -1;
+            __projectTeam.forEach(function(x, i){ if(Number(x.user_id) === uid) existingIdx = i; });
+            if(existingIdx >= 0){
+                __projectTeam[existingIdx].role_in_project = role;
+            } else {
+                __projectTeam.push({ user_id: uid, username: username, role_in_project: role });
+            }
+            renderProjectTeam();
+        });
+    }
+    renderProjectTeam();
+
+    if(projectType) projectType.addEventListener('change', handleProjectTypeChange);
+    if(roadCategory) roadCategory.addEventListener('change', function(){
+        handleRoadCategoryChange();
+        updateEngineeringOptions();
+        renderConditionalQuestions();
+        serializeRoadExtras();
+
+        // If engineering type already selected, reload presets for the new category
+        if(roadEngineering && roadEngineering.value){
+            var extras = _el('road_extras_json');
+            loadRoadPresets(roadEngineering.value, roadCategory.value, extras ? extras.value : '');
+        }
+    });
+    if(roadEngineering) roadEngineering.addEventListener('change', function(){
+        handleRoadEngineeringChange();
+        serializeRoadExtras();
+        var extras = _el('road_extras_json');
+        loadRoadPresets(roadEngineering.value, roadCategory ? roadCategory.value : '', extras ? extras.value : '');
+    });
+
+    // Recompute extras + presets when conditional questions change (best-effort)
+    var rq = _el('road_questions_container');
+    if(rq){
+        rq.addEventListener('input', function(){
+            serializeRoadExtras();
+            if(roadEngineering && roadEngineering.value){
+                var extras = _el('road_extras_json');
+                loadRoadPresets(roadEngineering.value, roadCategory ? roadCategory.value : '', extras ? extras.value : '');
+            }
+        });
+    }
+
+    // Non-road presets editor handlers
+    var typePanel = _el('type_presets_panel');
+    if(typePanel){
+        typePanel.addEventListener('click', function(e){
+            var t = e.target;
+            if(!t) return;
+            var id = t.id || '';
+
+            if(id === 'btnAddTypeActivity'){
+                if(!__currentTypePresets) __currentTypePresets = { project_type: '', activities: [], materials: [] };
+                __currentTypePresets.activities.push({ name: '', start_time: '', end_time: '' });
+                renderTypeActivityPresets();
+                return;
+            }
+            if(id === 'btnResetTypeActivities' && __typePresetsCache){
+                if(!__currentTypePresets) __currentTypePresets = { project_type: __typePresetsCache.project_type || '', activities: [], materials: [] };
+                __currentTypePresets.activities = (__typePresetsCache.activities || []).map(function(a){ return { name: String(a || ''), start_time: '', end_time: '' }; });
+                renderTypeActivityPresets();
+                return;
+            }
+
+            if(id === 'btnAddTypeMaterial'){
+                if(!__currentTypePresets) __currentTypePresets = { project_type: '', activities: [], materials: [] };
+                __currentTypePresets.materials.push({ name: '', default_unit: '', allowed_units: ['unit'] });
+                renderTypeMaterialPresets();
+                return;
+            }
+            if(id === 'btnResetTypeMaterials' && __typePresetsCache){
+                if(!__currentTypePresets) __currentTypePresets = { project_type: __typePresetsCache.project_type || '', activities: [], materials: [] };
+                __currentTypePresets.materials = (__typePresetsCache.materials || []).slice();
+                renderTypeMaterialPresets();
+                return;
+            }
+            if(id === 'btnAllTypeMaterials' && __typePresetsCache){
+                if(!__currentTypePresets) __currentTypePresets = { project_type: __typePresetsCache.project_type || '', activities: [], materials: [] };
+                __currentTypePresets.materials = (__typePresetsCache.materials || []).slice();
+                renderTypeMaterialPresets();
+                return;
+            }
+            if(id === 'btnNoTypeMaterials'){
+                if(__currentTypePresets) __currentTypePresets.materials = [];
+                renderTypeMaterialPresets();
+                return;
+            }
+        });
+    }
+
+    // Presets editor handlers
+    var presetsPanel = _el('road_presets_panel');
+    if(presetsPanel){
+        presetsPanel.addEventListener('input', function(e){
+            var t = e.target;
+            if(!t || !__currentRoadPresets) return;
+            var kind = t.getAttribute('data-kind');
+            var idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+            if(idx < 0) return;
+
+            if(kind === 'activity-name' && __currentRoadPresets.activities[idx]){
+                __currentRoadPresets.activities[idx].name = t.value;
+                __currentRoadPresets.activities[idx].standard = false;
+            }
+
+            if(kind === 'activity-start-time' && __currentRoadPresets.activities[idx]){
+                __currentRoadPresets.activities[idx].start_time = t.value;
+            }
+
+            if(kind === 'activity-end-time' && __currentRoadPresets.activities[idx]){
+                __currentRoadPresets.activities[idx].end_time = t.value;
+            }
+
+            if(kind === 'material-name' && __currentRoadPresets.materials[idx]){
+                __currentRoadPresets.materials[idx].name = t.value;
+                __currentRoadPresets.materials[idx].standard = false;
+            }
+
+            if(kind === 'material-unit' && __currentRoadPresets.materials[idx]){
+                __currentRoadPresets.materials[idx].unit = t.value;
+            }
+
+            if(kind === 'material-unit-select' && __currentRoadPresets.materials[idx]){
+                var customId = t.getAttribute('data-custom-input-id') || '';
+                var customEl = customId ? document.getElementById(customId) : null;
+                if(t.value === '__custom__'){
+                    if(customEl){
+                        customEl.style.display = '';
+                        customEl.focus();
+                    }
+                } else {
+                    if(customEl){
+                        customEl.style.display = 'none';
+                        customEl.value = '';
+                    }
+                    __currentRoadPresets.materials[idx].unit = t.value;
+                }
+            }
+
+            serializePresetsToHiddenInputs();
+        });
+        presetsPanel.addEventListener('change', function(e){
+            var t = e.target;
+            if(!t || !__currentRoadPresets) return;
+            var kind = t.getAttribute('data-kind');
+            var idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+            if(idx < 0) return;
+
+            if(kind === 'activity' && __currentRoadPresets.activities[idx]){
+                __currentRoadPresets.activities[idx].enabled = !!t.checked;
+            }
+            if(kind === 'material' && __currentRoadPresets.materials[idx]){
+                __currentRoadPresets.materials[idx].enabled = !!t.checked;
+            }
+
+            if(kind === 'material-unit' && __currentRoadPresets.materials[idx]){
+                __currentRoadPresets.materials[idx].unit = t.value;
+            }
+
+            if(kind === 'material-unit-select' && __currentRoadPresets.materials[idx]){
+                var customId2 = t.getAttribute('data-custom-input-id') || '';
+                var customEl2 = customId2 ? document.getElementById(customId2) : null;
+                if(t.value === '__custom__'){
+                    if(customEl2){
+                        customEl2.style.display = '';
+                        customEl2.focus();
+                    }
+                } else {
+                    if(customEl2){
+                        customEl2.style.display = 'none';
+                        customEl2.value = '';
+                    }
+                    __currentRoadPresets.materials[idx].unit = t.value;
+                }
+            }
+
+            serializePresetsToHiddenInputs();
+        });
+        presetsPanel.addEventListener('click', function(e){
+            var t = e.target;
+            if(!t || !__currentRoadPresets) return;
+            var id = t.id || '';
+
+            if(id === 'btnAddActivity'){
+                __currentRoadPresets.activities.unshift({ name: '', enabled: true, standard: false, start_time: '', end_time: '' });
+                renderActivityPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+            if(id === 'btnResetActivities' && __roadPresetsCache){
+                __currentRoadPresets.activities = __roadPresetsCache.activities.map(function(a){
+                    return { name: a.name, enabled: true, standard: true, start_time: '', end_time: '' };
+                });
+                renderActivityPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+            if(id === 'btnAllMaterials' && __currentRoadPresets.materials){
+                __currentRoadPresets.materials.forEach(function(m){ m.enabled = true; });
+                renderMaterialPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+            if(id === 'btnNoMaterials' && __currentRoadPresets.materials){
+                __currentRoadPresets.materials.forEach(function(m){ m.enabled = false; });
+                renderMaterialPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+
+            if(id === 'btnAddMaterial'){
+                __currentRoadPresets.materials.unshift({ name: '', unit: '', allowed_units: ['unit'], enabled: true, standard: false });
+                renderMaterialPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+
+            if(id === 'btnResetMaterials' && __roadPresetsCache){
+                __currentRoadPresets.materials = (__roadPresetsCache.materials || []).map(function(m){
+                    return { name: m.name, unit: m.unit || 'unit', allowed_units: (m.allowed_units || []), enabled: true, standard: true };
+                });
+                renderMaterialPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+
+            var kind = t.getAttribute('data-kind');
+            var idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+            if(kind === 'activity-up' && idx > 0){
+                var tmp = __currentRoadPresets.activities[idx-1];
+                __currentRoadPresets.activities[idx-1] = __currentRoadPresets.activities[idx];
+                __currentRoadPresets.activities[idx] = tmp;
+                renderActivityPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+            if(kind === 'activity-down' && idx >= 0 && idx < (__currentRoadPresets.activities.length-1)){
+                var tmp2 = __currentRoadPresets.activities[idx+1];
+                __currentRoadPresets.activities[idx+1] = __currentRoadPresets.activities[idx];
+                __currentRoadPresets.activities[idx] = tmp2;
+                renderActivityPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+
+            if(kind === 'material-up' && idx > 0){
+                var tmp3 = __currentRoadPresets.materials[idx-1];
+                __currentRoadPresets.materials[idx-1] = __currentRoadPresets.materials[idx];
+                __currentRoadPresets.materials[idx] = tmp3;
+                renderMaterialPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+            if(kind === 'material-down' && idx >= 0 && idx < (__currentRoadPresets.materials.length-1)){
+                var tmp4 = __currentRoadPresets.materials[idx+1];
+                __currentRoadPresets.materials[idx+1] = __currentRoadPresets.materials[idx];
+                __currentRoadPresets.materials[idx] = tmp4;
+                renderMaterialPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+            if(kind === 'activity-remove' && idx >= 0){
+                __currentRoadPresets.activities.splice(idx, 1);
+                renderActivityPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+
+            if(kind === 'material-remove' && idx >= 0){
+                __currentRoadPresets.materials.splice(idx, 1);
+                renderMaterialPresets();
+                serializePresetsToHiddenInputs();
+                return;
+            }
+        });
+    }
+
+    if(form){
+        form.addEventListener('input', function(){
+            setFormError('');
+            serializeRoadExtras();
+            updateCreateButtonState();
+        });
+        form.addEventListener('change', function(){
+            setFormError('');
+            serializeRoadExtras();
+            updateCreateButtonState();
+        });
+        form.addEventListener('submit', function(e){
+            setFormError('');
+            form.querySelectorAll('.is-invalid').forEach(function(el){ el.classList.remove('is-invalid'); });
+
+            // Ensure editable presets are captured
+            serializePresetsToHiddenInputs();
+            serializeRoadExtras();
+            serializeProjectTeam();
+
+            if(!form.checkValidity()){
+                e.preventDefault();
+                form.querySelectorAll('input,select,textarea').forEach(function(el){
+                    if(typeof el.checkValidity === 'function' && !el.checkValidity()) el.classList.add('is-invalid');
+                });
+                setFormError('Please fill all required fields highlighted below.');
+                updateCreateButtonState();
+                return;
+            }
+
+            if(btn){
+                btn.disabled = true;
+                btn.textContent = 'Creating…';
+            }
+        });
+    }
+
+    // Ensure initial state: hide conditional sections and remove required where hidden
+    // Start clean: only Basic Information and Project Type visible
+    loadClassificationMetadata().then(function(){
+        handleProjectTypeChange();
+        handleRoadCategoryChange();
+        handleRoadEngineeringChange();
+        renderConditionalQuestions();
+        updateCreateButtonState();
+    });
+    updateCreateButtonState();
+});
+</script>
+{% endblock %}

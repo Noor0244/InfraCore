@@ -1,0 +1,96 @@
+# ================================
+# InfraCore - Project Export Script
+# ================================
+
+$Root = Get-Location
+$OutFile = "$Root\InfraCore_FULL_EXPORT.txt"
+
+# Remove old export if exists
+if (Test-Path $OutFile) {
+    Remove-Item $OutFile
+}
+
+# Folders to exclude
+$Exclude = @(
+    "\__pycache__\",
+    "\.git\",
+    "\.venv\",
+    "\venv\",
+    "\env\",
+    "\node_modules\",
+    "\.idea\",
+    "\.vscode\"
+)
+
+# File extensions to include
+$Extensions = @(
+    ".py",
+    ".html",
+    ".css",
+    ".js",
+    ".sql",
+    ".txt",
+    ".md",
+    ".env"
+)
+
+# Header
+Add-Content $OutFile "========================================"
+Add-Content $OutFile " InfraCore FULL PROJECT EXPORT"
+Add-Content $OutFile " Generated: $(Get-Date)"
+Add-Content $OutFile " Root: $Root"
+Add-Content $OutFile "========================================`n"
+
+# -------------------------
+# Folder Structure
+# -------------------------
+Add-Content $OutFile "===== FOLDER STRUCTURE ====="
+
+Get-ChildItem -Recurse -Directory | ForEach-Object {
+    $Path = $_.FullName.Replace($Root, ".")
+    $Skip = $false
+
+    foreach ($ex in $Exclude) {
+        if ($Path -like "*$ex*") {
+            $Skip = $true
+            break
+        }
+    }
+
+    if (-not $Skip) {
+        Add-Content $OutFile $Path
+    }
+}
+
+# -------------------------
+# File Contents
+# -------------------------
+Add-Content $OutFile "`n===== FILE CONTENTS ====="
+
+Get-ChildItem -Recurse -File | ForEach-Object {
+
+    $Ext = $_.Extension.ToLower()
+    if ($Extensions -notcontains $Ext) { return }
+
+    $Path = $_.FullName.Replace($Root, ".")
+    foreach ($ex in $Exclude) {
+        if ($Path -like "*$ex*") { return }
+    }
+
+    Add-Content $OutFile "`n----------------------------------------"
+    Add-Content $OutFile "FILE: $Path"
+    Add-Content $OutFile "----------------------------------------"
+
+    try {
+        Get-Content $_.FullName -Raw | Add-Content $OutFile
+    }
+    catch {
+        Add-Content $OutFile "[ERROR: Unable to read file]"
+    }
+}
+
+Add-Content $OutFile "`n========= END OF EXPORT ========="
+
+Write-Host ""
+Write-Host "✅ InfraCore export completed successfully"
+Write-Host "📄 Output file: InfraCore_FULL_EXPORT.txt"

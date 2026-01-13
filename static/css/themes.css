@@ -1,0 +1,121 @@
+/* -------- REPORTS UI -------- */
+
+.muted {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+/* REPORTS PAGE */
+.reports-page {
+    padding: 24px;
+}
+
+.reports-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.reports-filters {
+    display: flex;
+    gap: 10px;
+}
+
+/* SEARCH + FILTER */
+.search-input,
+.reports-filters select {
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+
+/* GRID */
+.reports-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+/* CARD */
+.report-card {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.report-card-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.report-body p {
+    margin: 0;
+    font-size: 14px;
+    color: #333;
+}
+
+/* BADGES */
+.badge {
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: 12px;
+    color: #fff;
+}
+
+.badge-labour {
+    background: #007bff;
+}
+
+.badge-machinery {
+    background: #28a745;
+}
+
+.badge-material {
+    background: #ff9800;
+}
+
+.report-date {
+    font-size: 12px;
+    color: #666;
+}
+
+/* ACTIONS */
+.report-actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 12px;
+}
+
+.btn-edit {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.btn-delete {
+    color: #dc3545;
+    text-decoration: none;
+}
+
+/* EMPTY STATE */
+.empty-state {
+    text-align: center;
+    padding: 60px;
+    color: #666;
+}
+
+/* ADD REPORT BUTTON */
+.add-btn {
+    background: #2563eb;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.add-btn:hover {
+    background: #1e40af;
+}

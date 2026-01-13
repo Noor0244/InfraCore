@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Labour</h1>
+
+<table>
+    <tr>
+        <th>Category</th>
+        <th>Count</th>
+    </tr>
+    {% for l in labour %}
+    <tr>
+        <td>{{ l.get("Category", "") }}</td>
+        <td>{{ l.get("Count", "") }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

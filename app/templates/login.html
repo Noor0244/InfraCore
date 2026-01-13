@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login – InfraCore</title>
+
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            background: linear-gradient(135deg, #020617, #020617);
+            font-family: "Segoe UI", system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e5e7eb;
+        }
+
+        .login-card {
+            background: #020617;
+            border: 1px solid #1e293b;
+            width: 360px;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        }
+
+        .login-title {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+            color: #cbd5f5;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #1e293b;
+            background: #020617;
+            color: #e5e7eb;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: #2563eb;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 11px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            opacity: 0.95;
+        }
+
+        .flash {
+            background: #7f1d1d;
+            color: #fecaca;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .footer-text {
+            text-align: center;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 18px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+
+    <div class="login-title">InfraCore</div>
+    <div class="login-subtitle">Construction ERP Login</div>
+
+    {% if request.state.flashes %}
+        {% for msg, category in request.state.flashes %}
+            <div class="flash">{{ msg }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" action="/login">
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" required>
+        </div>
+
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" required>
+        </div>
+
+        <button class="login-btn" type="submit">Login</button>
+    </form>
+
+    <div class="footer-text">
+        © InfraCore ERP
+    </div>
+
+</div>
+
+</body>
+</html>

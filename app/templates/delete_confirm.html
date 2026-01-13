@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Confirm Delete</h2>
+
+<p style="color:#b00020; font-weight:bold;">
+    This action cannot be undone.
+</p>
+
+<p>
+    You are about to permanently delete the following report:
+</p>
+
+<ul>
+    <li><strong>Date:</strong> {{ report.report_date }}</li>
+    <li><strong>Type:</strong> {{ report.report_type }}</li>
+    <li><strong>Description:</strong> {{ report.description }}</li>
+</ul>
+
+<form method="post">
+    <button type="submit" class="button danger">
+        Yes, Delete Report
+    </button>
+    <a href="/reports" class="button secondary">Cancel</a>
+</form>
+{% endblock %}

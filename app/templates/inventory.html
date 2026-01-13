@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Inventory</h1>
+
+<table>
+    <tr>
+        <th>Material</th>
+        <th>Quantity</th>
+        <th>Unit</th>
+    </tr>
+    {% for row in inventory %}
+    <tr>
+        <td>{{ row.get("material","") }}</td>
+        <td>{{ row.get("quantity","") }}</td>
+        <td>{{ row.get("unit","") }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
