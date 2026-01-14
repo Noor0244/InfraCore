@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,73 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/wizard", tags=["Project Wizard"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+def _is_truthy(val: object) -> bool:
+    s = str(val or "").strip().lower()
+    return s in {"1", "true", "yes", "y", "on"}
+
+
+def _wizard_step_meta(data: dict, *, step_key: str) -> dict[str, int]:
+    """Compute step numbering for UI.
+
+    Road projects have 5 steps by default.
+    If stretch system is enabled, there is an extra step between Engineering and Preview.
+    """
+    pt_raw = str(data.get("project_type") or "").strip().lower()
+    is_road = (pt_raw == "road")
+    stretch_enabled = _is_truthy(data.get("stretch_enabled"))
+
+    # Default to 5 steps until type is known.
+    if not pt_raw:
+        step_total = 5
+    else:
+        step_total = 6 if (is_road and stretch_enabled) else 5
+        if not is_road:
+            # Keep non-road flow simple for now
+            step_total = 3
+
+    step_no_map_road_disabled = {
+        "start": 1,
+        "type": 2,
+        "road_classification": 3,
+        "engineering": 4,
+        "stretches": 0,  # not used
+        "preview": 5,
+        "confirm": 5,
+    }
+
+    step_no_map_road_enabled = {
+        "start": 1,
+        "type": 2,
+        "road_classification": 3,
+        "engineering": 4,
+        "stretches": 5,
+        "preview": 6,
+        "confirm": 6,
+    }
+
+    step_no_map_nonroad = {
+        "start": 1,
+        "type": 2,
+        "preview": 3,
+        "confirm": 3,
+    }
+
+    if not is_road and pt_raw:
+        step_no = int(step_no_map_nonroad.get(step_key, 1))
+        return {"step_no": step_no, "step_total": int(step_total)}
+
+    if not pt_raw:
+        # Before project type is chosen, show generic 5-step flow.
+        generic = {"start": 1, "type": 2, "road_classification": 3, "engineering": 4, "preview": 5, "confirm": 5}
+        return {"step_no": int(generic.get(step_key, 1)), "step_total": int(step_total)}
+
+    if stretch_enabled:
+        step_no = int(step_no_map_road_enabled.get(step_key, 1))
+    else:
+        step_no = int(step_no_map_road_disabled.get(step_key, 1))
+    return {"step_no": step_no, "step_total": int(step_total)}
 
 
 def _require_user(request: Request) -> dict:
@@ -61,9 +128,10 @@ def wizard_step0_get(request: Request, wid: int | None = None, db: Session = Dep
         state = _wizard_or_redirect(request, db, wid, int(user["id"]))
 
     data = state.data if state else {}
+    meta = _wizard_step_meta(data, step_key="start")
     return templates.TemplateResponse(
         "projects/wizard/step0_basic.html",
-        {"request": request, "user": user, "wid": wid, "data": data},
+        {"request": request, "user": user, "wid": wid, "data": data, **meta},
     )
 
 
@@ -127,9 +195,10 @@ def wizard_step1_get(request: Request, wid: int, db: Session = Depends(get_db)):
         return RedirectResponse("/projects/wizard/start", status_code=302)
 
     data = state.data
+    meta = _wizard_step_meta(data, step_key="type")
     return templates.TemplateResponse(
         "projects/wizard/step1_type.html",
-        {"request": request, "user": user, "wid": wid, "data": data},
+        {"request": request, "user": user, "wid": wid, "data": data, **meta},
     )
 
 
@@ -181,9 +250,19 @@ def wizard_step2_get(request: Request, wid: int, db: Session = Depends(get_db)):
     categories = ["Expressway", "NH", "SH", "MDR", "ODR", "Village", "Urban"]
     contexts = ["", "Access-controlled", "Urban", "Rural", "Industrial"]
 
+    meta = _wizard_step_meta(state.data, step_key="road_classification")
+
     return templates.TemplateResponse(
         "projects/wizard/step2_road_classification.html",
-        {"request": request, "user": user, "wid": wid, "data": state.data, "categories": categories, "contexts": contexts},
+        {
+            "request": request,
+            "user": user,
+            "wid": wid,
+            "data": state.data,
+            "categories": categories,
+            "contexts": contexts,
+            **meta,
+        },
     )
 
 
@@ -274,6 +353,8 @@ def wizard_step3_get(request: Request, wid: int, db: Session = Depends(get_db)):
         )
         admin_all_presets = [{"preset_key": p.preset_key, "title": _display_preset_name(p)} for p in allp]
 
+    meta = _wizard_step_meta(data, step_key="engineering")
+
     return templates.TemplateResponse(
         "projects/wizard/step3_engineering.html",
         {
@@ -285,6 +366,7 @@ def wizard_step3_get(request: Request, wid: int, db: Session = Depends(get_db)):
             "construction_types": construction_types,
             "preset_options": preset_options,
             "admin_all_presets": admin_all_presets,
+            **meta,
         },
     )
 
@@ -297,6 +379,7 @@ def wizard_step3_post(
     construction_type: str = Form(...),
     preset_key: str | None = Form(None),
     admin_preset_key: str | None = Form(None),
+    stretch_enabled: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     try:
@@ -317,10 +400,181 @@ def wizard_step3_post(
     if chosen_key:
         patch["preset_key"] = chosen_key
 
+    # Stretch system toggle (Road projects only)
+    patch["stretch_enabled"] = bool(_is_truthy(stretch_enabled))
+
     update_state(db, wizard_id=wid, user_id=int(user["id"]), patch=patch, current_step=3)
     db.commit()
 
-    # If we already have a concrete preset selection, go to preview.
+    # If stretch system enabled, insert stretch setup step before preview.
+    if bool(patch.get("stretch_enabled")):
+        return RedirectResponse(f"/projects/wizard/stretches?wid={wid}", status_code=302)
+
+    return RedirectResponse(f"/projects/wizard/preview?wid={wid}", status_code=302)
+
+
+@router.get("/stretches", response_class=HTMLResponse)
+def wizard_step4_stretches_get(request: Request, wid: int, db: Session = Depends(get_db)):
+    try:
+        user = _require_user(request)
+    except PermissionError:
+        return _redirect_login(request)
+
+    state = _wizard_or_redirect(request, db, wid, int(user["id"]))
+    if not state:
+        return RedirectResponse("/projects/wizard/start", status_code=302)
+
+    data = state.data
+    if (str(data.get("project_type") or "").strip().lower() != "road"):
+        return RedirectResponse(f"/projects/wizard/type?wid={wid}", status_code=302)
+
+    if not _is_truthy(data.get("stretch_enabled")):
+        return RedirectResponse(f"/projects/wizard/preview?wid={wid}", status_code=302)
+
+    preset_key = str(data.get("preset_key") or "").strip()
+    if not preset_key:
+        flash(request, "Select engineering type and a preset first.", "warning")
+        return RedirectResponse(f"/projects/wizard/engineering?wid={wid}", status_code=302)
+
+    meta = _wizard_step_meta(data, step_key="stretches")
+
+    return templates.TemplateResponse(
+        "projects/wizard/step4_stretches.html",
+        {
+            "request": request,
+            "user": user,
+            "wid": wid,
+            "data": data,
+            "segments": data.get("stretch_segments") or [],
+            **meta,
+        },
+    )
+
+
+@router.post("/stretches/preview")
+def wizard_stretches_preview(
+    request: Request,
+    wid: int = Form(...),
+    total_length: float = Form(...),
+    unit: str = Form("m"),
+    method: str = Form("count"),
+    number_of_stretches: int | None = Form(None),
+    stretch_length_m: int | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        user = _require_user(request)
+    except PermissionError:
+        return JSONResponse({"ok": False, "error": "login"}, status_code=401)
+
+    state = _wizard_or_redirect(request, db, int(wid), int(user["id"]))
+    if not state:
+        return JSONResponse({"ok": False, "error": "Wizard expired"}, status_code=400)
+
+    from app.utils.stretch_generation import generate_stretch_segments
+
+    try:
+        u = (unit or "m").strip().lower()
+        total_m = float(total_length)
+        if u == "km":
+            total_m = total_m * 1000.0
+        total_length_m = int(round(total_m))
+
+        m = (method or "count").strip().lower()
+        if m == "count":
+            segments = generate_stretch_segments(total_length_m=total_length_m, number_of_stretches=int(number_of_stretches or 0))
+        else:
+            segments = generate_stretch_segments(total_length_m=total_length_m, stretch_length_m=int(stretch_length_m or 0))
+
+        return JSONResponse({"ok": True, "total_length_m": total_length_m, "segments": segments})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e) or "Invalid stretch inputs"}, status_code=400)
+
+
+@router.post("/stretches")
+async def wizard_step4_stretches_post(request: Request, db: Session = Depends(get_db)):
+    try:
+        user = _require_user(request)
+    except PermissionError:
+        return _redirect_login(request)
+
+    form = await request.form()
+    try:
+        wid = int(form.get("wid") or 0)
+    except Exception:
+        wid = 0
+    if wid <= 0:
+        return RedirectResponse("/projects/wizard/start", status_code=302)
+
+    state = _wizard_or_redirect(request, db, wid, int(user["id"]))
+    if not state:
+        return RedirectResponse("/projects/wizard/start", status_code=302)
+
+    data = state.data
+    if not _is_truthy(data.get("stretch_enabled")):
+        return RedirectResponse(f"/projects/wizard/preview?wid={wid}", status_code=302)
+
+    total_length_m_raw = (form.get("total_length_m") or "").strip()
+    segments_json = (form.get("segments_json") or "").strip()
+
+    try:
+        total_length_m = int(total_length_m_raw)
+        if total_length_m <= 0:
+            raise ValueError
+    except Exception:
+        flash(request, "Total length must be a positive number.", "error")
+        return RedirectResponse(f"/projects/wizard/stretches?wid={wid}", status_code=302)
+
+    try:
+        raw = json.loads(segments_json) if segments_json else []
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("Generate a preview first")
+        segments = []
+        for item in raw[:500]:
+            if not isinstance(item, dict):
+                continue
+            start_m = int(item.get("start_m"))
+            end_m = int(item.get("end_m"))
+            if start_m < 0 or end_m <= start_m:
+                raise ValueError("Invalid chainage range")
+            segments.append({
+                "sequence_no": int(item.get("sequence_no") or 0) or (len(segments) + 1),
+                "stretch_code": str(item.get("stretch_code") or f"ST-{len(segments)+1:03d}"),
+                "stretch_name": str(item.get("stretch_name") or "").strip() or f"Stretch {len(segments)+1}",
+                "start_m": start_m,
+                "end_m": end_m,
+                "length_m": int(end_m - start_m),
+            })
+
+        segments = sorted(segments, key=lambda s: int(s.get("sequence_no") or 0))
+        if not segments:
+            raise ValueError("No segments")
+
+        # Validate non-overlap and total length match
+        last_end = None
+        for seg in segments:
+            if last_end is not None and int(seg["start_m"]) != int(last_end):
+                raise ValueError("Segments must be continuous and non-overlapping")
+            last_end = int(seg["end_m"])
+        if int(last_end or 0) != int(total_length_m):
+            raise ValueError("Total length must match generated segments")
+
+    except Exception as e:
+        flash(request, f"Invalid stretch segments: {str(e) or 'error'}", "error")
+        return RedirectResponse(f"/projects/wizard/stretches?wid={wid}", status_code=302)
+
+    update_state(
+        db,
+        wizard_id=wid,
+        user_id=int(user["id"]),
+        patch={
+            "stretch_total_length_m": int(total_length_m),
+            "stretch_segments": segments,
+        },
+        current_step=4,
+    )
+    db.commit()
+
     return RedirectResponse(f"/projects/wizard/preview?wid={wid}", status_code=302)
 
 
@@ -388,6 +642,7 @@ def wizard_step4_get(request: Request, wid: int, db: Session = Depends(get_db)):
     for a in activities:
         grouped[(a.category or "Other").strip()].append(a)
 
+    meta = _wizard_step_meta(data, step_key="preview")
     return templates.TemplateResponse(
         "projects/wizard/step4_preview.html",
         {
@@ -400,6 +655,7 @@ def wizard_step4_get(request: Request, wid: int, db: Session = Depends(get_db)):
             "grouped_activities": dict(grouped),
             "materials": materials,
             "mapping_by_activity_code": {k: sorted(list(v)) for k, v in mapping_by_activity_code.items()},
+            **meta,
         },
     )
 
@@ -535,6 +791,7 @@ def wizard_step5_get(request: Request, wid: int, db: Session = Depends(get_db)):
         if preset_key:
             preset = db.query(RoadPreset).filter(RoadPreset.preset_key == preset_key, RoadPreset.is_deleted == False).first()
 
+    meta = _wizard_step_meta(data, step_key="confirm")
     return templates.TemplateResponse(
         "projects/wizard/step5_confirm.html",
         {
@@ -544,6 +801,7 @@ def wizard_step5_get(request: Request, wid: int, db: Session = Depends(get_db)):
             "data": data,
             "preset": preset,
             "preset_title": _display_preset_name(preset) if preset else None,
+            **meta,
         },
     )
 

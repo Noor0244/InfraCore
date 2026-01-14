@@ -21,9 +21,9 @@ def hash_password(p: str):
     return hashlib.sha256(p.encode()).hexdigest()
 
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
+def login_page(request: Request, next: str | None = None):
     return templates.TemplateResponse(
-        "login.html", {"request": request, "user": None}
+        "login.html", {"request": request, "user": None, "next": next}
     )
 
 @router.post("/login")
@@ -31,6 +31,7 @@ def login_action(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.username == username).first()
@@ -45,6 +46,13 @@ def login_action(
         "username": user.username,
         "role": user.role,
     }
+
+    # Redirect back to the originally requested page when provided.
+    # Only allow relative, same-site paths.
+    if next:
+        n = str(next).strip()
+        if n.startswith("/") and ("://" not in n) and ("\\" not in n):
+            return RedirectResponse(n, status_code=302)
 
     return RedirectResponse("/reports", status_code=302)
 

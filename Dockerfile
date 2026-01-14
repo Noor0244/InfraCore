@@ -15,4 +15,4 @@ COPY . /app
 EXPOSE 10000
 
 # Run FastAPI via Uvicorn, binding to Render's PORT.
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"]

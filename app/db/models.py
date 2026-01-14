@@ -12,6 +12,12 @@ from app.models.road_type import RoadType
 from app.models.road_preset import RoadPreset, PresetActivity, PresetMaterial, PresetActivityMaterialMap
 from app.models.project_wizard import ProjectWizardState
 
+# -------- ROAD STRETCH / CHAINAGE (OPTIONAL EXTENSION) --------
+from app.models.road_stretch import RoadStretch
+from app.models.stretch_activity import StretchActivity
+from app.models.stretch_material import StretchMaterial
+from app.models.stretch_material_exclusion import StretchMaterialExclusion
+
 # -------- ACTIVITIES --------
 from app.models.activity import Activity
 from app.models.project_activity import ProjectActivity

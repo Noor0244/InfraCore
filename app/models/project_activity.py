@@ -27,6 +27,14 @@ class ProjectActivity(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
 
+    # ROAD ACTIVITY CLASSIFICATION
+    # - COMMON: executed once for entire road (default/backward compatible)
+    # - STRETCH: repeated per stretch via StretchActivity
+    activity_scope = Column(String(10), nullable=False, default="COMMON")
+
+    # Optional default duration in hours (planning baseline)
+    default_duration_hours = Column(Float, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # ✅ RELATIONSHIPS (CRITICAL FIX)

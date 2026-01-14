@@ -18,8 +18,46 @@ class RoadPresetResult:
     road_category: str
     road_engineering_type: str
     activities: list[str]
+    activity_defs: list[dict[str, Any]]
     materials: list[MaterialPreset]
     links: list[ActivityMaterialLink]
+
+
+def _infer_activity_scope(*, phase: str | None, name: str | None) -> str:
+    """Best-effort classification for road activities.
+
+    - COMMON: project-wide activities (mobilization/survey/TTM/utilities etc.)
+    - STRETCH: chainage/segment-executable activities (earthwork/pavement/drainage etc.)
+
+    Seed files may explicitly set `activity_scope`/`scope` to override this.
+    """
+    phase_l = (phase or "").strip().lower()
+    name_l = (name or "").strip().lower()
+
+    if "pre-construction" in phase_l or "pre construction" in phase_l or "preconstruction" in phase_l:
+        return "COMMON"
+
+    common_name_hints = [
+        "mobilization",
+        "mobilisation",
+        "survey",
+        "setting out",
+        "benchmark",
+        "traffic management",
+        "diversion",
+        "diversions",
+        "utility shifting",
+        "utilities shifting",
+        "permission",
+        "approval",
+        "inspection",
+        "cleanup",
+        "housekeeping",
+    ]
+    if any(h in name_l for h in common_name_hints):
+        return "COMMON"
+
+    return "STRETCH"
 
 
 def _repo_root() -> Path:
@@ -188,17 +226,27 @@ def get_road_preset(
     activities_raw = data.get("activities")
     activities: list[str] = []
     activity_by_code: dict[str, str] = {}
+    activity_defs: list[dict[str, Any]] = []
     if isinstance(activities_raw, list):
         for item in activities_raw[:1000]:
             if isinstance(item, str):
                 name = item.strip()
                 if name:
                     activities.append(name)
+                    activity_defs.append({"name": name, "activity_scope": _infer_activity_scope(phase=None, name=name)})
                 continue
             if not isinstance(item, dict):
                 continue
             name = str(item.get("name") or "").strip()
             code = str(item.get("code") or "").strip()
+            phase = str(item.get("phase") or "").strip() or None
+
+            raw_scope = item.get("activity_scope")
+            if raw_scope is None:
+                raw_scope = item.get("scope")
+            scope = str(raw_scope or "").strip().upper() or _infer_activity_scope(phase=phase, name=name)
+            if scope not in {"COMMON", "STRETCH"}:
+                scope = _infer_activity_scope(phase=phase, name=name)
 
             include_if = item.get("include_if")
             if isinstance(include_if, dict):
@@ -214,6 +262,14 @@ def get_road_preset(
             activities.append(name)
             if code:
                 activity_by_code[code] = name
+
+            # Keep a rich representation for UI + downstream logic.
+            d: dict[str, Any] = {"name": name, "activity_scope": scope}
+            if code:
+                d["code"] = code
+            if phase:
+                d["phase"] = phase
+            activity_defs.append(d)
 
     # Materials
     materials_raw = data.get("materials")
@@ -278,6 +334,7 @@ def get_road_preset(
         road_category=category,
         road_engineering_type=engineering,
         activities=activities,
+        activity_defs=activity_defs,
         materials=materials,
         links=links,
     )

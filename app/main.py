@@ -517,13 +517,17 @@ def startup_tasks():
 # AUTH
 # ======================================================
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
+def login_page(request: Request, next: str | None = None):
     if request.session.get("user"):
+        if next:
+            n = str(next).strip()
+            if n.startswith("/") and ("://" not in n) and ("\\" not in n):
+                return RedirectResponse(n, status_code=302)
         return RedirectResponse("/dashboard", status_code=302)
 
     return templates.TemplateResponse(
         "login.html",
-        {"request": request, "user": None}
+        {"request": request, "user": None, "next": next}
     )
 
 @app.post("/login")
@@ -531,6 +535,7 @@ def login_action(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.username == username).first()
@@ -539,14 +544,14 @@ def login_action(
         flash(request, "Invalid username or password", "error")
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "user": None}
+            {"request": request, "user": None, "next": next}
         )
 
     if not user.is_active:
         flash(request, "Your account is disabled. Contact admin.", "error")
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "user": None}
+            {"request": request, "user": None, "next": next}
         )
 
     request.session["user"] = {
@@ -577,6 +582,10 @@ def login_action(
     )
 
     flash(request, "Logged in successfully", "success")
+    if next:
+        n = str(next).strip()
+        if n.startswith("/") and ("://" not in n) and ("\\" not in n):
+            return RedirectResponse(n, status_code=302)
     return RedirectResponse("/dashboard", status_code=302)
 
 @app.get("/logout")

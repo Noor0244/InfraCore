@@ -3,6 +3,27 @@
 
 <h1 class="page-title">{{ title }}</h1>
 
+<style>
+    .dash-toggle{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px 0}
+    .dash-toggle a{padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,0.10);background:rgba(255,255,255,0.04);text-decoration:none;color:var(--text)}
+    .dash-toggle a.active{background:rgba(30,111,216,0.18);border-color:rgba(30,111,216,0.35)}
+
+    .stretch-bar{display:flex;height:16px;border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,0.10);background:rgba(255,255,255,0.04)}
+    .stretch-seg{height:100%}
+    .stretch-seg.not_started{background:rgba(148,163,184,0.35)}
+    .stretch-seg.in_progress{background:rgba(30,111,216,0.55)}
+    .stretch-seg.completed{background:rgba(34,197,94,0.55)}
+    .stretch-seg.delayed{background:rgba(245,158,11,0.65)}
+
+    .stretch-grid{display:grid;grid-template-columns:1fr;gap:12px}
+    .stretch-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .stretch-filters label{font-size:12px;color:var(--text-muted)}
+    .stretch-filters select,.stretch-filters input{padding:6px 8px}
+    .stretch-alert{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.10);background:rgba(255,255,255,0.04)}
+    .stretch-alert.warning{border-color:rgba(245,158,11,0.35);background:rgba(245,158,11,0.10)}
+    .stretch-alert.info{border-color:rgba(30,111,216,0.35);background:rgba(30,111,216,0.10)}
+</style>
+
 <!-- ================= PROJECT CONTEXT ================= -->
 <script id="projectIdJson" type="application/json">{{ project_id | tojson }}</script>
 
@@ -99,6 +120,192 @@
         <a class="btn-secondary" href="/activity-material-planning/{{ project.id }}">🗓🧱 Activity & Materials</a>
     </div>
 </div>
+
+{% if project and has_stretches %}
+    <div class="dash-toggle">
+        <a class="{% if dash_view != 'stretch' %}active{% endif %}" href="/dashboard?project_id={{ project.id }}&view=project">Project View</a>
+        <a class="{% if dash_view == 'stretch' %}active{% endif %}" href="/dashboard?project_id={{ project.id }}&view=stretch">Stretch View</a>
+    </div>
+{% endif %}
+{% endif %}
+
+<!-- ================= STRETCH INTELLIGENCE MODE ================= -->
+{% if project and dash_view == 'stretch' %}
+    {% if not has_stretches %}
+        <div class="card"><div class="meta">No stretches found for this project. Switch back to Project View.</div></div>
+    {% else %}
+        <h2 class="section-title">Stretch Intelligence</h2>
+
+        <div class="card" style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
+                <div>
+                    <h3 style="margin:0">Stretch Overview</h3>
+                    <div class="meta" style="margin-top:6px">Today: <strong>{{ (stretch_intel.today if stretch_intel else '') }}</strong>. Status and alerts are computed server-side.</div>
+                </div>
+            </div>
+
+            <hr style="margin:14px 0; opacity:0.45">
+
+            <form method="get" action="/dashboard" class="stretch-filters">
+                <input type="hidden" name="project_id" value="{{ project.id }}">
+                <input type="hidden" name="view" value="stretch">
+
+                <div>
+                    <label>Lookahead Days</label><br>
+                    <select name="lookahead_days">
+                        {% set la = (stretch_intel.cfg.lookahead_days if stretch_intel else 30) %}
+                        <option value="7" {% if la==7 %}selected{% endif %}>7</option>
+                        <option value="14" {% if la==14 %}selected{% endif %}>14</option>
+                        <option value="30" {% if la==30 %}selected{% endif %}>30</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Stretch</label><br>
+                    <select name="stretch_id">
+                        <option value="">All</option>
+                        {% for s in stretch_choices %}
+                            <option value="{{ s.id }}" {% if stretch_intel and stretch_intel.filters.stretch_id==s.id %}selected{% endif %}>{{ s.stretch_code }} ({{ s.start_chainage }}–{{ s.end_chainage }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label>Status</label><br>
+                    <select name="status">
+                        <option value="">All</option>
+                        <option value="NOT_STARTED" {% if stretch_intel and stretch_intel.filters.status=='NOT_STARTED' %}selected{% endif %}>Not Started</option>
+                        <option value="IN_PROGRESS" {% if stretch_intel and stretch_intel.filters.status=='IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+                        <option value="DELAYED" {% if stretch_intel and stretch_intel.filters.status=='DELAYED' %}selected{% endif %}>Delayed</option>
+                        <option value="COMPLETED" {% if stretch_intel and stretch_intel.filters.status=='COMPLETED' %}selected{% endif %}>Completed</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>&nbsp;</label><br>
+                    <button class="btn-primary" type="submit">Apply</button>
+                </div>
+
+                <div>
+                    <label>&nbsp;</label><br>
+                    <a class="btn-secondary" href="/dashboard?project_id={{ project.id }}&view=stretch">Reset</a>
+                </div>
+            </form>
+
+            {% if stretch_intel and stretch_intel.stretches and stretch_intel.stretches|length > 0 %}
+                <div style="margin-top:14px">
+                    <div class="meta" style="margin-bottom:8px">Chainage strip (hover for quick stats)</div>
+                    <div class="stretch-bar">
+                        {% set total_m = (stretch_intel.total_length_m or 0) %}
+                        {% for st in stretch_intel.stretches %}
+                            {% set w = (100.0 * (st.length_m or 0) / total_m) if total_m else 0 %}
+                            {% set cls = (st.status_kind or 'NOT_STARTED')|lower %}
+                            <div
+                                class="stretch-seg {{ cls }}"
+                                                                data-width="{{ w }}"
+                                title="{{ st.stretch_code }} | {{ st.chainage }} | {{ st.status_label }} | {{ st.actual_progress }}%"
+                            ></div>
+                        {% endfor %}
+                    </div>
+                                        <script>
+                                            (function(){
+                                                try{
+                                                    document.querySelectorAll('.stretch-seg[data-width]').forEach(function(el){
+                                                        var w = parseFloat(el.getAttribute('data-width') || '0');
+                                                        if (isNaN(w) || w < 0) w = 0;
+                                                        el.style.width = w + '%';
+                                                    });
+                                                }catch(e){}
+                                            })();
+                                        </script>
+                </div>
+
+                <hr style="margin:14px 0; opacity:0.35">
+
+                <div style="overflow:auto">
+                    <table class="table" style="min-width:1060px">
+                        <thead>
+                            <tr>
+                                <th>Stretch</th>
+                                <th>Chainage</th>
+                                <th>Planned Start – End</th>
+                                <th>Progress</th>
+                                <th>Status</th>
+                                <th>Critical Activity</th>
+                                <th>Material Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for st in stretch_intel.stretches %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ st.stretch_code }}</strong>
+                                        <div class="meta">{{ st.stretch_name }}</div>
+                                    </td>
+                                    <td>{{ st.chainage }}</td>
+                                    <td>
+                                        {% if st.planned_start %}{{ st.planned_start }}{% else %}—{% endif %}
+                                        —
+                                        {% if st.planned_end %}{{ st.planned_end }}{% else %}—{% endif %}
+                                        {% if st.planned_progress is not none %}
+                                            <div class="meta">Planned progress: {{ st.planned_progress }}%</div>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ st.actual_progress }}%</strong></td>
+                                    <td>
+                                        {% if st.status_kind == 'DELAYED' %}
+                                            <span class="badge badge-warning">Delayed</span>
+                                        {% elif st.status_kind == 'COMPLETED' %}
+                                            <span class="badge badge-success">Completed</span>
+                                        {% elif st.status_kind == 'IN_PROGRESS' %}
+                                            <span class="badge badge-info">In Progress</span>
+                                        {% else %}
+                                            <span class="badge">Not Started</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if st.critical_activity %}
+                                            {% if st.critical_activity.activity_code %}<span class="badge">{{ st.critical_activity.activity_code }}</span>{% endif %}
+                                            <strong>{{ st.critical_activity.activity_name }}</strong>
+                                            <div class="meta">Start: {{ st.critical_activity.start_date }} | Progress: {{ st.critical_activity.progress_percent }}%</div>
+                                        {% else %}
+                                            <span class="meta">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if st.material_risk_kind == 'SHORTAGE' %}
+                                            <span class="badge badge-danger">Shortage</span>
+                                        {% elif st.material_risk_kind == 'DUE_SOON' %}
+                                            <span class="badge badge-warning">Due Soon</span>
+                                        {% else %}
+                                            <span class="badge badge-success">OK</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="meta">No stretch data available (check stretch activity mapping / planning).</div>
+            {% endif %}
+        </div>
+
+        {% if stretch_intel and stretch_intel.alerts and stretch_intel.alerts|length > 0 %}
+            <h2 class="section-title">Stretch Alerts</h2>
+            <div class="stretch-grid">
+                {% for a in stretch_intel.alerts %}
+                    <div class="stretch-alert {% if a.severity=='warning' %}warning{% else %}info{% endif %}">
+                        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                            <div><strong>{{ a.title }}</strong></div>
+                            <div class="meta">{{ a.kind }}</div>
+                        </div>
+                        {% if a.detail %}<div class="meta" style="margin-top:6px">{{ a.detail }}</div>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endif %}
 {% endif %}
 
 <!-- ================= PROJECT KPI ================= -->

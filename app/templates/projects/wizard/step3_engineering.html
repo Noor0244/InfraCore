@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1 class="page-title">Engineering Type (Step 3 of 5)</h1>
+<h1 class="page-title">Engineering Details (Step {{ step_no }} of {{ step_total }})</h1>
 <div class="help-text" style="margin-top:-8px">Choose pavement + construction. InfraCore will filter valid presets.</div>
 
 <div class="card card--page">
@@ -69,6 +69,14 @@
         </select>
       </details>
     {% endif %}
+
+        <div class="form-group" style="margin-top: 12px;">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" name="stretch_enabled" value="1" {% if data.get('stretch_enabled') %}checked{% endif %}>
+            Enable Stretch System (chainage-based planning & execution)
+          </label>
+          <small class="text-muted">If enabled, you will define road stretches in the next step.</small>
+        </div>
 
     <div style="display:flex;gap:10px;margin-top:14px">
       <a class="btn" href="/projects/wizard/road-classification?wid={{ wid }}">← Back</a>

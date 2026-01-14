@@ -151,13 +151,13 @@
 
                     <div id="road_details_fields" style="display:none">
                         <label>Lanes <span class="required">*</span></label>
-                        <input type="number" name="lanes" required min="1" value="{{ project.lanes }}" placeholder="2">
+                        <input type="number" name="lanes" min="1" value="{{ project.lanes }}" placeholder="2">
                         <div class="help-text">Number of traffic lanes per carriageway.</div>
                     </div>
 
                     <div id="road_details_fields2" style="display:none">
                         <label>Road Width (m) <span class="required">*</span></label>
-                        <input type="number" step="0.01" name="road_width" required value="{{ project.road_width }}" placeholder="7.00">
+                        <input type="number" step="0.01" name="road_width" value="{{ project.road_width }}" placeholder="7.00">
                         <div class="help-text">Total carriageway width in metres.</div>
                     </div>
 
@@ -168,7 +168,7 @@
 
                     <div id="road_details_fields3" style="display:none">
                         <label>Road Length (km) <span class="required">*</span></label>
-                        <input type="number" step="0.01" name="road_length_km" required value="{{ project.road_length_km }}" placeholder="12.50">
+                        <input type="number" step="0.01" name="road_length_km" value="{{ project.road_length_km }}" placeholder="12.50">
                         <div class="help-text">Enter project length. Use chainages for non-linear projects.</div>
                     </div>
 
@@ -470,9 +470,21 @@
             return fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
                 .then(function(r){ return r.json(); })
                 .then(function(data){
-                    var activities = (data.activities || []).map(function(n){
-                        return { name: String(n || ''), enabled: true, standard: true };
-                    });
+                    var defs = Array.isArray(data.activity_preset_defs) ? data.activity_preset_defs : null;
+                    var activities = [];
+                    if(defs && defs.length){
+                        activities = defs.map(function(d){
+                            var name = String((d && d.name) || '').trim();
+                            var scope = String((d && (d.activity_scope || d.scope)) || '').trim();
+                            if(scope){ scope = scope.toUpperCase(); }
+                            if(scope !== 'COMMON' && scope !== 'STRETCH'){ scope = 'STRETCH'; }
+                            return { name: name, enabled: true, standard: true, activity_scope: scope, phase: (d && d.phase) ? String(d.phase) : '' };
+                        }).filter(function(a){ return !!(a && a.name); });
+                    } else {
+                        activities = (data.activities || []).map(function(n){
+                            return { name: String(n || ''), enabled: true, standard: true, activity_scope: 'STRETCH', phase: '' };
+                        });
+                    }
                     var materials = (data.materials || []).map(function(m){
                         var defaultUnit = String(m.default_unit || 'unit');
                         var allowed = Array.isArray(m.allowed_units) ? m.allowed_units.map(function(u){ return String(u || '').trim(); }).filter(Boolean) : [];
@@ -483,7 +495,7 @@
                     __roadPresetsCache = { engineering_type: data.engineering_type || engineeringType, activities: activities, materials: materials };
                     __currentRoadPresets = {
                         engineering_type: __roadPresetsCache.engineering_type,
-                        activities: activities.map(function(a){ return { name: a.name, enabled: a.enabled, standard: a.standard }; }),
+                        activities: activities.map(function(a){ return { name: a.name, enabled: a.enabled, standard: a.standard, activity_scope: a.activity_scope, phase: a.phase }; }),
                         materials: materials.map(function(m){ return { name: m.name, unit: m.unit, allowed_units: (m.allowed_units || []), enabled: m.enabled, standard: m.standard }; }),
                     };
 

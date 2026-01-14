@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% set fallback_project_types = ["Road", "Bridge", "Flyover", "Building", "Utility / Pipeline"] %}
+{% set fallback_legacy_project_types = ["Residential", "Commercial", "Industrial", "Utility", "Other"] %}
+{% set fallback_road_categories = ["Expressway", "National Highway (NH)", "State Highway (SH)", "Major District Road (MDR)", "Other District Road (ODR)", "Village / Rural Road (VR)", "Urban Road", "Service Road"] %}
+{% set project_types = classification_metadata.get('project_types', []) %}
+{% set legacy_project_types = classification_metadata.get('legacy_project_types', []) %}
+{% set road_categories = classification_metadata.get('road_categories', []) %}
+{% if not project_types %}{% set project_types = fallback_project_types %}{% endif %}
+{% if not legacy_project_types %}{% set legacy_project_types = fallback_legacy_project_types %}{% endif %}
+{% if not road_categories %}{% set road_categories = fallback_road_categories %}{% endif %}
+
 <h1 class="page-title">Create New Project</h1>
 
 <div class="help-text" style="margin:-6px 0 14px;opacity:0.9">
@@ -13,6 +23,7 @@
     .form-errors{display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)}
     .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
     .btn-primary[disabled]{opacity:0.65;cursor:not-allowed}
+    .btn-primary.btn-needs-attention{opacity:0.85;box-shadow: 0 0 0 3px rgba(214,69,69,0.12)}
 
     /* Presets editor (Create Project) */
     .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
@@ -31,6 +42,9 @@
     .muted{opacity:0.85}
 
     .hidden{display:none !important}
+
+    .date-dual{display:flex;gap:8px;align-items:center}
+    .date-dual input[type="date"]{max-width:170px}
 </style>
 
 <form id="createProjectForm" method="post" action="/projects/create">
@@ -83,8 +97,11 @@
                 <label>Project Type <span class="required">*</span></label>
                 <select name="project_type" id="project_type" required aria-describedby="project-type-help">
                     <option value="">-- Select project type --</option>
+                    {% for pt in (project_types + legacy_project_types) %}
+                        <option value="{{ pt }}">{{ pt }}</option>
+                    {% endfor %}
                 </select>
-                <div id="project-type-help" class="help-text">This determines activities, materials & workflow presets.</div>
+                <div id="project-type-help" class="help-text">This determines activities, materials & workflow presets. <span id="projectTypeLoaded" style="opacity:0.85"></span> <span style="opacity:0.75">(Server: <span id="projectTypeServerCount">{{ (project_types | length) + (legacy_project_types | length) }}</span>, DOM: <span id="projectTypeDomCount">0</span>, Bootstrap: <span id="projectTypeBootstrapCount">0</span>)</span></div>
             </div>
         </div>
 
@@ -98,6 +115,9 @@
                 <label>Road Category <span class="required">*</span></label>
                 <select id="road_category" name="road_category" disabled>
                     <option value="">-- Select road category --</option>
+                    {% for rc in road_categories %}
+                        <option value="{{ rc }}">{{ rc }}</option>
+                    {% endfor %}
                 </select>
                 <div class="help-text">Functional class (NH/SH/MDR/Urban/etc.).</div>
             </div>
@@ -110,6 +130,71 @@
                 <div class="help-text">Drives presets (Flexible/Rigid/Urban/Rural variants).</div>
             </div>
 
+            </div>
+
+            <!-- Stretch System (optional) -->
+            <div id="stretch_system_block" style="display:none;margin-top:14px">
+                <h3 class="section-title" style="margin-top:0">Stretch System (Chainage)</h3>
+                <div class="help-text" style="margin-top:-6px">
+                    Optional: generate chainage-based stretches now (recommended for road projects). For full control, use the <a href="/projects/wizard/start">Project Wizard</a>.
+                </div>
+
+                <!-- Timeline will be moved here automatically for Road projects -->
+                <div id="timeline_mount" style="margin-top:12px"></div>
+
+                <div class="form-grid" style="margin-top:10px">
+                    <div style="grid-column:1/-1">
+                        <label style="display:flex;align-items:center;gap:10px;margin:0">
+                            <input type="checkbox" name="stretch_enabled" value="1" id="stretch_enabled">
+                            Enable Stretch System
+                        </label>
+                    </div>
+
+                    <div id="stretch_options" class="hidden" style="grid-column:1/-1">
+                        <div class="form-grid" style="margin-top:8px">
+                            <div>
+                                <label>Total Road Length (km) <span class="required">*</span></label>
+                                <input type="number" id="stretch_total_length_km" step="0.01" min="0" placeholder="e.g. 12.50">
+                                <div class="help-text">Used to split into stretches. This auto-fills Road Length (km).</div>
+                            </div>
+
+                            <div>
+                                <label>Method</label>
+                                <select name="stretch_method" id="stretch_method">
+                                    <option value="count">Number of stretches</option>
+                                    <option value="length">Length per stretch (m)</option>
+                                </select>
+                                <div class="help-text">Uses Road Length (km) to compute chainage segments.</div>
+                            </div>
+
+                            <div id="stretch_count_wrap">
+                                <label>No. of stretches</label>
+                                <input type="number" name="stretch_number_of_stretches" min="1" step="1" value="5">
+                            </div>
+
+                            <div id="stretch_len_wrap" class="hidden">
+                                <label>Stretch length (m)</label>
+                                <input type="number" name="stretch_length_m" min="1" step="1" value="200">
+                            </div>
+                        </div>
+
+                        <div style="margin-top:10px">
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                                <button type="button" class="icon-btn" id="btnGenerateStretches">Generate stretches</button>
+                                <button type="button" class="icon-btn" id="btnResetStretches">Reset</button>
+                                <button type="button" class="icon-btn" id="btnAddStretchRow">Add stretch</button>
+                                <div class="help-text">Auto-generates stretches; you can edit each stretch below.</div>
+                            </div>
+
+                            <input type="hidden" name="stretch_segments_json" id="stretch_segments_json">
+
+                            <div id="stretch_editor" class="hidden" style="margin-top:10px">
+                                <div class="help-text" id="stretch_editor_hint" style="margin-bottom:8px"></div>
+                                <div id="stretchSegmentList" class="preset-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="road_questions" class="form-grid" style="display:none;margin-top:10px">
@@ -213,7 +298,7 @@
 
             <div id="road_details_fields" style="display:none">
                 <label>Lanes <span class="required">*</span></label>
-                <input type="number" name="lanes" required min="1">
+                <input type="number" name="lanes" min="1">
                 <div class="help-text">Number of traffic lanes per carriageway.</div>
             </div>
 
@@ -281,13 +366,13 @@
             <div class="form-grid" style="display:none;margin-top:12px" id="road_details_grid">
                 <div id="road_details_fields2" style="display:none">
                     <label>Road Width (m) <span class="required">*</span></label>
-                    <input type="number" step="0.01" name="road_width" required>
+                    <input type="number" step="0.01" name="road_width">
                     <div class="help-text">Total carriageway width in metres.</div>
                 </div>
 
                 <div id="road_details_fields3" style="display:none">
                     <label>Road Length (km) <span class="required">*</span></label>
-                    <input type="number" step="0.01" name="road_length_km" required>
+                    <input type="number" step="0.01" name="road_length_km">
                     <div class="help-text">Enter project length. Use chainages for non-linear projects.</div>
                 </div>
             </div>
@@ -520,31 +605,39 @@
     <hr>
 
     <!-- ================= TIMELINE ================= -->
-    <section class="form-section">
-        <h3 class="section-title">Timeline</h3>
+    <div id="timeline_container">
+        <section class="form-section" id="timeline_section">
+            <h3 class="section-title">Timeline</h3>
 
-        <div class="form-grid">
+            <div class="form-grid">
 
-            <div>
-                <label>Start Date <span class="required">*</span></label>
-                <input type="text" name="planned_start_date" required inputmode="numeric" pattern="\u005cd{2}/\u005cd{2}/\u005cd{4}">
-                <div class="help-text">Format: DD/MM/YYYY</div>
+                <div>
+                    <label>Start Date <span class="required">*</span></label>
+                    <div class="date-dual">
+                        <input type="text" name="planned_start_date" id="planned_start_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" placeholder="DD/MM/YYYY">
+                        <input type="date" id="planned_start_date_picker" aria-label="Pick start date">
+                    </div>
+                    <div class="help-text">Format: DD/MM/YYYY</div>
+                </div>
+
+                <div>
+                    <label>End Date <span class="required">*</span></label>
+                    <div class="date-dual">
+                        <input type="text" name="planned_end_date" id="planned_end_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" placeholder="DD/MM/YYYY">
+                        <input type="date" id="planned_end_date_picker" aria-label="Pick end date">
+                    </div>
+                    <div class="help-text">Format: DD/MM/YYYY</div>
+                </div>
+
             </div>
+        </section>
 
-            <div>
-                <label>End Date <span class="required">*</span></label>
-                <input type="text" name="planned_end_date" required inputmode="numeric" pattern="\u005cd{2}/\u005cd{2}/\u005cd{4}">
-                <div class="help-text">Format: DD/MM/YYYY</div>
-            </div>
-
-        </div>
-    </section>
-
-    <hr>
+        <hr>
+    </div>
 
     <!-- ================= ACTIONS ================= -->
     <div style="display:flex;gap:12px;margin-top:20px">
-        <button id="createProjectBtn" class="btn-primary" type="submit" disabled>
+        <button id="createProjectBtn" class="btn-primary" type="submit">
             Create Project
         </button>
 
@@ -560,26 +653,345 @@
 {% endblock %}
 
 {% block scripts %}
+{% set fallback_project_types = ["Road", "Bridge", "Flyover", "Building", "Utility / Pipeline"] %}
+{% set fallback_legacy_project_types = ["Residential", "Commercial", "Industrial", "Utility", "Other"] %}
+{% set fallback_road_categories = ["Expressway", "National Highway (NH)", "State Highway (SH)", "Major District Road (MDR)", "Other District Road (ODR)", "Village / Rural Road (VR)", "Urban Road", "Service Road"] %}
+{% set project_types = (classification_metadata.get('project_types', []) if classification_metadata is defined else []) %}
+{% set legacy_project_types = (classification_metadata.get('legacy_project_types', []) if classification_metadata is defined else []) %}
+{% set road_categories = (classification_metadata.get('road_categories', []) if classification_metadata is defined else []) %}
+{% if not project_types %}{% set project_types = fallback_project_types %}{% endif %}
+{% if not legacy_project_types %}{% set legacy_project_types = fallback_legacy_project_types %}{% endif %}
+{% if not road_categories %}{% set road_categories = fallback_road_categories %}{% endif %}
 <script src="/static/js/location.js"></script>
 <script src="/static/js/location_dependent.js"></script>
+<script id="classification_bootstrap" type="application/json">
+{{ {
+    'project_types': project_types,
+    'legacy_project_types': legacy_project_types,
+    'road_categories': road_categories,
+    'engineering_types_by_category': (classification_metadata.get('engineering_types_by_category', {}) if classification_metadata is defined else {}),
+    'conditional_questions_by_category': (classification_metadata.get('conditional_questions_by_category', {}) if classification_metadata is defined else {})
+} | tojson }}
+</script>
 <script>
+// Bootstrapped from server to avoid a startup fetch.
+(function(){
+    try{
+        var el = document.getElementById('classification_bootstrap');
+        var raw = el ? (el.textContent || '') : '';
+        window.__classification_bootstrap = raw ? JSON.parse(raw) : null;
+    }catch(e){
+        window.__classification_bootstrap = null;
+    }
+})();
+
+// Guard: if Jinja2 rendering fails or options get cleared, restore them
+// This runs when the script tag is encountered (early) and waits for elements
+setTimeout(function restoreSelectOptions(){
+    try {
+        var data = window.__classification_bootstrap;
+        if(!data) return;
+        
+        var projSel = document.getElementById('project_type');
+        var roadSel = document.getElementById('road_category');
+        
+        // Check if project_type needs restoration
+        if(projSel) {
+            var projCount = projSel.options ? projSel.options.length : 0;
+            // If only placeholder, add all options from bootstrap
+            if(projCount <= 1 && data.project_types && data.project_types.length > 0) {
+                var types = (data.project_types || []).concat(data.legacy_project_types || []);
+                types.forEach(function(pt) {
+                    var opt = document.createElement('option');
+                    opt.value = pt;
+                    opt.textContent = pt;
+                    projSel.appendChild(opt);
+                });
+            }
+        }
+        
+        // Check if road_category needs restoration  
+        if(roadSel) {
+            var roadCount = roadSel.options ? roadSel.options.length : 0;
+            if(roadCount <= 1 && data.road_categories && data.road_categories.length > 0) {
+                data.road_categories.forEach(function(rc) {
+                    var opt = document.createElement('option');
+                    opt.value = rc;
+                    opt.textContent = rc;
+                    roadSel.appendChild(opt);
+                });
+            }
+        }
+    } catch(e) {
+        console.error('Select restoration error:', e);
+    }
+}, 50);
+</script>
+<script>
+function updateProjectTypeDebugCounts(){
+    try{
+        var domCountEl = document.getElementById('projectTypeDomCount');
+        var bootCountEl = document.getElementById('projectTypeBootstrapCount');
+        var sel = document.getElementById('project_type');
+        if(domCountEl && sel && sel.options){
+            domCountEl.textContent = String(Math.max(0, sel.options.length - 1));
+        }
+        if(bootCountEl){
+            var data = window.__classification_bootstrap || window.__classification;
+            if(data){
+                var bootCount = (data.project_types || []).length + (data.legacy_project_types || []).length;
+                bootCountEl.textContent = String(bootCount);
+            }
+        }
+    }catch(e){}
+}
+
+function snapshotSelectOptions(selectEl, bootstrapData){
+    try{
+        if(!selectEl) return;
+        var existingCount = selectEl.options ? selectEl.options.length : 0;
+        if(existingCount > 1){
+            selectEl.dataset.optionsHtml = selectEl.innerHTML;
+            return;
+        }
+        var data = bootstrapData || window.__classification_bootstrap || window.__classification;
+        if(!data) return;
+        var items = (data.project_types || []).concat(data.legacy_project_types || []);
+        if(!items.length) return;
+        var ph = selectEl.querySelector('option');
+        var html = '';
+        if(ph){
+            html += ph.outerHTML;
+        }else{
+            html += '<option value="">-- Select project type --</option>';
+        }
+        items.forEach(function(pt){
+            var safe = String(pt || '');
+            html += '<option value="' + safe.replace(/"/g, '&quot;') + '">' + safe.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</option>';
+        });
+        selectEl.dataset.optionsHtml = html;
+    }catch(e){}
+}
+
+function restoreSelectFromSnapshot(selectEl){
+    try{
+        if(!selectEl || selectEl.__restoringOptions) return false;
+        var html = selectEl.dataset ? selectEl.dataset.optionsHtml : '';
+        if(!html) return false;
+        selectEl.__restoringOptions = true;
+        selectEl.innerHTML = html;
+        selectEl.__restoringOptions = false;
+        return true;
+    }catch(e){
+        try{ selectEl.__restoringOptions = false; }catch(_e){}
+        return false;
+    }
+}
+
+function ensureProjectTypeOptions(){
+    try{
+        var sel = document.getElementById('project_type');
+        if(!sel) return;
+        var count = sel.options ? sel.options.length : 0;
+        if(count <= 1){
+            var data = window.__classification_bootstrap || window.__classification;
+            snapshotSelectOptions(sel, data);
+            restoreSelectFromSnapshot(sel);
+        }
+        try{ updateProjectTypeDebugCounts(); }catch(e){}
+    }catch(e){}
+}
+
 function setFormError(message){
     var box = document.getElementById('formErrors');
     if(!box) return;
     if(message){
         box.textContent = message;
         box.style.display = 'block';
+        try{
+            box.scrollIntoView({behavior:'smooth', block:'center'});
+        }catch(e){}
     } else {
         box.textContent = '';
         box.style.display = 'none';
     }
 }
 
+// Surface JS errors directly on the page (helps when the UI feels "stuck loading").
+(function(){
+    function _short(v){
+        try{ return String(v || '').slice(0, 280); }catch(e){ return ''; }
+    }
+    window.addEventListener('error', function(ev){
+        try{
+            var msg = ev && (ev.message || (ev.error && ev.error.message)) ? (ev.message || ev.error.message) : 'Unknown error';
+            setFormError('Page script error: ' + _short(msg));
+        }catch(e){}
+    });
+    window.addEventListener('unhandledrejection', function(ev){
+        try{
+            var reason = ev && ev.reason ? (ev.reason.message || ev.reason) : 'Unknown reason';
+            setFormError('Page script error: ' + _short(reason));
+        }catch(e){}
+    });
+})();
+
+function _detectBlockingOverlay(){
+    try{
+        var vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+        var vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+        if(!vw || !vh) return null;
+
+        var candidates = Array.prototype.slice.call(document.querySelectorAll('body *'));
+        for(var i=0;i<candidates.length;i++){
+            var el = candidates[i];
+            if(!el || el === document.body) continue;
+            if(el.id === 'formErrors') continue;
+            if(el.classList && el.classList.contains('flash-container')) continue;
+            var cs = null;
+            try{ cs = window.getComputedStyle(el); }catch(e){ cs = null; }
+            if(!cs) continue;
+            if(cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+            if(cs.position !== 'fixed') continue;
+
+            var r = null;
+            try{ r = el.getBoundingClientRect(); }catch(e){ r = null; }
+            if(!r) continue;
+            var covers = (r.left <= 0 && r.top <= 0 && r.width >= (vw-1) && r.height >= (vh-1));
+            if(!covers) continue;
+
+            var zi = 0;
+            try{ zi = parseInt(cs.zIndex || '0', 10) || 0; }catch(e){ zi = 0; }
+            if(zi < 900) continue;
+
+            // Heuristic: likely a blocking overlay.
+            return { el: el, z: zi };
+        }
+    }catch(e){}
+    return null;
+}
+
+function _ensureOverlayDismissUi(info){
+    try{
+        if(!info || !info.el) return;
+        var existing = document.getElementById('__overlayDismiss');
+        if(existing) return;
+        var bar = document.createElement('div');
+        bar.id = '__overlayDismiss';
+        bar.style.position = 'fixed';
+        bar.style.left = '20px';
+        bar.style.bottom = '20px';
+        bar.style.zIndex = '2147483647';
+        bar.style.background = 'rgba(0,0,0,0.72)';
+        bar.style.color = '#fff';
+        bar.style.padding = '10px 12px';
+        bar.style.borderRadius = '10px';
+        bar.style.fontSize = '12px';
+        bar.style.maxWidth = '520px';
+        bar.style.boxShadow = '0 10px 24px rgba(0,0,0,0.35)';
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Dismiss blocking overlay';
+        btn.style.marginLeft = '10px';
+        btn.style.padding = '6px 10px';
+        btn.style.borderRadius = '8px';
+        btn.style.border = '1px solid rgba(255,255,255,0.25)';
+        btn.style.background = 'rgba(255,255,255,0.12)';
+        btn.style.color = '#fff';
+        btn.style.cursor = 'pointer';
+        btn.addEventListener('click', function(){
+            try{ info.el.style.display = 'none'; }catch(e){}
+            try{ bar.remove(); }catch(e){}
+            try{ setFormError(''); }catch(e){}
+        });
+        bar.textContent = 'A page overlay seems to be blocking clicks (z-index ' + String(info.z) + ').';
+        bar.appendChild(btn);
+        document.body.appendChild(bar);
+    }catch(e){}
+}
+
+function _isVisibleForValidation(el){
+    if(!el) return false;
+    if(el.disabled) return false;
+    // Hidden inputs shouldn't count
+    if(String(el.type || '').toLowerCase() === 'hidden') return false;
+    // display:none anywhere in ancestry -> offsetParent null (except fixed)
+    if(el.offsetParent === null){
+        try{
+            const cs = window.getComputedStyle(el);
+            if(cs && cs.position === 'fixed') return true;
+        }catch(e){}
+        return false;
+    }
+    return true;
+}
+
+function _labelFor(el){
+    try{
+        if(el && el.id){
+            const lf = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+            if(lf) return (lf.textContent || '').trim();
+        }
+    }catch(e){}
+    try{
+        const wrap = el ? el.closest('div') : null;
+        const lab = wrap ? wrap.querySelector('label') : null;
+        if(lab) return (lab.textContent || '').trim();
+    }catch(e){}
+    return '';
+}
+
+function _cleanLabel(txt){
+    let t = String(txt || '').replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+    // Remove trailing required marker like "*" or "(required)"
+    t = t.replace(/\s*\(required\)\s*$/i, '').trim();
+    return t;
+}
+
+function collectInvalidFieldsSummary(form){
+    if(!form) return { labels: [], first: null };
+    const nodes = Array.prototype.slice.call(form.querySelectorAll('input,select,textarea'));
+    const invalid = [];
+    nodes.forEach(function(el){
+        if(!el) return;
+        if(!el.willValidate) return;
+        if(!_isVisibleForValidation(el)) return;
+        if(typeof el.checkValidity === 'function' && !el.checkValidity()) invalid.push(el);
+    });
+    const labels = [];
+    const seen = {};
+    invalid.forEach(function(el){
+        const lab = _cleanLabel(_labelFor(el)) || (el.name ? String(el.name) : 'Field');
+        const key = String(lab).toLowerCase();
+        if(seen[key]) return;
+        seen[key] = true;
+        labels.push(lab);
+    });
+    return { labels: labels, first: invalid.length ? invalid[0] : null };
+}
+
 function updateCreateButtonState(){
     var form = document.getElementById('createProjectForm');
     var btn = document.getElementById('createProjectBtn');
     if(!form || !btn) return;
-    btn.disabled = !form.checkValidity();
+    // Keep the button clickable so users can see what's missing.
+    // Use styling to hint when required fields are still missing.
+    var ok = true;
+    try{ ok = !!form.checkValidity(); }catch(e){ ok = true; }
+    btn.disabled = false;
+    btn.classList.toggle('btn-needs-attention', !ok);
+    btn.title = ok ? '' : 'Some required fields are missing. Click to see details.';
+}
+
+function updateProjectTypeLoadedIndicator(){
+    try{
+        var el = document.getElementById('projectTypeLoaded');
+        var sel = document.getElementById('project_type');
+        if(!el || !sel) return;
+        var n = 0;
+        try{ n = Math.max(0, (sel.options ? sel.options.length : 0) - 1); }catch(e){ n = 0; }
+        el.textContent = n > 0 ? ('(Loaded ' + n + ' types)') : '(No project types loaded)';
+    }catch(e){}
 }
 
 // Progressive disclosure and form handling
@@ -587,6 +999,7 @@ function updateCreateButtonState(){
 function handleProjectTypeChange(){
     var projectType = document.getElementById('project_type');
     var roadBlock = document.getElementById('road_block');
+    var stretchBlock = document.getElementById('stretch_system_block');
     var roadClassification = document.getElementById('road_classification');
     var roadCategoryField = document.getElementById('road_category_field');
     var roadCategorySelect = document.getElementById('road_category');
@@ -606,6 +1019,7 @@ function handleProjectTypeChange(){
     var isRoad = projectType.value === 'Road';
 
     roadBlock.style.display = isRoad ? 'block' : 'none';
+    if(stretchBlock) stretchBlock.style.display = isRoad ? '' : 'none';
     roadClassification.style.display = isRoad ? 'grid' : 'none';
     roadCategoryField.style.display = isRoad ? 'block' : 'none';
     roadEngineeringField.style.display = 'none';
@@ -651,9 +1065,19 @@ function handleProjectTypeChange(){
             }
         }
         document.querySelectorAll('[name="lanes"],[name="road_width"],[name="road_length_km"]').forEach(function(el){ el.removeAttribute('required'); });
-    }
-}
 
+        // Reset stretch UI when leaving Road
+        try {
+            var se = document.getElementById('stretch_enabled');
+            var so = document.getElementById('stretch_options');
+            var hiddenSeg = document.getElementById('stretch_segments_json');
+            if(se) se.checked = false;
+            if(so) so.classList.add('hidden');
+            if(hiddenSeg) hiddenSeg.value = '';
+        } catch(e){}
+    }
+    try{ updateProjectTypeDebugCounts(); }catch(e){}
+}
 function handleRoadCategoryChange(){
     var category = document.getElementById('road_category');
     var engineeringField = document.getElementById('road_engineering_field');
@@ -681,6 +1105,7 @@ function handleRoadCategoryChange(){
         engineering.removeAttribute('required');
         roadQuestions.style.display = 'none';
     }
+    try{ updateProjectTypeDebugCounts(); }catch(e){}
 }
 
 function handleRoadEngineeringChange(){
@@ -708,6 +1133,41 @@ var __roadPresetsCache = null;
 var __currentRoadPresets = null;
 var __typePresetsCache = null;
 var __currentTypePresets = null;
+// Guards to prevent infinite fetch/render loops
+var __classificationLoaded = false;
+var __classificationPromise = null;
+var __classificationInitOnce = false;
+var __lastTypePresetKey = null;
+var __typePresetFetchInFlight = null;
+var __lastRoadPresetKey = null;
+var __roadPresetFetchInFlight = null;
+var __lastRoadExtrasJson = null;
+var __lastProjectTypeValue = null;
+var __lastRoadCategoryValue = null;
+var __lastRoadEngineeringValue = null;
+var __roadPresetsDebounce = null;
+
+function _fetchJson(url, timeoutMs){
+    timeoutMs = (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : 8000;
+    var opts = { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' };
+
+    // If a request hangs (network/proxy/db stall), avoid leaving the page in a perpetual loading state.
+    if(typeof AbortController !== 'undefined'){
+        var controller = new AbortController();
+        opts.signal = controller.signal;
+        var t = setTimeout(function(){
+            try{ controller.abort(); }catch(e){}
+        }, timeoutMs);
+        return fetch(url, opts)
+            .then(function(r){
+                try{ clearTimeout(t); }catch(e){}
+                return r;
+            })
+            .then(function(r){ return r.json(); });
+    }
+
+    return fetch(url, opts).then(function(r){ return r.json(); });
+}
 
 function _el(id){ return document.getElementById(id); }
 
@@ -739,6 +1199,25 @@ function renderActivityPresets(){
         timeWrap.style.alignItems = 'center';
         timeWrap.style.gap = '8px';
 
+        var scopeSel = document.createElement('select');
+        scopeSel.setAttribute('data-idx', String(idx));
+        scopeSel.setAttribute('data-kind', 'activity-scope');
+        scopeSel.title = 'Scope: COMMON = project-wide, STRETCH = per-stretch';
+        scopeSel.style.maxWidth = '140px';
+
+        var s0 = document.createElement('option');
+        s0.value = 'STRETCH';
+        s0.textContent = 'STRETCH';
+        var s1 = document.createElement('option');
+        s1.value = 'COMMON';
+        s1.textContent = 'COMMON';
+        scopeSel.appendChild(s0);
+        scopeSel.appendChild(s1);
+
+        var scopeVal = String(item.activity_scope || item.scope || 'STRETCH').toUpperCase();
+        if(scopeVal !== 'COMMON' && scopeVal !== 'STRETCH') scopeVal = 'STRETCH';
+        scopeSel.value = scopeVal;
+
         var st = document.createElement('input');
         st.type = 'time';
         st.value = item.start_time || '';
@@ -757,6 +1236,7 @@ function renderActivityPresets(){
 
         timeWrap.appendChild(st);
         timeWrap.appendChild(et);
+        timeWrap.appendChild(scopeSel);
 
         var pill = document.createElement('span');
         pill.className = 'pill';
@@ -1122,13 +1602,19 @@ function loadTypePresets(projectType){
     if(!projectType) {
         __typePresetsCache = null;
         __currentTypePresets = null;
+        __lastTypePresetKey = null;
         renderTypeActivityPresets();
         renderTypeMaterialPresets();
-        return;
+        return Promise.resolve();
     }
+    if(__lastTypePresetKey === projectType){
+        if(__typePresetFetchInFlight) return __typePresetFetchInFlight;
+        if(__typePresetsCache) return Promise.resolve(__typePresetsCache);
+    }
+    __lastTypePresetKey = projectType;
+    try{ console.count('type-presets fetch'); }catch(e){}
     var url = '/projects/type-presets?project_type=' + encodeURIComponent(projectType);
-    return fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
-        .then(function(r){ return r.json(); })
+    __typePresetFetchInFlight = _fetchJson(url)
         .then(function(data){
             var activities = Array.isArray(data.activities) ? data.activities : [];
             var materials = Array.isArray(data.materials) ? data.materials : [];
@@ -1146,17 +1632,30 @@ function loadTypePresets(projectType){
             __currentTypePresets = null;
             renderTypeActivityPresets();
             renderTypeMaterialPresets();
+        })
+        .finally(function(){
+            __typePresetFetchInFlight = null;
         });
+    return __typePresetFetchInFlight;
 }
 
 function loadRoadPresets(engineeringType, roadCategory, roadExtrasJson){
     if(!engineeringType){
         __roadPresetsCache = null;
         __currentRoadPresets = null;
+        __lastRoadPresetKey = null;
         renderActivityPresets();
         renderMaterialPresets();
-        return;
+        return Promise.resolve();
     }
+
+    var key = [engineeringType || '', roadCategory || '', roadExtrasJson || ''].join('|');
+    if(__lastRoadPresetKey === key){
+        if(__roadPresetFetchInFlight) return __roadPresetFetchInFlight;
+        if(__roadPresetsCache) return Promise.resolve(__roadPresetsCache);
+    }
+    __lastRoadPresetKey = key;
+    try{ console.count('road-presets fetch'); }catch(e){}
 
     var url = '/projects/road-presets?engineering_type=' + encodeURIComponent(engineeringType);
     if(roadCategory){
@@ -1165,12 +1664,23 @@ function loadRoadPresets(engineeringType, roadCategory, roadExtrasJson){
     if(roadExtrasJson){
         url += '&road_extras_json=' + encodeURIComponent(String(roadExtrasJson || ''));
     }
-    return fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
-        .then(function(r){ return r.json(); })
+    __roadPresetFetchInFlight = _fetchJson(url)
         .then(function(data){
-            var activities = (data.activities || []).map(function(n){
-                return { name: String(n || ''), enabled: true, standard: true, start_time: '', end_time: '' };
-            });
+            var defs = Array.isArray(data.activity_preset_defs) ? data.activity_preset_defs : null;
+            var activities = [];
+            if(defs && defs.length){
+                activities = defs.map(function(d){
+                    var name = String((d && d.name) || '').trim();
+                    var scope = String((d && (d.activity_scope || d.scope)) || '').trim();
+                    if(scope){ scope = scope.toUpperCase(); }
+                    if(scope !== 'COMMON' && scope !== 'STRETCH'){ scope = 'STRETCH'; }
+                    return { name: name, enabled: true, standard: true, start_time: '', end_time: '', activity_scope: scope, phase: (d && d.phase) ? String(d.phase) : '' };
+                }).filter(function(a){ return !!(a && a.name); });
+            } else {
+                activities = (data.activities || []).map(function(n){
+                    return { name: String(n || ''), enabled: true, standard: true, start_time: '', end_time: '', activity_scope: 'STRETCH', phase: '' };
+                });
+            }
             var materials = (data.materials || []).map(function(m){
                 var defaultUnit = String(m.default_unit || 'unit');
                 var allowed = Array.isArray(m.allowed_units) ? m.allowed_units.map(function(u){ return String(u || '').trim(); }).filter(Boolean) : [];
@@ -1191,19 +1701,34 @@ function loadRoadPresets(engineeringType, roadCategory, roadExtrasJson){
         })
         .catch(function(){
             // Silent failure: do not block project creation UI
+        })
+        .finally(function(){
+            __roadPresetFetchInFlight = null;
         });
+    return __roadPresetFetchInFlight;
 }
 
 // Classification metadata (no hardcoded options in template)
-var __classification = null;
+var __classification = (window.__classification_bootstrap || null);
 
 function populateSelect(selectEl, options){
     if(!selectEl) return;
-    // Keep first placeholder option
+    // If options are empty/undefined but the server already rendered choices,
+    // do not wipe them (prevents a blank Project Type dropdown).
+    try{
+        var incomingCount = (Array.isArray(options) ? options.length : 0);
+        var existingCount = (selectEl.options ? selectEl.options.length : 0);
+        if(incomingCount <= 0 && existingCount > 1){
+            return;
+        }
+    }catch(e){}
+    // Keep first placeholder option (clone to avoid any detach quirks)
     var first = selectEl.querySelector('option');
+    var phNode = null;
+    try{ phNode = first ? first.cloneNode(true) : null; }catch(e){ phNode = null; }
     selectEl.innerHTML = '';
-    if(first){
-        selectEl.appendChild(first);
+    if(phNode){
+        selectEl.appendChild(phNode);
     } else {
         var ph = document.createElement('option');
         ph.value = '';
@@ -1219,25 +1744,54 @@ function populateSelect(selectEl, options){
 }
 
 function loadClassificationMetadata(){
-    return fetch('/projects/classification-metadata', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-            __classification = data;
+    if(__classificationInitOnce){
+        return Promise.resolve(__classification || window.__classification_bootstrap || null);
+    }
+    __classificationInitOnce = true;
+    function applyMetadataToUi(data){
+        __classification = data || null;
+        if(!__classification) return;
 
-            var projectType = document.getElementById('project_type');
-            var roadCategory = document.getElementById('road_category');
+        var projectType = document.getElementById('project_type');
+        var roadCategory = document.getElementById('road_category');
 
-            if(projectType){
-                // strict list first
-                populateSelect(projectType, (data.project_types || []).concat(data.legacy_project_types || []));
+        // Only populate if the select is empty (server already renders fallback options).
+        if(projectType){
+            try{
+                if(!projectType.options || projectType.options.length <= 1){
+                    populateSelect(projectType, (__classification.project_types || []).concat(__classification.legacy_project_types || []));
+                }
+            }catch(e){
+                populateSelect(projectType, (__classification.project_types || []).concat(__classification.legacy_project_types || []));
             }
-            if(roadCategory){
-                populateSelect(roadCategory, data.road_categories || []);
+        }
+        if(roadCategory){
+            try{
+                if(!roadCategory.options || roadCategory.options.length <= 1){
+                    populateSelect(roadCategory, __classification.road_categories || []);
+                }
+            }catch(e){
+                populateSelect(roadCategory, __classification.road_categories || []);
             }
-        })
-        .catch(function(){
-            // if metadata fails, keep the page usable (basic form still works)
-        });
+        }
+    }
+
+    if(!__classification && window.__classification_bootstrap){
+        __classification = window.__classification_bootstrap;
+    }
+
+    if(__classification){
+        // Bootstrapped: still need to populate the selects.
+        try{ applyMetadataToUi(__classification); }catch(e){}
+        try{ updateProjectTypeLoadedIndicator(); }catch(e){}
+        try{ updateProjectTypeDebugCounts(); }catch(e){}
+        __classificationLoaded = true;
+        return Promise.resolve(__classification);
+    }
+
+    // Fallback: do not fetch repeatedly; leave UI usable without metadata.
+    __classificationLoaded = true;
+    return Promise.resolve(__classification || null);
 }
 
 function updateEngineeringOptions(){
@@ -1332,6 +1886,8 @@ function serializePresetsToHiddenInputs(){
                     enabled: !!a.enabled,
                     start_time: (a.start_time || '').trim() || null,
                     end_time: (a.end_time || '').trim() || null,
+                    activity_scope: (a.activity_scope || a.scope || null),
+                    phase: (a.phase || null),
                 });
             }
             if(a.enabled && name){ activities.push(name); }
@@ -1383,16 +1939,201 @@ function serializePresetsToHiddenInputs(){
     aDefsHidden.value = JSON.stringify(activityDefs);
     mHidden.value = JSON.stringify(materials);
     mDefsHidden.value = JSON.stringify(materialDefs);
+
+    try{
+        if(typeof window.onPresetsSerialized === 'function') window.onPresetsSerialized();
+    }catch(e){}
 }
 
 // Init on DOM ready
 document.addEventListener('DOMContentLoaded', function(){
+    if(window.__newProjectInitDone) return;
+    window.__newProjectInitDone = true;
+    try{ updateProjectTypeDebugCounts(); }catch(e){}
+    // CRITICAL: Ensure __classification is loaded from bootstrap before anything else
+    if(!window.__classification && window.__classification_bootstrap) {
+        window.__classification = window.__classification_bootstrap;
+    }
+    
     // Attach handlers
     var projectType = document.getElementById('project_type');
     var roadCategory = document.getElementById('road_category');
     var roadEngineering = document.getElementById('road_engineering_type');
     var form = document.getElementById('createProjectForm');
     var btn = document.getElementById('createProjectBtn');
+
+    // Snapshot server-rendered Project Type options for self-heal.
+    try{ snapshotSelectOptions(projectType, window.__classification_bootstrap || window.__classification); }catch(e){}
+
+    // Observe and restore if another script clears or replaces the Project Type options.
+    try{
+        if(!window.__projectTypeHealObserver){
+            var bodyObs = new MutationObserver(function(){
+                try{ ensureProjectTypeOptions(); }catch(e){}
+            });
+            bodyObs.observe(document.body, { childList: true, subtree: true });
+            window.__projectTypeHealObserver = bodyObs;
+        }
+    }catch(e){}
+
+    // EMERGENCY FIX: If project_type select is empty, fill it immediately from bootstrap
+    if(projectType && projectType.options && projectType.options.length <= 1) {
+        var data = window.__classification_bootstrap || window.__classification;
+        if(data && data.project_types && data.project_types.length > 0) {
+            var types = (data.project_types || []).concat(data.legacy_project_types || []);
+            types.forEach(function(pt) {
+                var opt = document.createElement('option');
+                opt.value = pt;
+                opt.textContent = pt;
+                projectType.appendChild(opt);
+            });
+            try{ snapshotSelectOptions(projectType, data); }catch(e){}
+        }
+    }
+    try{ updateProjectTypeDebugCounts(); }catch(e){}
+
+    // Late safety checks in case any script clears options after load.
+    try{ setTimeout(ensureProjectTypeOptions, 200); }catch(e){}
+    try{ setTimeout(ensureProjectTypeOptions, 800); }catch(e){}
+
+    // If any script clears select options after render (common cause of "dropdown empty"),
+    // self-heal from bootstrapped classification metadata.
+    (function(){
+        function healSelect(selectEl, options){
+            try{
+                if(!selectEl) return;
+                var n = selectEl.options ? selectEl.options.length : 0;
+                if(n <= 1 && Array.isArray(options) && options.length){
+                    populateSelect(selectEl, options);
+                    try{ updateProjectTypeLoadedIndicator(); }catch(e){}
+                }
+            }catch(e){}
+        }
+
+        function healAll(){
+            if(!__classification) return;
+            healSelect(projectType, (__classification.project_types || []).concat(__classification.legacy_project_types || []));
+            healSelect(roadCategory, (__classification.road_categories || []));
+        }
+
+        // Immediate heal
+        try{ healAll(); }catch(e){}
+
+        // Ongoing heal (MutationObserver)
+        try{
+            if(typeof MutationObserver === 'undefined') return;
+            if(projectType){
+                var obs = new MutationObserver(function(){
+                    try{ healAll(); }catch(e){}
+                });
+                obs.observe(projectType, { childList: true, subtree: true });
+            }
+            if(roadCategory){
+                var obs2 = new MutationObserver(function(){
+                    try{ healAll(); }catch(e){}
+                });
+                obs2.observe(roadCategory, { childList: true, subtree: true });
+            }
+        }catch(e){}
+    })();
+
+    // Optional debug mode: /projects/new?debug=1
+    var __debug = false;
+    try{ __debug = (new URLSearchParams(window.location.search || '')).get('debug') === '1'; }catch(e){ __debug = false; }
+
+    // If native HTML validation blocks submit, the form's submit handler won't run.
+    // Capture invalid events to show a clear summary + scroll to the first invalid field.
+    if(form){
+        form.addEventListener('invalid', function(ev){
+            try{
+                const t = ev.target;
+                if(t && typeof t.classList !== 'undefined') t.classList.add('is-invalid');
+                const info = collectInvalidFieldsSummary(form);
+                if(info.labels && info.labels.length){
+                    setFormError('Please fill required fields. Missing/invalid: ' + info.labels.join(', ') + '.');
+                } else {
+                    setFormError('Please fill required fields highlighted below.');
+                }
+                // Scroll to the actual invalid control (better than only the error box)
+                if(t && _isVisibleForValidation(t) && typeof t.scrollIntoView === 'function'){
+                    t.scrollIntoView({behavior:'smooth', block:'center'});
+                }
+            }catch(e){}
+        }, true);
+    }
+
+    // Make the button behave even when the browser blocks submission.
+    if(btn && form){
+        btn.addEventListener('click', function(e){
+            try{ setFormError(''); }catch(err){}
+            try{ form.querySelectorAll('.is-invalid').forEach(function(el){ el.classList.remove('is-invalid'); }); }catch(err){}
+            let ok = true;
+            try{ ok = !!form.checkValidity(); }catch(err){ ok = true; }
+            if(!ok){
+                e.preventDefault();
+                const info = collectInvalidFieldsSummary(form);
+                if(info.labels && info.labels.length){
+                    setFormError('Please fill required fields. Missing/invalid: ' + info.labels.join(', ') + '.');
+                } else {
+                    setFormError('Please fill all required fields highlighted below.');
+                }
+                try{
+                    if(info.first && typeof info.first.scrollIntoView === 'function') info.first.scrollIntoView({behavior:'smooth', block:'center'});
+                    if(info.first && typeof info.first.focus === 'function') info.first.focus({preventScroll:true});
+                }catch(err){}
+                try{ if(typeof form.reportValidity === 'function') form.reportValidity(); }catch(err){}
+                updateCreateButtonState();
+                return;
+            }
+        });
+    }
+
+    // ---------------- Date inputs (text + calendar) ----------------
+    function isoToDDMMYYYY(iso){
+        const v = String(iso || '').trim();
+        const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if(!m) return '';
+        return m[3] + '/' + m[2] + '/' + m[1];
+    }
+    function ddmmyyyyToIso(ddmmyyyy){
+        const v = String(ddmmyyyy || '').trim();
+        const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if(!m) return '';
+        const dd = parseInt(m[1], 10);
+        const mm = parseInt(m[2], 10);
+        const yy = parseInt(m[3], 10);
+        if(!dd || !mm || !yy) return '';
+        const d = new Date(Date.UTC(yy, mm - 1, dd));
+        if(d.getUTCFullYear() !== yy || (d.getUTCMonth()+1) !== mm || d.getUTCDate() !== dd) return '';
+        const pad2 = function(n){ return (n < 10 ? '0' : '') + String(n); };
+        return String(yy) + '-' + pad2(mm) + '-' + pad2(dd);
+    }
+    function wireDualDate(textId, pickerId){
+        const t = document.getElementById(textId);
+        const p = document.getElementById(pickerId);
+        if(!t || !p) return;
+        // Initial sync
+        const initIso = ddmmyyyyToIso(t.value);
+        if(initIso) p.value = initIso;
+
+        p.addEventListener('change', function(){
+            const ddmmyyyy = isoToDDMMYYYY(p.value);
+            if(ddmmyyyy){
+                t.value = ddmmyyyy;
+                try{ t.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
+            }
+        });
+        t.addEventListener('change', function(){
+            const iso = ddmmyyyyToIso(t.value);
+            if(iso) p.value = iso;
+        });
+        t.addEventListener('blur', function(){
+            const iso = ddmmyyyyToIso(t.value);
+            if(iso) p.value = iso;
+        });
+    }
+    wireDualDate('planned_start_date_text', 'planned_start_date_picker');
+    wireDualDate('planned_end_date_text', 'planned_end_date_picker');
 
     // ---------------- Project team & roles ----------------
     var teamUserSelect = document.getElementById('teamUserSelect');
@@ -1489,8 +2230,23 @@ document.addEventListener('DOMContentLoaded', function(){
     }
     renderProjectTeam();
 
-    if(projectType) projectType.addEventListener('change', handleProjectTypeChange);
-    if(roadCategory) roadCategory.addEventListener('change', function(){
+    if(projectType) projectType.addEventListener('change', function(e){
+        if(e && typeof e.preventDefault === 'function') e.preventDefault();
+        if(e && e.isTrusted === false) return;
+        var newVal = String(projectType.value || '');
+        if(__lastProjectTypeValue === newVal) return;
+        __lastProjectTypeValue = newVal;
+        handleProjectTypeChange();
+    });
+    if(roadCategory) roadCategory.addEventListener('change', function(e){
+        if(e && typeof e.preventDefault === 'function') e.preventDefault();
+        if(e && e.isTrusted === false) return;
+        var ptSel = document.getElementById('project_type');
+        if(ptSel && ptSel.value !== 'Road') return;
+        var newVal = String(roadCategory.value || '');
+        if(__lastRoadCategoryValue === newVal) return;
+        __lastRoadCategoryValue = newVal;
+
         handleRoadCategoryChange();
         updateEngineeringOptions();
         renderConditionalQuestions();
@@ -1502,7 +2258,15 @@ document.addEventListener('DOMContentLoaded', function(){
             loadRoadPresets(roadEngineering.value, roadCategory.value, extras ? extras.value : '');
         }
     });
-    if(roadEngineering) roadEngineering.addEventListener('change', function(){
+    if(roadEngineering) roadEngineering.addEventListener('change', function(e){
+        if(e && typeof e.preventDefault === 'function') e.preventDefault();
+        if(e && e.isTrusted === false) return;
+        var ptSel = document.getElementById('project_type');
+        if(ptSel && ptSel.value !== 'Road') return;
+        var newVal = String(roadEngineering.value || '');
+        if(__lastRoadEngineeringValue === newVal) return;
+        __lastRoadEngineeringValue = newVal;
+
         handleRoadEngineeringChange();
         serializeRoadExtras();
         var extras = _el('road_extras_json');
@@ -1514,10 +2278,6 @@ document.addEventListener('DOMContentLoaded', function(){
     if(rq){
         rq.addEventListener('input', function(){
             serializeRoadExtras();
-            if(roadEngineering && roadEngineering.value){
-                var extras = _el('road_extras_json');
-                loadRoadPresets(roadEngineering.value, roadCategory ? roadCategory.value : '', extras ? extras.value : '');
-            }
         });
     }
 
@@ -1629,6 +2389,11 @@ document.addEventListener('DOMContentLoaded', function(){
             if(kind === 'activity' && __currentRoadPresets.activities[idx]){
                 __currentRoadPresets.activities[idx].enabled = !!t.checked;
             }
+            if(kind === 'activity-scope' && __currentRoadPresets.activities[idx]){
+                var s = String(t.value || '').trim().toUpperCase();
+                if(s !== 'COMMON' && s !== 'STRETCH') s = 'STRETCH';
+                __currentRoadPresets.activities[idx].activity_scope = s;
+            }
             if(kind === 'material' && __currentRoadPresets.materials[idx]){
                 __currentRoadPresets.materials[idx].enabled = !!t.checked;
             }
@@ -1662,14 +2427,14 @@ document.addEventListener('DOMContentLoaded', function(){
             var id = t.id || '';
 
             if(id === 'btnAddActivity'){
-                __currentRoadPresets.activities.unshift({ name: '', enabled: true, standard: false, start_time: '', end_time: '' });
+                __currentRoadPresets.activities.unshift({ name: '', enabled: true, standard: false, start_time: '', end_time: '', activity_scope: 'STRETCH', phase: '' });
                 renderActivityPresets();
                 serializePresetsToHiddenInputs();
                 return;
             }
             if(id === 'btnResetActivities' && __roadPresetsCache){
                 __currentRoadPresets.activities = __roadPresetsCache.activities.map(function(a){
-                    return { name: a.name, enabled: true, standard: true, start_time: '', end_time: '' };
+                    return { name: a.name, enabled: true, standard: true, start_time: '', end_time: '', activity_scope: (a.activity_scope || a.scope || 'STRETCH'), phase: (a.phase || '') };
                 });
                 renderActivityPresets();
                 serializePresetsToHiddenInputs();
@@ -1774,13 +2539,110 @@ document.addEventListener('DOMContentLoaded', function(){
             serializePresetsToHiddenInputs();
             serializeRoadExtras();
             serializeProjectTeam();
+            if (typeof window.serializeStretchSegments === 'function') {
+                window.serializeStretchSegments();
+            }
+
+            // Stretch-specific validation (dates required per stretch when enabled)
+            try {
+                const se = document.getElementById('stretch_enabled');
+                const hiddenSeg = document.getElementById('stretch_segments_json');
+                if (se && se.checked) {
+                    const raw = (hiddenSeg && hiddenSeg.value) ? String(hiddenSeg.value).trim() : '';
+                    if (!raw) {
+                        e.preventDefault();
+                        setFormError('Please generate stretches and enter stretch start/end dates.');
+                        updateCreateButtonState();
+                        return;
+                    }
+                    const segs = JSON.parse(raw);
+                    const dateRe = /^\d{2}\/\d{2}\/\d{4}$/;
+                    const timeRe = /^\d{2}:\d{2}$/;
+                    const toMins = function(hhmm){
+                        const parts = String(hhmm || '').split(':');
+                        const h = parseInt(parts[0] || '0', 10);
+                        const m = parseInt(parts[1] || '0', 10);
+                        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+                        return (h * 60) + m;
+                    };
+                    for (let i = 0; i < segs.length; i++) {
+                        const s = segs[i] || {};
+                        const ps = String(s.planned_start_date || '').trim();
+                        const pe = String(s.planned_end_date || '').trim();
+                        if (!dateRe.test(ps) || !dateRe.test(pe)) {
+                            e.preventDefault();
+                            setFormError('Each stretch must have Start/End date in DD/MM/YYYY.');
+                            updateCreateButtonState();
+                            return;
+                        }
+
+                        // Validate activity times (optional, but consistent)
+                        const acts = Array.isArray(s.activities) ? s.activities : [];
+                        for (let a = 0; a < acts.length; a++) {
+                            const ao = acts[a] || {};
+                            if (!ao.include) continue;
+                            const nm = String(ao.name || '').trim() || 'Activity';
+                            const st = (ao.start_time === null || ao.start_time === undefined) ? '' : String(ao.start_time).trim();
+                            const et = (ao.end_time === null || ao.end_time === undefined) ? '' : String(ao.end_time).trim();
+                            const hrs = ao.planned_duration_hours;
+                            const hasHours = (hrs !== null && hrs !== undefined && String(hrs).trim() !== '' && !Number.isNaN(Number(hrs)));
+                            const hasAnyTime = !!(st || et);
+                            if (!hasAnyTime) continue;
+
+                            const stEl = form.querySelector('[data-kind="stretch-act-start-time"][data-idx="' + i + '"][data-aidx="' + a + '"]');
+                            const etEl = form.querySelector('[data-kind="stretch-act-end-time"][data-idx="' + i + '"][data-aidx="' + a + '"]');
+
+                            // If user provided hours, allow times to be optional/partial.
+                            // If hours is blank and any time is provided, require both times.
+                            if (!hasHours && (st === '' || et === '')) {
+                                e.preventDefault();
+                                if (stEl) stEl.classList.add('is-invalid');
+                                if (etEl) etEl.classList.add('is-invalid');
+                                setFormError('Please enter both Start and End time (HH:MM) or enter Hours for: ' + nm + '.');
+                                updateCreateButtonState();
+                                return;
+                            }
+
+                            // If both times are present, validate format and ordering.
+                            if (st !== '' && et !== '') {
+                                if (!timeRe.test(st) || !timeRe.test(et)) {
+                                    e.preventDefault();
+                                    if (stEl) stEl.classList.add('is-invalid');
+                                    if (etEl) etEl.classList.add('is-invalid');
+                                    setFormError('Please enter valid Start/End time (HH:MM) for: ' + nm + '.');
+                                    updateCreateButtonState();
+                                    return;
+                                }
+                                const sm = toMins(st);
+                                const em = toMins(et);
+                                if (sm === null || em === null || em < sm) {
+                                    e.preventDefault();
+                                    if (stEl) stEl.classList.add('is-invalid');
+                                    if (etEl) etEl.classList.add('is-invalid');
+                                    setFormError('End time must be after Start time for: ' + nm + '.');
+                                    updateCreateButtonState();
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                e.preventDefault();
+                setFormError('Stretch data is invalid. Please regenerate stretches and re-enter dates.');
+                updateCreateButtonState();
+                return;
+            }
 
             if(!form.checkValidity()){
                 e.preventDefault();
                 form.querySelectorAll('input,select,textarea').forEach(function(el){
                     if(typeof el.checkValidity === 'function' && !el.checkValidity()) el.classList.add('is-invalid');
                 });
-                setFormError('Please fill all required fields highlighted below.');
+                const info = collectInvalidFieldsSummary(form);
+                const list = (info.labels && info.labels.length) ? (' Missing/invalid: ' + info.labels.join(', ') + '.') : '';
+                setFormError('Please fill all required fields highlighted below.' + list);
+                try{ if(info.first && typeof info.first.focus === 'function') info.first.focus({preventScroll:true}); }catch(err){}
                 updateCreateButtonState();
                 return;
             }
@@ -1795,13 +2657,1084 @@ document.addEventListener('DOMContentLoaded', function(){
     // Ensure initial state: hide conditional sections and remove required where hidden
     // Start clean: only Basic Information and Project Type visible
     loadClassificationMetadata().then(function(){
+        // If the select was cleared (or never populated), repopulate from the best available source.
+        try{
+            var projectTypeSel = document.getElementById('project_type');
+            if(projectTypeSel && (!projectTypeSel.options || projectTypeSel.options.length <= 1) && __classification){
+                populateSelect(projectTypeSel, (__classification.project_types || []).concat(__classification.legacy_project_types || []));
+            }
+        }catch(e){}
+
         handleProjectTypeChange();
         handleRoadCategoryChange();
         handleRoadEngineeringChange();
         renderConditionalQuestions();
         updateCreateButtonState();
+        updateProjectTypeLoadedIndicator();
     });
     updateCreateButtonState();
+    updateProjectTypeLoadedIndicator();
+
+    // Detect and optionally help dismiss a blocking overlay.
+    try{
+        var info = _detectBlockingOverlay();
+        if(info){
+            setFormError('Something on this page is blocking clicks. Try opening in Chrome (not VS Code Simple Browser). If needed, open /projects/new?debug=1 and click to see what element is on top.');
+            _ensureOverlayDismissUi(info);
+        }
+    }catch(e){}
+
+    if(__debug){
+        try{
+            var dbg = document.getElementById('__clickDebug');
+            if(!dbg){
+                dbg = document.createElement('div');
+                dbg.id = '__clickDebug';
+                dbg.style.position = 'fixed';
+                dbg.style.right = '20px';
+                dbg.style.bottom = '20px';
+                dbg.style.zIndex = '2147483647';
+                dbg.style.background = 'rgba(0,0,0,0.72)';
+                dbg.style.color = '#fff';
+                dbg.style.padding = '10px 12px';
+                dbg.style.borderRadius = '10px';
+                dbg.style.fontSize = '12px';
+                dbg.style.maxWidth = '520px';
+                dbg.textContent = 'Debug enabled: click anywhere to see top element.';
+                document.body.appendChild(dbg);
+            }
+
+            document.addEventListener('click', function(ev){
+                try{
+                    var x = ev.clientX, y = ev.clientY;
+                    var top = null;
+                    try{
+                        var els = document.elementsFromPoint ? document.elementsFromPoint(x,y) : [];
+                        top = (els && els.length) ? els[0] : (ev.target || null);
+                    }catch(e){ top = (ev.target || null); }
+
+                    var name = top ? (top.tagName || '') : '';
+                    var id = top && top.id ? ('#' + top.id) : '';
+                    var cls = '';
+                    try{ cls = top && top.className ? ('.' + String(top.className).trim().replace(/\s+/g,'.')) : ''; }catch(e){ cls = ''; }
+                    dbg.textContent = 'Top element at click: ' + name + id + cls;
+                }catch(e){}
+            }, true);
+        }catch(e){}
+    }
 });
+</script>
+
+<script>
+// Stretch System toggles (Create New Project page)
+(function(){
+    const roadBlock = document.getElementById('road_block');
+    const stretchBlock = document.getElementById('stretch_system_block');
+    const projectTypeSel = document.getElementById('project_type');
+    const stretchEnabled = document.getElementById('stretch_enabled');
+    const stretchOptions = document.getElementById('stretch_options');
+    const methodSel = document.getElementById('stretch_method');
+    const countWrap = document.getElementById('stretch_count_wrap');
+    const lenWrap = document.getElementById('stretch_len_wrap');
+
+    const countInput = stretchOptions ? stretchOptions.querySelector('input[name="stretch_number_of_stretches"]') : null;
+    const lenInput = stretchOptions ? stretchOptions.querySelector('input[name="stretch_length_m"]') : null;
+    const roadLenKmInput = document.querySelector('input[name="road_length_km"]');
+    const totalLenKmUi = document.getElementById('stretch_total_length_km');
+
+    const timelineContainer = document.getElementById('timeline_container');
+    const timelineMount = document.getElementById('timeline_mount');
+    const timelineOriginalParent = timelineContainer ? timelineContainer.parentElement : null;
+    const timelineOriginalNext = timelineContainer ? timelineContainer.nextSibling : null;
+    const projStartInput = document.querySelector('input[name="planned_start_date"]');
+    const projEndInput = document.querySelector('input[name="planned_end_date"]');
+
+    const btnGen = document.getElementById('btnGenerateStretches');
+    const btnReset = document.getElementById('btnResetStretches');
+    const btnAddRow = document.getElementById('btnAddStretchRow');
+    const editor = document.getElementById('stretch_editor');
+    const list = document.getElementById('stretchSegmentList');
+    const hint = document.getElementById('stretch_editor_hint');
+    const hidden = document.getElementById('stretch_segments_json');
+    const roadPresetsPanel = document.getElementById('road_presets_panel');
+
+    let __segments = [];
+    let __dirty = false;
+
+    function _normKey(s){
+        return String(s || '').trim().toLowerCase();
+    }
+
+    function _parseDateDDMMYYYY(s){
+        const v = String(s || '').trim();
+        const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if(!m) return null;
+        const dd = parseInt(m[1], 10);
+        const mm = parseInt(m[2], 10);
+        const yy = parseInt(m[3], 10);
+        if(!dd || !mm || !yy) return null;
+        const d = new Date(Date.UTC(yy, mm - 1, dd));
+        // Basic sanity check to avoid JS date rollover
+        if(d.getUTCFullYear() !== yy || (d.getUTCMonth() + 1) !== mm || d.getUTCDate() !== dd) return null;
+        return d;
+    }
+
+    function _daysInclusive(startDDMM, endDDMM){
+        const s = _parseDateDDMMYYYY(startDDMM);
+        const e = _parseDateDDMMYYYY(endDDMM);
+        if(!s || !e) return null;
+        const ms = (e.getTime() - s.getTime());
+        const days = Math.floor(ms / (24 * 60 * 60 * 1000)) + 1;
+        return days >= 1 ? days : null;
+    }
+
+    function _timeToMinutes(hhmm){
+        const v = String(hhmm || '').trim();
+        const m = v.match(/^(\d{2}):(\d{2})$/);
+        if(!m) return null;
+        const hh = parseInt(m[1], 10);
+        const mm = parseInt(m[2], 10);
+        if(Number.isNaN(hh) || Number.isNaN(mm)) return null;
+        if(hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+        return (hh * 60) + mm;
+    }
+
+    function _maybeAutofillActivityHours(seg){
+        if(!seg || !Array.isArray(seg.activities)) return;
+        const days = _daysInclusive(seg.planned_start_date, seg.planned_end_date);
+        seg.activities.forEach(function(a){
+            if(!a) return;
+            a._computed_days = days;
+            if(a.include === false) return;
+            if(a._hours_manual) return;
+            const hasHrs = !(a.planned_duration_hours === '' || a.planned_duration_hours === null || a.planned_duration_hours === undefined);
+            if(hasHrs) return;
+            if(!days) return;
+            const sm = _timeToMinutes(a.start_time);
+            const em = _timeToMinutes(a.end_time);
+            if(sm === null || em === null) return;
+            if(em <= sm) return;
+            const perDayHrs = (em - sm) / 60.0;
+            const total = perDayHrs * days;
+            // Keep friendly granularity
+            a.planned_duration_hours = (Math.round(total * 2) / 2).toFixed(1).replace(/\.0$/, '');
+        });
+    }
+
+    function _getBaseStretchActivities(){
+        const src = (window.__currentRoadPresets && Array.isArray(window.__currentRoadPresets.activities)) ? window.__currentRoadPresets.activities : [];
+        const out = [];
+        src.forEach(function(a){
+            if(!a) return;
+            if(!a.enabled) return;
+            const name = String(a.name || '').trim();
+            if(!name) return;
+            const scope = String(a.activity_scope || a.scope || 'STRETCH').trim().toUpperCase();
+            if(scope !== 'STRETCH') return;
+            out.push({ name: name, standard: true, start_time: (a.start_time || ''), end_time: (a.end_time || '') });
+        });
+        return out;
+    }
+
+    function _getBaseCommonActivities(){
+        const src = (window.__currentRoadPresets && Array.isArray(window.__currentRoadPresets.activities)) ? window.__currentRoadPresets.activities : [];
+        const out = [];
+        src.forEach(function(a){
+            if(!a) return;
+            if(!a.enabled) return;
+            const name = String(a.name || '').trim();
+            if(!name) return;
+            const scope = String(a.activity_scope || a.scope || 'STRETCH').trim().toUpperCase();
+            if(scope !== 'COMMON') return;
+            out.push({ name: name, standard: true });
+        });
+        return out;
+    }
+
+    function _getBaseMaterials(){
+        const src = (window.__currentRoadPresets && Array.isArray(window.__currentRoadPresets.materials)) ? window.__currentRoadPresets.materials : [];
+        const out = [];
+        src.forEach(function(m){
+            if(!m) return;
+            if(!m.enabled) return;
+            const name = String(m.name || '').trim();
+            if(!name) return;
+            out.push({ name: name, standard: true });
+        });
+        return out;
+    }
+
+    function _syncSegWithPresets(seg){
+        if(!seg) return;
+        if(!Array.isArray(seg.activities)) seg.activities = [];
+        if(!Array.isArray(seg.materials)) seg.materials = [];
+
+        const baseActs = _getBaseStretchActivities();
+        const baseMats = _getBaseMaterials();
+
+        const baseActByKey = {};
+        baseActs.forEach(function(a){ baseActByKey[_normKey(a.name)] = a; });
+
+        const baseActKeys = new Set(baseActs.map(function(a){ return _normKey(a.name); }));
+        const baseMatKeys = new Set(baseMats.map(function(m){ return _normKey(m.name); }));
+
+        // Add missing standard activities
+        baseActs.forEach(function(a){
+            const k = _normKey(a.name);
+            const exists = seg.activities.some(function(x){ return _normKey(x && x.name) === k; });
+            if(!exists){
+                seg.activities.push({ name: a.name, include: true, planned_duration_hours: '', standard: true, start_time: (a.start_time || ''), end_time: (a.end_time || '') });
+            }
+        });
+        // Drop standard activities no longer present in presets
+        seg.activities = seg.activities.filter(function(x){
+            if(!x) return false;
+            const k = _normKey(x.name);
+            if(x.standard) return baseActKeys.has(k);
+            return true;
+        });
+        seg.activities.forEach(function(x){
+            if(!x) return;
+            if(typeof x.include !== 'boolean') x.include = true;
+            if(x.planned_duration_hours === undefined || x.planned_duration_hours === null) x.planned_duration_hours = '';
+            if(x.start_time === undefined || x.start_time === null) x.start_time = '';
+            if(x.end_time === undefined || x.end_time === null) x.end_time = '';
+            if(x._hours_manual === undefined || x._hours_manual === null) x._hours_manual = false;
+            // If this is a standard activity and times are blank, rehydrate from presets
+            if(x.standard){
+                const ref = baseActByKey[_normKey(x.name)];
+                if(ref){
+                    if(!String(x.start_time || '').trim() && String(ref.start_time || '').trim()) x.start_time = String(ref.start_time || '').trim();
+                    if(!String(x.end_time || '').trim() && String(ref.end_time || '').trim()) x.end_time = String(ref.end_time || '').trim();
+                }
+            }
+        });
+
+        _maybeAutofillActivityHours(seg);
+
+        // Add missing standard materials
+        baseMats.forEach(function(m){
+            const k = _normKey(m.name);
+            const exists = seg.materials.some(function(x){ return _normKey(x && x.name) === k; });
+            if(!exists){
+                seg.materials.push({ name: m.name, include: true, standard: true });
+            }
+        });
+        // Drop standard materials no longer present
+        seg.materials = seg.materials.filter(function(x){
+            if(!x) return false;
+            const k = _normKey(x.name);
+            if(x.standard) return baseMatKeys.has(k);
+            return true;
+        });
+        seg.materials.forEach(function(x){
+            if(!x) return;
+            if(typeof x.include !== 'boolean') x.include = true;
+        });
+    }
+
+    function show(el, on){
+        if (!el) return;
+        el.classList.toggle('hidden', !on);
+    }
+
+    function _pad3(n){
+        const s = String(Math.max(0, n|0));
+        return s.length >= 3 ? s : ('000' + s).slice(-3);
+    }
+
+    function chainageFromMeters(m){
+        const mm = Math.max(0, parseInt(m || 0, 10) || 0);
+        const km = Math.floor(mm / 1000);
+        const rem = mm % 1000;
+        return String(km) + '+' + _pad3(rem);
+    }
+
+    function totalLengthM(){
+        const preferred = (totalLenKmUi && totalLenKmUi.value) ? totalLenKmUi.value : ((roadLenKmInput && roadLenKmInput.value) ? roadLenKmInput.value : '0');
+        const km = parseFloat(preferred) || 0;
+        const total = Math.round(km * 1000);
+        return total > 0 ? total : 0;
+    }
+
+    function _normScopeMethod(){
+        return String((methodSel && methodSel.value) || 'count').trim().toLowerCase();
+    }
+
+    function _defaultCode(seq){
+        const s = String(seq);
+        return 'S' + (s.length >= 2 ? s : ('0' + s));
+    }
+
+    function recomputeStartEndFromLengths(){
+        const total = totalLengthM();
+        let cursor = 0;
+        for(let i=0;i<__segments.length;i++){
+            const seg = __segments[i];
+            const len = Math.max(1, parseInt(seg.length_m || 0, 10) || 0);
+            seg.sequence_no = i + 1;
+            seg.start_m = cursor;
+            seg.end_m = cursor + len;
+            seg.length_m = len;
+            cursor = seg.end_m;
+        }
+        // Caller should ensure the sum matches total (we avoid clamping here)
+    }
+
+    function rebalanceFromIndex(idx){
+        const total = totalLengthM();
+        if(total <= 0 || !__segments.length) return;
+
+        const n = __segments.length;
+        const start = Math.max(0, Math.min(n - 1, parseInt(idx || 0, 10) || 0));
+
+        // Fix lengths up to `start` (inclusive), rebalance the remainder.
+        let fixedBefore = 0;
+        for(let i=0;i<start;i++){
+            fixedBefore += Math.max(1, parseInt(__segments[i].length_m || 0, 10) || 0);
+        }
+
+        const remainingCount = n - start - 1;
+        const minRemainder = remainingCount; // at least 1m per remaining segment
+        const maxLenHere = Math.max(1, total - fixedBefore - minRemainder);
+        const curLen = Math.max(1, parseInt(__segments[start].length_m || 0, 10) || 0);
+        __segments[start].length_m = Math.min(curLen, maxLenHere);
+
+        const fixedTotal = fixedBefore + __segments[start].length_m;
+        let remainingTotal = Math.max(0, total - fixedTotal);
+
+        if(remainingCount > 0){
+            const base = Math.floor(remainingTotal / remainingCount);
+            let rem = remainingTotal - (base * remainingCount);
+            for(let j=start+1;j<n;j++){
+                const add = rem > 0 ? 1 : 0;
+                if(rem > 0) rem -= 1;
+                __segments[j].length_m = Math.max(1, base + add);
+            }
+        }
+
+        recomputeStartEndFromLengths();
+    }
+
+    function rebalanceAllEvenly(){
+        const total = totalLengthM();
+        if(total <= 0 || !__segments.length) return;
+        const n = __segments.length;
+        const base = Math.floor(total / n);
+        let rem = total - (base * n);
+        for(let i=0;i<n;i++){
+            const add = rem > 0 ? 1 : 0;
+            if(rem > 0) rem -= 1;
+            __segments[i].length_m = Math.max(1, base + add);
+        }
+        recomputeStartEndFromLengths();
+    }
+
+    function generateSegments(){
+        const total = totalLengthM();
+        if(total <= 0){
+            __segments = [];
+            return;
+        }
+
+        const method = _normScopeMethod();
+        let segments = [];
+        if(method === 'length'){
+            const per = Math.max(1, parseInt((lenInput && lenInput.value) ? lenInput.value : '0', 10) || 0);
+            let cursor = 0;
+            let seq = 1;
+            while(cursor < total && seq <= 500){
+                const end = Math.min(total, cursor + per);
+                const length = Math.max(1, end - cursor);
+                segments.push({
+                    sequence_no: seq,
+                    stretch_code: _defaultCode(seq),
+                    stretch_name: 'Stretch ' + seq,
+                    start_m: cursor,
+                    end_m: end,
+                    length_m: length,
+                });
+                cursor = end;
+                seq += 1;
+            }
+        } else {
+            const n = Math.max(1, parseInt((countInput && countInput.value) ? countInput.value : '0', 10) || 0);
+            const base = Math.floor(total / n);
+            let cursor = 0;
+            for(let i=1;i<=n && i<=500;i++){
+                const isLast = i === n;
+                const end = isLast ? total : (cursor + base);
+                const length = Math.max(1, end - cursor);
+                segments.push({
+                    sequence_no: i,
+                    stretch_code: _defaultCode(i),
+                    stretch_name: 'Stretch ' + i,
+                    start_m: cursor,
+                    end_m: end,
+                    length_m: length,
+                });
+                cursor = end;
+            }
+        }
+
+        __segments = segments;
+        // Keep ends consistent and total matched.
+        rebalanceAllEvenly();
+
+        // Default planned dates (user can edit per stretch)
+        const ps = (projStartInput && projStartInput.value) ? String(projStartInput.value) : '';
+        const pe = (projEndInput && projEndInput.value) ? String(projEndInput.value) : '';
+        __segments.forEach(function(s){
+            if(!s.planned_start_date) s.planned_start_date = ps;
+            if(!s.planned_end_date) s.planned_end_date = pe;
+            if(s.details_open === undefined || s.details_open === null) s.details_open = false;
+        });
+    }
+
+    function renderSegments(){
+        if(!list || !editor) return;
+        list.innerHTML = '';
+
+        const on = !!(stretchEnabled && stretchEnabled.checked);
+        const total = totalLengthM();
+
+        if(!on){
+            show(editor, false);
+            if(hidden) hidden.value = '';
+            return;
+        }
+
+        if(!__segments.length){
+            show(editor, false);
+            if(hint) hint.textContent = 'Click “Generate stretches” to preview and edit.';
+            if(hidden) hidden.value = '';
+            return;
+        }
+
+        show(editor, true);
+        if(hint){
+            hint.textContent = 'Total length: ' + chainageFromMeters(total) + '. Edit Code/Name/Length; Start/End update automatically.';
+        }
+
+        __segments.forEach(function(seg, idx){
+            _syncSegWithPresets(seg);
+
+            const row = document.createElement('div');
+            row.className = 'preset-row';
+
+            const seqPill = document.createElement('span');
+            seqPill.className = 'pill';
+            seqPill.textContent = '#' + String(idx + 1);
+
+            const code = document.createElement('input');
+            code.type = 'text';
+            code.value = seg.stretch_code || '';
+            code.placeholder = 'Code';
+            code.style.maxWidth = '110px';
+            code.setAttribute('data-kind', 'stretch-code');
+            code.setAttribute('data-idx', String(idx));
+
+            const name = document.createElement('input');
+            name.type = 'text';
+            name.value = seg.stretch_name || '';
+            name.placeholder = 'Stretch name';
+            name.setAttribute('data-kind', 'stretch-name');
+            name.setAttribute('data-idx', String(idx));
+
+            const len = document.createElement('input');
+            len.type = 'number';
+            len.min = '1';
+            len.step = '1';
+            len.value = String(seg.length_m || 0);
+            len.title = 'Length (m)';
+            len.style.maxWidth = '120px';
+            len.setAttribute('data-kind', 'stretch-length');
+            len.setAttribute('data-idx', String(idx));
+
+            const startPill = document.createElement('span');
+            startPill.className = 'pill';
+            startPill.textContent = 'Start: ' + chainageFromMeters(seg.start_m);
+
+            const endPill = document.createElement('span');
+            endPill.className = 'pill';
+            endPill.textContent = 'End: ' + chainageFromMeters(seg.end_m);
+
+            const psd = document.createElement('input');
+            psd.type = 'text';
+            psd.placeholder = 'Start date (DD/MM/YYYY)';
+            psd.value = String(seg.planned_start_date || '');
+            psd.inputMode = 'numeric';
+            psd.setAttribute('pattern', '\\d{2}/\\d{2}/\\d{4}');
+            psd.style.maxWidth = '160px';
+            psd.setAttribute('data-kind', 'stretch-start-date');
+            psd.setAttribute('data-idx', String(idx));
+
+            const ped = document.createElement('input');
+            ped.type = 'text';
+            ped.placeholder = 'End date (DD/MM/YYYY)';
+            ped.value = String(seg.planned_end_date || '');
+            ped.inputMode = 'numeric';
+            ped.setAttribute('pattern', '\\d{2}/\\d{2}/\\d{4}');
+            ped.style.maxWidth = '160px';
+            ped.setAttribute('data-kind', 'stretch-end-date');
+            ped.setAttribute('data-idx', String(idx));
+
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'icon-btn';
+            toggle.textContent = seg.details_open ? 'Hide' : 'Show';
+            toggle.setAttribute('data-kind', 'stretch-toggle');
+            toggle.setAttribute('data-idx', String(idx));
+
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'icon-btn';
+            del.textContent = 'Remove';
+            del.setAttribute('data-kind', 'stretch-remove');
+            del.setAttribute('data-idx', String(idx));
+
+            row.appendChild(seqPill);
+            row.appendChild(code);
+            row.appendChild(name);
+            row.appendChild(len);
+            row.appendChild(startPill);
+            row.appendChild(endPill);
+            row.appendChild(psd);
+            row.appendChild(ped);
+            row.appendChild(toggle);
+            row.appendChild(del);
+            list.appendChild(row);
+
+            // ---- Stretch details: Activities + Materials ----
+            const details = document.createElement('div');
+            details.className = seg.details_open ? '' : 'hidden';
+            details.style.gridColumn = '1 / -1';
+            details.style.margin = '6px 0 14px 0';
+            details.style.padding = '10px 12px';
+            details.style.border = '1px solid rgba(255,255,255,0.10)';
+            details.style.borderRadius = '10px';
+            details.style.background = 'rgba(255,255,255,0.02)';
+
+            const grid = document.createElement('div');
+            grid.style.display = 'grid';
+            grid.style.gridTemplateColumns = '1fr 1fr';
+            grid.style.gap = '12px';
+
+            // Activities panel
+            const actPanel = document.createElement('div');
+            const actHdr = document.createElement('div');
+            actHdr.style.display = 'flex';
+            actHdr.style.alignItems = 'center';
+            actHdr.style.justifyContent = 'space-between';
+            actHdr.style.gap = '10px';
+            const actTitle = document.createElement('div');
+            actTitle.style.fontWeight = '600';
+            actTitle.textContent = 'Activities (STRETCH)';
+            const actBtn = document.createElement('button');
+            actBtn.type = 'button';
+            actBtn.className = 'btn-secondary btn-small';
+            actBtn.textContent = '+ Add';
+            actBtn.setAttribute('data-kind', 'stretch-act-add');
+            actBtn.setAttribute('data-idx', String(idx));
+            actHdr.appendChild(actTitle);
+            actHdr.appendChild(actBtn);
+            actPanel.appendChild(actHdr);
+
+            const actHelp = document.createElement('div');
+            actHelp.className = 'help-text';
+            actHelp.textContent = 'Set Start/End time and duration hours. Hours auto-fill from stretch dates + activity times (you can edit). Use Remove to exclude.';
+            actPanel.appendChild(actHelp);
+
+            // COMMON activities (project-wide) shown for context (read-only)
+            const commonActs = _getBaseCommonActivities();
+            if(commonActs.length){
+                const commonBox = document.createElement('div');
+                commonBox.style.marginTop = '10px';
+                commonBox.style.padding = '8px 10px';
+                commonBox.style.border = '1px dashed rgba(255,255,255,0.14)';
+                commonBox.style.borderRadius = '10px';
+                const commonHdr = document.createElement('div');
+                commonHdr.style.fontWeight = '600';
+                commonHdr.style.opacity = '0.95';
+                commonHdr.textContent = 'COMMON activities (project-wide)';
+                const commonHelp = document.createElement('div');
+                commonHelp.className = 'help-text';
+                commonHelp.textContent = 'These run once for the whole project (not per stretch). Edit them in Activity Presets.';
+                const pills = document.createElement('div');
+                pills.style.display = 'flex';
+                pills.style.flexWrap = 'wrap';
+                pills.style.gap = '6px';
+                pills.style.marginTop = '8px';
+                commonActs.forEach(function(a){
+                    const p = document.createElement('span');
+                    p.className = 'pill';
+                    p.textContent = String(a.name || '');
+                    pills.appendChild(p);
+                });
+                commonBox.appendChild(commonHdr);
+                commonBox.appendChild(commonHelp);
+                commonBox.appendChild(pills);
+                actPanel.appendChild(commonBox);
+            }
+
+            (seg.activities || []).forEach(function(a, aidx){
+                if(a && a.include === false) return;
+                const arow = document.createElement('div');
+                arow.style.display = 'grid';
+                arow.style.gridTemplateColumns = 'minmax(220px, 1fr) 90px 90px 72px 90px auto';
+                arow.style.alignItems = 'center';
+                arow.style.gap = '8px';
+                arow.style.marginTop = '8px';
+                arow.style.minWidth = '0';
+
+                const aname = document.createElement('input');
+                aname.type = 'text';
+                aname.value = String(a.name || '');
+                aname.placeholder = 'Activity name';
+                aname.setAttribute('data-kind', 'stretch-act-name');
+                aname.setAttribute('data-idx', String(idx));
+                aname.setAttribute('data-aidx', String(aidx));
+                aname.style.width = '100%';
+                aname.style.minWidth = '220px';
+
+                const hrs = document.createElement('input');
+                hrs.type = 'number';
+                hrs.min = '0';
+                hrs.step = '0.5';
+                hrs.placeholder = 'Hours';
+                hrs.value = (a.planned_duration_hours === '' || a.planned_duration_hours === null || a.planned_duration_hours === undefined) ? '' : String(a.planned_duration_hours);
+                hrs.setAttribute('data-kind', 'stretch-act-hours');
+                hrs.setAttribute('data-idx', String(idx));
+                hrs.setAttribute('data-aidx', String(aidx));
+                hrs.style.maxWidth = '110px';
+
+                const daysPill = document.createElement('span');
+                daysPill.className = 'pill';
+                const d = (a && a._computed_days) ? a._computed_days : null;
+                daysPill.textContent = d ? ('Days: ' + String(d)) : 'Days: —';
+                daysPill.title = 'Computed from this stretch Start/End date';
+
+                const st = document.createElement('input');
+                st.type = 'time';
+                st.value = String(a.start_time || '');
+                st.title = 'Start time';
+                st.setAttribute('data-kind', 'stretch-act-start-time');
+                st.setAttribute('data-idx', String(idx));
+                st.setAttribute('data-aidx', String(aidx));
+                st.style.maxWidth = '100px';
+
+                const et = document.createElement('input');
+                et.type = 'time';
+                et.value = String(a.end_time || '');
+                et.title = 'End time';
+                et.setAttribute('data-kind', 'stretch-act-end-time');
+                et.setAttribute('data-idx', String(idx));
+                et.setAttribute('data-aidx', String(aidx));
+                et.style.maxWidth = '100px';
+
+                const rm = document.createElement('button');
+                rm.type = 'button';
+                rm.className = 'icon-btn';
+                rm.textContent = 'Remove';
+                rm.setAttribute('data-kind', 'stretch-act-remove');
+                rm.setAttribute('data-idx', String(idx));
+                rm.setAttribute('data-aidx', String(aidx));
+
+                arow.appendChild(aname);
+                arow.appendChild(st);
+                arow.appendChild(et);
+                arow.appendChild(daysPill);
+                arow.appendChild(hrs);
+                arow.appendChild(rm);
+                actPanel.appendChild(arow);
+            });
+
+            // Materials panel
+            const matPanel = document.createElement('div');
+            const matHdr = document.createElement('div');
+            matHdr.style.display = 'flex';
+            matHdr.style.alignItems = 'center';
+            matHdr.style.justifyContent = 'space-between';
+            matHdr.style.gap = '10px';
+            const matTitle = document.createElement('div');
+            matTitle.style.fontWeight = '600';
+            matTitle.textContent = 'Materials';
+            matHdr.appendChild(matTitle);
+            matPanel.appendChild(matHdr);
+
+            const matHelp = document.createElement('div');
+            matHelp.className = 'help-text';
+            matHelp.textContent = 'Remove materials you don\'t want for this stretch (used when computing stretch materials later).';
+            matPanel.appendChild(matHelp);
+
+            (seg.materials || []).forEach(function(m, midx){
+                if(m && m.include === false) return;
+                const mrow = document.createElement('div');
+                mrow.style.display = 'grid';
+                mrow.style.gridTemplateColumns = '1fr auto';
+                mrow.style.alignItems = 'center';
+                mrow.style.gap = '8px';
+                mrow.style.marginTop = '8px';
+
+                const label = document.createElement('div');
+                label.textContent = String(m.name || '');
+                label.style.opacity = '0.95';
+
+                const rm = document.createElement('button');
+                rm.type = 'button';
+                rm.className = 'icon-btn';
+                rm.textContent = 'Remove';
+                rm.setAttribute('data-kind', 'stretch-mat-remove');
+                rm.setAttribute('data-idx', String(idx));
+                rm.setAttribute('data-midx', String(midx));
+
+                mrow.appendChild(label);
+                mrow.appendChild(rm);
+                matPanel.appendChild(mrow);
+            });
+
+            grid.appendChild(actPanel);
+            grid.appendChild(matPanel);
+            details.appendChild(grid);
+            list.appendChild(details);
+        });
+
+        if(typeof window.serializeStretchSegments === 'function'){
+            window.serializeStretchSegments();
+        }
+    }
+
+    window.serializeStretchSegments = function(){
+        if(!hidden) return;
+        const on = !!(stretchEnabled && stretchEnabled.checked);
+        if(!on || !__segments.length){
+            hidden.value = '';
+            return;
+        }
+        const payload = __segments.map(function(s){
+            _syncSegWithPresets(s);
+            return {
+                sequence_no: s.sequence_no,
+                stretch_code: String(s.stretch_code || '').trim(),
+                stretch_name: String(s.stretch_name || '').trim(),
+                start_m: parseInt(s.start_m || 0, 10) || 0,
+                end_m: parseInt(s.end_m || 0, 10) || 0,
+                length_m: parseInt(s.length_m || 0, 10) || 0,
+                planned_start_date: String(s.planned_start_date || '').trim(),
+                planned_end_date: String(s.planned_end_date || '').trim(),
+                activities: (Array.isArray(s.activities) ? s.activities : []).map(function(a){
+                    return {
+                        name: String((a && a.name) || '').trim(),
+                        include: !!(a && a.include),
+                        planned_duration_hours: (a && a.planned_duration_hours !== '' && a.planned_duration_hours !== null && a.planned_duration_hours !== undefined) ? (parseFloat(a.planned_duration_hours) || 0) : null,
+                        start_time: String((a && a.start_time) || '').trim() || null,
+                        end_time: String((a && a.end_time) || '').trim() || null,
+                        standard: !!(a && a.standard),
+                    };
+                }).filter(function(a){ return !!a.name; }),
+                materials: (Array.isArray(s.materials) ? s.materials : []).map(function(m){
+                    return { name: String((m && m.name) || '').trim(), include: !!(m && m.include), standard: !!(m && m.standard) };
+                }).filter(function(m){ return !!m.name; }),
+            };
+        });
+        hidden.value = JSON.stringify(payload);
+    };
+
+    function syncTimelinePlacement(){
+        if(!timelineContainer) return;
+        const isRoad = !!(projectTypeSel && projectTypeSel.value === 'Road');
+        if(isRoad && timelineMount){
+            timelineMount.appendChild(timelineContainer);
+        } else if(timelineOriginalParent){
+            if(timelineOriginalNext && timelineOriginalNext.parentNode === timelineOriginalParent){
+                timelineOriginalParent.insertBefore(timelineContainer, timelineOriginalNext);
+            } else {
+                timelineOriginalParent.appendChild(timelineContainer);
+            }
+        }
+    }
+
+    function syncTotalLengthToRoadLength(){
+        if(!totalLenKmUi || !roadLenKmInput) return;
+        const v = String(totalLenKmUi.value || '').trim();
+        if(v && roadLenKmInput.value !== v){
+            roadLenKmInput.value = v;
+        }
+    }
+
+    function syncRoadLengthToTotalLength(){
+        if(!totalLenKmUi || !roadLenKmInput) return;
+        const v = String(roadLenKmInput.value || '').trim();
+        if(v && totalLenKmUi.value !== v){
+            totalLenKmUi.value = v;
+        }
+    }
+
+    function syncMethod(){
+        const m = String((methodSel && methodSel.value) || 'count');
+        show(countWrap, m !== 'length');
+        show(lenWrap, m === 'length');
+    }
+
+    function syncEnabled(){
+        const on = !!(stretchEnabled && stretchEnabled.checked);
+        show(stretchOptions, on);
+        // If Stretch System is used, hide the Road Presets editor to reduce clutter.
+        // Presets still load and are used for auto-generation.
+        if(roadPresetsPanel){
+            roadPresetsPanel.classList.toggle('hidden', on);
+        }
+        if(on){
+            // Keep required Road Length satisfied
+            try{ syncTotalLengthToRoadLength(); }catch(e){}
+        }
+        if(totalLenKmUi){
+            if(on) totalLenKmUi.setAttribute('required', 'required'); else totalLenKmUi.removeAttribute('required');
+        }
+        if (on) syncMethod();
+        if(!on){
+            __segments = [];
+            __dirty = false;
+            renderSegments();
+        }
+    }
+
+    function syncRoadVisibility(){
+        if(!stretchBlock) return;
+        // Use the source of truth: project type selection.
+        const isRoad = !!(projectTypeSel && projectTypeSel.value === 'Road');
+        stretchBlock.style.display = isRoad ? '' : 'none';
+        if(!isRoad){
+            try{
+                if(stretchEnabled) stretchEnabled.checked = false;
+                syncEnabled();
+            }catch(e){}
+        }
+        syncTimelinePlacement();
+    }
+
+    // Keep stretch block visibility in sync with Project Type.
+    if (projectTypeSel) projectTypeSel.addEventListener('change', syncRoadVisibility);
+    if (projectTypeSel) projectTypeSel.addEventListener('change', syncTimelinePlacement);
+
+    if (stretchEnabled) stretchEnabled.addEventListener('change', syncEnabled);
+    if (methodSel) methodSel.addEventListener('change', syncMethod);
+    if (btnGen) btnGen.addEventListener('click', function(){
+        __dirty = false;
+        generateSegments();
+        renderSegments();
+    });
+    if (btnReset) btnReset.addEventListener('click', function(){
+        __dirty = false;
+        generateSegments();
+        renderSegments();
+    });
+    if (btnAddRow) btnAddRow.addEventListener('click', function(){
+        if(!(stretchEnabled && stretchEnabled.checked)){
+            if(stretchEnabled) stretchEnabled.checked = true;
+            syncEnabled();
+        }
+        if(!__segments.length){
+            generateSegments();
+        }
+        const next = (__segments.length + 1);
+        __segments.push({
+            sequence_no: next,
+            stretch_code: _defaultCode(next),
+            stretch_name: 'Stretch ' + next,
+            start_m: 0,
+            end_m: 0,
+            length_m: 1,
+        });
+        __dirty = true;
+        rebalanceAllEvenly();
+        renderSegments();
+    });
+
+    // Auto-generate when user changes method/count/length/road length.
+    // Changing these is an explicit intent to regenerate, so we override prior edits.
+    function maybeAutoGenerate(force){
+        if(!force && __dirty) return;
+        if(!(stretchEnabled && stretchEnabled.checked)) return;
+        __dirty = false;
+        generateSegments();
+        renderSegments();
+    }
+    if (methodSel) methodSel.addEventListener('change', function(){ syncMethod(); maybeAutoGenerate(true); });
+    if (countInput) countInput.addEventListener('change', function(){ maybeAutoGenerate(true); });
+    if (lenInput) lenInput.addEventListener('change', function(){ maybeAutoGenerate(true); });
+    if (roadLenKmInput) roadLenKmInput.addEventListener('change', function(){ maybeAutoGenerate(true); });
+    if (roadLenKmInput) roadLenKmInput.addEventListener('input', function(){ syncRoadLengthToTotalLength(); });
+    if (totalLenKmUi) totalLenKmUi.addEventListener('input', function(){ syncTotalLengthToRoadLength(); });
+    if (totalLenKmUi) totalLenKmUi.addEventListener('change', function(){ syncTotalLengthToRoadLength(); maybeAutoGenerate(true); });
+
+    if (projStartInput) projStartInput.addEventListener('change', function(){
+        if(!__segments.length) return;
+        __segments.forEach(function(s){ if(!s.planned_start_date) s.planned_start_date = String(projStartInput.value || ''); });
+        renderSegments();
+    });
+    if (projEndInput) projEndInput.addEventListener('change', function(){
+        if(!__segments.length) return;
+        __segments.forEach(function(s){ if(!s.planned_end_date) s.planned_end_date = String(projEndInput.value || ''); });
+        renderSegments();
+    });
+
+    if (stretchOptions){
+        stretchOptions.addEventListener('input', function(e){
+            const t = e.target;
+            if(!t) return;
+            const kind = t.getAttribute('data-kind');
+            const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+            if(idx < 0 || idx >= __segments.length) return;
+            if(kind === 'stretch-code'){
+                __segments[idx].stretch_code = String(t.value || '').trim();
+                __dirty = true;
+                window.serializeStretchSegments();
+            }
+            if(kind === 'stretch-name'){
+                __segments[idx].stretch_name = String(t.value || '').trim();
+                __dirty = true;
+                window.serializeStretchSegments();
+            }
+            if(kind === 'stretch-length'){
+                __segments[idx].length_m = Math.max(1, parseInt(t.value || '0', 10) || 0);
+                __dirty = true;
+                // Auto-rebalance remaining segments to keep total consistent.
+                rebalanceFromIndex(idx);
+                renderSegments();
+            }
+            if(kind === 'stretch-start-date'){
+                __segments[idx].planned_start_date = String(t.value || '').trim();
+                __dirty = true;
+                window.serializeStretchSegments();
+            }
+            if(kind === 'stretch-end-date'){
+                __segments[idx].planned_end_date = String(t.value || '').trim();
+                __dirty = true;
+                window.serializeStretchSegments();
+            }
+
+            // Per-stretch activities
+            const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+            if(kind === 'stretch-act-name' && aidx >= 0 && __segments[idx] && Array.isArray(__segments[idx].activities) && __segments[idx].activities[aidx]){
+                const seg = __segments[idx];
+                const act = seg.activities[aidx];
+                const nextName = String(t.value || '').trim();
+                if(!nextName) return;
+                if(act.standard){
+                    // Renaming a preloaded activity converts it into a custom activity for this stretch
+                    // and disables the original preloaded one.
+                    act.include = false;
+                    const custom = {
+                        name: nextName,
+                        include: true,
+                        planned_duration_hours: act.planned_duration_hours,
+                        standard: false,
+                        start_time: act.start_time,
+                        end_time: act.end_time,
+                        _hours_manual: !!String(act.planned_duration_hours || '').trim(),
+                    };
+                    seg.activities.unshift(custom);
+                    __dirty = true;
+                    renderSegments();
+                    return;
+                }
+                act.name = nextName;
+                __dirty = true;
+                window.serializeStretchSegments();
+            }
+            if(kind === 'stretch-act-hours' && aidx >= 0 && __segments[idx] && Array.isArray(__segments[idx].activities) && __segments[idx].activities[aidx]){
+                const seg = __segments[idx];
+                const act = seg.activities[aidx];
+                const v = String(t.value || '').trim();
+                act.planned_duration_hours = v;
+                act._hours_manual = !!v;
+                __dirty = true;
+                window.serializeStretchSegments();
+            }
+            if(kind === 'stretch-act-start-time' && aidx >= 0 && __segments[idx] && Array.isArray(__segments[idx].activities) && __segments[idx].activities[aidx]){
+                __segments[idx].activities[aidx].start_time = String(t.value || '').trim();
+                __dirty = true;
+                _maybeAutofillActivityHours(__segments[idx]);
+                renderSegments();
+            }
+            if(kind === 'stretch-act-end-time' && aidx >= 0 && __segments[idx] && Array.isArray(__segments[idx].activities) && __segments[idx].activities[aidx]){
+                __segments[idx].activities[aidx].end_time = String(t.value || '').trim();
+                __dirty = true;
+                _maybeAutofillActivityHours(__segments[idx]);
+                renderSegments();
+            }
+        });
+        stretchOptions.addEventListener('click', function(e){
+            const t = e.target;
+            if(!t) return;
+            const kind = t.getAttribute('data-kind');
+            const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+            if(kind === 'stretch-remove' && idx >= 0 && idx < __segments.length){
+                __dirty = true;
+                __segments.splice(idx, 1);
+                // After removal, auto-rebalance evenly.
+                rebalanceAllEvenly();
+                renderSegments();
+                return;
+            }
+
+            if(kind === 'stretch-toggle' && idx >= 0 && idx < __segments.length){
+                __segments[idx].details_open = !__segments[idx].details_open;
+                renderSegments();
+                return;
+            }
+
+            const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+            if(kind === 'stretch-act-add' && idx >= 0 && idx < __segments.length){
+                __dirty = true;
+                if(!Array.isArray(__segments[idx].activities)) __segments[idx].activities = [];
+                __segments[idx].activities.unshift({ name: '', include: true, planned_duration_hours: '', standard: false, start_time: '', end_time: '', _hours_manual: false });
+                renderSegments();
+                return;
+            }
+            if(kind === 'stretch-act-remove' && idx >= 0 && idx < __segments.length && aidx >= 0){
+                const seg = __segments[idx];
+                if(seg && Array.isArray(seg.activities) && seg.activities[aidx]){
+                    __dirty = true;
+                    if(seg.activities[aidx].standard){
+                        seg.activities[aidx].include = false;
+                    } else {
+                        seg.activities.splice(aidx, 1);
+                    }
+                    renderSegments();
+                    return;
+                }
+            }
+
+            const midx = parseInt(t.getAttribute('data-midx') || '-1', 10);
+            if(kind === 'stretch-mat-remove' && idx >= 0 && idx < __segments.length && midx >= 0){
+                const seg = __segments[idx];
+                if(seg && Array.isArray(seg.materials) && seg.materials[midx]){
+                    __dirty = true;
+                    seg.materials[midx].include = false;
+                    renderSegments();
+                    return;
+                }
+            }
+        });
+    }
+
+    syncEnabled();
+    syncRoadVisibility();
+    syncTimelinePlacement();
+    syncRoadLengthToTotalLength();
+    // Initial generate if enabled and road length already set
+    maybeAutoGenerate(false);
+
+    // Allow presets editor to trigger re-alignment of per-stretch panels.
+    window.onPresetsSerialized = function(){
+        try{
+            if(stretchEnabled && stretchEnabled.checked && __segments.length){
+                renderSegments();
+            }
+        }catch(e){}
+    };
+})();
 </script>
 {% endblock %}

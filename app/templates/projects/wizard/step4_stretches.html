@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1 class="page-title">Road Stretch Configuration (Step {{ step_no }} of {{ step_total }})</h1>
+<div class="help-text" style="margin-top:-8px">Make linear projects feel linear — define chainage-based stretches now (Road projects only).</div>
+
+<div class="card card--page" style="max-width:1100px">
+  <form id="stretchForm" method="post" action="/projects/wizard/stretches">
+    <input type="hidden" name="wid" value="{{ wid }}">
+
+    <div class="form-grid" style="grid-template-columns: 1.2fr 0.8fr 1fr; gap:12px">
+      <div>
+        <label>Total Road Length <span class="required">*</span></label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="totalLength" type="number" step="0.001" min="0" value="{{ (data.get('stretch_total_length_m') or '') }}" placeholder="e.g. 1.0" style="max-width:240px">
+          <select id="lengthUnit" style="max-width:120px">
+            <option value="m">m</option>
+            <option value="km">km</option>
+          </select>
+          <input type="hidden" name="total_length_m" id="totalLengthM" value="{{ data.get('stretch_total_length_m') or '' }}">
+        </div>
+        <div class="help-text">Tip: if you enter km, it auto-converts to meters for storage.</div>
+      </div>
+
+      <div>
+        <label>Definition Method</label>
+        <select id="defMethod">
+          <option value="count">Number of stretches</option>
+          <option value="length">Length per stretch (m)</option>
+        </select>
+        <div class="help-text">You can refine names after preview.</div>
+      </div>
+
+      <div>
+        <label>Value</label>
+        <div id="countWrap" style="display:flex;gap:8px;align-items:center">
+          <input id="countInput" type="number" step="1" min="1" value="5" style="max-width:200px">
+        </div>
+        <div id="lenWrap" style="display:none;gap:8px;align-items:center">
+          <input id="lenInput" type="number" step="1" min="1" value="200" style="max-width:200px">
+          <span class="help-text" style="margin:0">meters</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px">
+      <button class="btn" type="button" id="btnPreview">Preview stretches</button>
+      <span id="previewStatus" class="help-text" style="margin:0">—</span>
+    </div>
+
+    <hr style="margin:16px 0">
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
+      <div>
+        <strong>Preview</strong>
+        <div class="help-text">Edit names. Advanced: adjust chainage meters (continuous only).</div>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin:0">
+        <input type="checkbox" id="advancedToggle"> Advanced chainage edit
+      </label>
+    </div>
+
+    <div style="margin-top:10px;overflow:auto;border:1px solid rgba(255,255,255,0.08);border-radius:12px">
+      <table class="table" style="margin:0;min-width:920px">
+        <thead>
+          <tr>
+            <th style="width:90px">No</th>
+            <th style="width:260px">Stretch Name</th>
+            <th style="width:160px">Start Chainage</th>
+            <th style="width:160px">End Chainage</th>
+            <th style="width:140px">Length (m)</th>
+            <th style="width:180px">Advanced (m)</th>
+          </tr>
+        </thead>
+        <tbody id="segmentsBody">
+          {% if segments and segments|length > 0 %}
+            {% for s in segments %}
+              <tr>
+                <td><strong>{{ s.sequence_no }}</strong></td>
+                <td>
+                  <input class="seg-name" type="text" value="{{ s.stretch_name }}" style="width:100%">
+                </td>
+                <td class="seg-start">{{ s.start_chainage if s.start_chainage else '' }}</td>
+                <td class="seg-end">{{ s.end_chainage if s.end_chainage else '' }}</td>
+                <td class="seg-len">{{ s.length_m }}</td>
+                <td>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input class="seg-startm" type="number" step="1" min="0" value="{{ s.start_m }}" style="max-width:120px" disabled>
+                    <span class="help-text" style="margin:0">→</span>
+                    <input class="seg-endm" type="number" step="1" min="1" value="{{ s.end_m }}" style="max-width:120px" disabled>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="6" style="padding:16px;opacity:0.8">Click <b>Preview stretches</b> to generate a stretch table.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <input type="hidden" name="segments_json" id="segmentsJson" value="">
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <a class="btn" href="/projects/wizard/engineering?wid={{ wid }}">← Back</a>
+      <button class="btn btn-primary" type="submit" id="btnSave" disabled>Save & Continue → Preview</button>
+    </div>
+
+    <div class="help-text" style="margin-top:10px">Validation: continuous chainage, no overlap, and total length must match.</div>
+  </form>
+</div>
+
+<script>
+(function(){
+  const wid = {{ wid }};
+  const totalLength = document.getElementById('totalLength');
+  const lengthUnit = document.getElementById('lengthUnit');
+  const totalLengthM = document.getElementById('totalLengthM');
+  const defMethod = document.getElementById('defMethod');
+  const countWrap = document.getElementById('countWrap');
+  const lenWrap = document.getElementById('lenWrap');
+  const countInput = document.getElementById('countInput');
+  const lenInput = document.getElementById('lenInput');
+  const btnPreview = document.getElementById('btnPreview');
+  const previewStatus = document.getElementById('previewStatus');
+  const segmentsBody = document.getElementById('segmentsBody');
+  const segmentsJson = document.getElementById('segmentsJson');
+  const btnSave = document.getElementById('btnSave');
+  const advancedToggle = document.getElementById('advancedToggle');
+
+  function setStatus(msg, kind){
+    previewStatus.textContent = msg;
+    previewStatus.style.color = kind === 'error' ? '#fca5a5' : (kind === 'ok' ? '#86efac' : '');
+  }
+
+  function unitToMeters(v, unit){
+    const n = Number(String(v||'').trim());
+    if (!Number.isFinite(n) || n <= 0) return null;
+    if ((unit||'m').toLowerCase() === 'km') return Math.round(n * 1000);
+    return Math.round(n);
+  }
+
+  function toggleMethod(){
+    const m = (defMethod.value || 'count');
+    if (m === 'length') {
+      countWrap.style.display = 'none';
+      lenWrap.style.display = 'flex';
+    } else {
+      countWrap.style.display = 'flex';
+      lenWrap.style.display = 'none';
+    }
+  }
+  defMethod.addEventListener('change', toggleMethod);
+  toggleMethod();
+
+  function setAdvanced(enabled){
+    document.querySelectorAll('.seg-startm,.seg-endm').forEach(el => { el.disabled = !enabled; });
+  }
+  advancedToggle.addEventListener('change', () => setAdvanced(advancedToggle.checked));
+
+  function collectSegments(){
+    const rows = Array.from(segmentsBody.querySelectorAll('tr'));
+    const segs = [];
+    rows.forEach((tr, idx) => {
+      const name = tr.querySelector('.seg-name');
+      const startm = tr.querySelector('.seg-startm');
+      const endm = tr.querySelector('.seg-endm');
+      if (!name || !startm || !endm) return;
+      segs.push({
+        sequence_no: idx + 1,
+        stretch_code: `ST-${String(idx+1).padStart(3,'0')}`,
+        stretch_name: String(name.value||'').trim() || `Stretch ${idx+1}`,
+        start_m: Number(startm.value),
+        end_m: Number(endm.value),
+        length_m: Math.max(Number(endm.value) - Number(startm.value), 0)
+      });
+    });
+    return segs;
+  }
+
+  function renderSegments(segments){
+    segmentsBody.innerHTML = '';
+    segments.forEach((s) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${s.sequence_no}</strong></td>
+        <td><input class="seg-name" type="text" value="${String(s.stretch_name||'')}"></td>
+        <td class="seg-start">${String(s.start_chainage||'')}</td>
+        <td class="seg-end">${String(s.end_chainage||'')}</td>
+        <td class="seg-len">${Number(s.length_m||0)}</td>
+        <td>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="seg-startm" type="number" step="1" min="0" value="${Number(s.start_m||0)}" style="max-width:120px" ${advancedToggle.checked ? '' : 'disabled'}>
+            <span class="help-text" style="margin:0">→</span>
+            <input class="seg-endm" type="number" step="1" min="1" value="${Number(s.end_m||0)}" style="max-width:120px" ${advancedToggle.checked ? '' : 'disabled'}>
+          </div>
+        </td>
+      `;
+      segmentsBody.appendChild(tr);
+    });
+
+    btnSave.disabled = segments.length === 0;
+    segmentsJson.value = JSON.stringify(collectSegments());
+
+    segmentsBody.querySelectorAll('input').forEach(el => {
+      el.addEventListener('input', () => {
+        segmentsJson.value = JSON.stringify(collectSegments());
+      });
+    });
+  }
+
+  async function preview(){
+    const total_m = unitToMeters(totalLength.value, lengthUnit.value);
+    if (!total_m) {
+      setStatus('Enter total length first.', 'error');
+      return;
+    }
+
+    const fd = new FormData();
+    fd.set('wid', String(wid));
+    fd.set('total_length', String(totalLength.value));
+    fd.set('unit', String(lengthUnit.value));
+    fd.set('method', String(defMethod.value));
+    if ((defMethod.value||'count') === 'length') {
+      fd.set('stretch_length_m', String(lenInput.value||''));
+    } else {
+      fd.set('number_of_stretches', String(countInput.value||''));
+    }
+
+    setStatus('Generating…', '');
+    btnSave.disabled = true;
+
+    try {
+      const resp = await fetch('/projects/wizard/stretches/preview', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: fd
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data || data.ok !== true) {
+        throw new Error((data && data.error) ? data.error : 'Preview failed');
+      }
+
+      totalLengthM.value = String(data.total_length_m);
+      renderSegments(data.segments || []);
+      setStatus(`Preview ready: ${Number((data.segments||[]).length)} stretches`, 'ok');
+    } catch (e) {
+      setStatus(String(e && e.message ? e.message : e), 'error');
+    }
+  }
+
+  btnPreview.addEventListener('click', preview);
+
+  // If we have existing segments (from back), keep segments_json ready
+  if (segmentsBody.querySelectorAll('.seg-name').length > 0) {
+    btnSave.disabled = false;
+    segmentsJson.value = JSON.stringify(collectSegments());
+  }
+})();
+</script>
+
+{% endblock %}
