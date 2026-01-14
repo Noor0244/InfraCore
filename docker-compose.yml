@@ -1,0 +1,12 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Render sets PORT automatically; for local runs default to 10000
+      - PORT=${PORT:-10000}
+    ports:
+      - "${PORT:-10000}:${PORT:-10000}"
+    command: ["python", "main.py"]
+
