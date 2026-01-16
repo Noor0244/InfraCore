@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="page-title">Edit Stretches & Activities</h1>
+
+<div class="card card--page">
+<style>
+    .date-dual{display:flex;gap:8px;align-items:center}
+    .date-dual input[type="date"]{max-width:170px}
+    .stretch-card{border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;margin-top:12px;background:rgba(255,255,255,0.02)}
+    .stretch-header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .stretch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+    .activity-row{display:grid;grid-template-columns:minmax(180px,1fr) 200px 200px;gap:10px;align-items:center;margin-top:8px}
+    .material-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .material-chip{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.08);font-size:12px}
+</style>
+
+<form id="editStretchesForm" method="post" action="/projects/{{ project.id }}/stretches/update">
+    <input type="hidden" name="stretch_segments_json" id="stretch_segments_json">
+
+    <div class="stretch-card" id="stretchGenerator">
+        <div style="font-weight:600">Generate Stretches</div>
+        <div class="help-text">If no stretches exist, generate them here.</div>
+        <div class="stretch-grid" style="margin-top:8px">
+            <div>
+                <label>Total Road Length (km)</label>
+                <input type="number" id="gen_total_km" step="0.01" min="0" value="{{ project.road_length_km or 0 }}">
+            </div>
+            <div>
+                <label>Number of Stretches</label>
+                <input type="number" id="gen_count" min="1" step="1" value="5">
+            </div>
+            <div style="display:flex;align-items:flex-end">
+                <button type="button" class="btn-secondary" id="btnGenerate">Generate</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="stretchContainer"></div>
+
+    <div style="display:flex;gap:12px;margin-top:20px">
+        <button class="btn-primary" type="submit">Save Stretch Changes</button>
+        <a href="/projects/{{ project.id }}" class="btn-secondary">Cancel</a>
+    </div>
+</form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="stretches-data" type="application/json">{{ stretches_json | safe }}</script>
+<script>
+(function(){
+    const container = document.getElementById('stretchContainer');
+    const hiddenInput = document.getElementById('stretch_segments_json');
+    let stretches = [];
+
+    function ddmmyyyyToIso(v){
+        const s = String(v || '').trim();
+        if(!s) return '';
+        const parts = s.split('/');
+        if(parts.length !== 3) return '';
+        const [dd, mm, yyyy] = parts;
+        if(!dd || !mm || !yyyy) return '';
+        return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+    }
+
+    function isoToDdmmyyyy(v){
+        const s = String(v || '').trim();
+        if(!s) return '';
+        const parts = s.split('-');
+        if(parts.length !== 3) return '';
+        const [yyyy, mm, dd] = parts;
+        return `${dd.padStart(2,'0')}/${mm.padStart(2,'0')}/${yyyy}`;
+    }
+
+    function serialize(){
+        if(hiddenInput){
+            hiddenInput.value = JSON.stringify(stretches || []);
+        }
+    }
+
+    function render(){
+        if(!container) return;
+        container.innerHTML = '';
+        const gen = document.getElementById('stretchGenerator');
+        if(!(stretches || []).length){
+            if(gen) gen.style.display = 'block';
+            const empty = document.createElement('div');
+            empty.className = 'stretch-card';
+            empty.textContent = 'No stretches found. Use Generate Stretches above.';
+            container.appendChild(empty);
+            serialize();
+            return;
+        }
+        if(gen) gen.style.display = 'none';
+        (stretches || []).forEach((st, idx) => {
+            const card = document.createElement('div');
+            card.className = 'stretch-card';
+            const showDetails = (st._showDetails === true);
+            card.innerHTML = `
+                <div class="stretch-header">
+                    <div><strong>${st.stretch_name || ('Stretch ' + (idx+1))}</strong></div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button type="button" class="btn-secondary btn-small" data-kind="toggle-details" data-idx="${idx}">${showDetails ? 'Hide' : 'Show'}</button>
+                        <div style="opacity:0.75">${st.stretch_code || ''}</div>
+                    </div>
+                </div>
+                <div data-kind="details-body" data-idx="${idx}" style="display:${showDetails ? '' : 'none'}">
+                <div class="stretch-grid">
+                    <div>
+                        <label>Stretch Name</label>
+                        <input type="text" value="${st.stretch_name || ''}" data-kind="stretch-name" data-idx="${idx}">
+                    </div>
+                    <div>
+                        <label>Start Date</label>
+                        <div class="date-dual">
+                            <input type="text" value="${st.planned_start_date || ''}" placeholder="DD/MM/YYYY" data-kind="stretch-start" data-idx="${idx}">
+                            <input type="date" value="${ddmmyyyyToIso(st.planned_start_date || '')}" data-kind="stretch-start-picker" data-idx="${idx}">
+                        </div>
+                    </div>
+                    <div>
+                        <label>End Date</label>
+                        <div class="date-dual">
+                            <input type="text" value="${st.planned_end_date || ''}" placeholder="DD/MM/YYYY" data-kind="stretch-end" data-idx="${idx}">
+                            <input type="date" value="${ddmmyyyyToIso(st.planned_end_date || '')}" data-kind="stretch-end-picker" data-idx="${idx}">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top:12px">
+                    <div style="font-weight:600">Activities</div>
+                    <div class="help-text">Activity dates are clamped to stretch dates on save.</div>
+                    ${(st.activities || []).map((a, aidx) => `
+                        <div class="activity-row">
+                            <input type="text" value="${a.name || ''}" disabled>
+                            <div class="date-dual">
+                                <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-start" data-idx="${idx}" data-aidx="${aidx}">
+                                <input type="date" value="${ddmmyyyyToIso(a.planned_start_date || '')}" data-kind="act-start-picker" data-idx="${idx}" data-aidx="${aidx}">
+                            </div>
+                            <div class="date-dual">
+                                <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-end" data-idx="${idx}" data-aidx="${aidx}">
+                                <input type="date" value="${ddmmyyyyToIso(a.planned_end_date || '')}" data-kind="act-end-picker" data-idx="${idx}" data-aidx="${aidx}">
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div style="margin-top:12px">
+                    <div style="font-weight:600">Materials</div>
+                    <div class="help-text">Project planned materials available for this stretch.</div>
+                    ${(st.materials || []).length ? `
+                        <div class="material-list">
+                            ${(st.materials || []).map(m => `<span class="material-chip">${m.name || ''} (${m.unit || ''})</span>`).join('')}
+                        </div>
+                    ` : `<div class="help-text">No materials configured.</div>`}
+                </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+        serialize();
+    }
+
+    function handleInput(e){
+        const t = e.target;
+        if(!t) return;
+        const kind = t.getAttribute('data-kind');
+        const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+        if(idx < 0 || !stretches[idx]) return;
+
+        const st = stretches[idx];
+        const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+
+        if(kind === 'toggle-details'){
+            st._showDetails = !(st._showDetails === true);
+            render();
+            return;
+        }
+        if(kind === 'stretch-name') st.stretch_name = String(t.value || '').trim();
+        if(kind === 'stretch-start'){
+            st.planned_start_date = String(t.value || '').trim();
+            const picker = t.closest('.date-dual')?.querySelector('[data-kind="stretch-start-picker"]');
+            if(picker) picker.value = ddmmyyyyToIso(st.planned_start_date);
+        }
+        if(kind === 'stretch-end'){
+            st.planned_end_date = String(t.value || '').trim();
+            const picker = t.closest('.date-dual')?.querySelector('[data-kind="stretch-end-picker"]');
+            if(picker) picker.value = ddmmyyyyToIso(st.planned_end_date);
+        }
+        if(kind === 'stretch-start-picker'){
+            const dd = isoToDdmmyyyy(String(t.value || '').trim());
+            st.planned_start_date = dd;
+            const text = t.closest('.date-dual')?.querySelector('[data-kind="stretch-start"]');
+            if(text) text.value = dd;
+        }
+        if(kind === 'stretch-end-picker'){
+            const dd = isoToDdmmyyyy(String(t.value || '').trim());
+            st.planned_end_date = dd;
+            const text = t.closest('.date-dual')?.querySelector('[data-kind="stretch-end"]');
+            if(text) text.value = dd;
+        }
+
+        if(aidx >= 0 && st.activities && st.activities[aidx]){
+            const a = st.activities[aidx];
+            if(kind === 'act-start'){
+                a.planned_start_date = String(t.value || '').trim();
+                const picker = t.closest('.date-dual')?.querySelector('[data-kind="act-start-picker"]');
+                if(picker) picker.value = ddmmyyyyToIso(a.planned_start_date);
+            }
+            if(kind === 'act-end'){
+                a.planned_end_date = String(t.value || '').trim();
+                const picker = t.closest('.date-dual')?.querySelector('[data-kind="act-end-picker"]');
+                if(picker) picker.value = ddmmyyyyToIso(a.planned_end_date);
+            }
+            if(kind === 'act-start-picker'){
+                const dd = isoToDdmmyyyy(String(t.value || '').trim());
+                a.planned_start_date = dd;
+                const text = t.closest('.date-dual')?.querySelector('[data-kind="act-start"]');
+                if(text) text.value = dd;
+            }
+            if(kind === 'act-end-picker'){
+                const dd = isoToDdmmyyyy(String(t.value || '').trim());
+                a.planned_end_date = dd;
+                const text = t.closest('.date-dual')?.querySelector('[data-kind="act-end"]');
+                if(text) text.value = dd;
+            }
+        }
+        serialize();
+    }
+
+    try{
+        const raw = document.getElementById('stretches-data');
+        stretches = JSON.parse(raw.textContent || '[]') || [];
+    }catch(e){
+        stretches = [];
+    }
+
+    const btnGenerate = document.getElementById('btnGenerate');
+    if(btnGenerate){
+        btnGenerate.addEventListener('click', function(){
+            const totalKm = parseFloat(String(document.getElementById('gen_total_km')?.value || '0')) || 0;
+            const count = parseInt(String(document.getElementById('gen_count')?.value || '0'), 10) || 0;
+            if(totalKm <= 0 || count <= 0){
+                return;
+            }
+            const totalM = Math.round(totalKm * 1000);
+            const base = Math.floor(totalM / count);
+            let cursor = 0;
+            const startDate = "{{ project.planned_start_date.strftime('%d/%m/%Y') if project.planned_start_date else '' }}";
+            const endDate = "{{ project.planned_end_date.strftime('%d/%m/%Y') if project.planned_end_date else '' }}";
+
+            stretches = [];
+            for(let i=1;i<=count;i++){
+                const isLast = i === count;
+                const end = isLast ? totalM : (cursor + base);
+                stretches.push({
+                    id: null,
+                    sequence_no: i,
+                    stretch_code: `ST-${String(i).padStart(3,'0')}`,
+                    stretch_name: `Stretch ${i}`,
+                    start_m: cursor,
+                    end_m: end,
+                    length_m: Math.max(end - cursor, 1),
+                    planned_start_date: startDate,
+                    planned_end_date: endDate,
+                    activities: [],
+                });
+                cursor = end;
+            }
+            render();
+        });
+    }
+
+    render();
+    if(container){
+        container.addEventListener('input', handleInput);
+        container.addEventListener('change', handleInput);
+        container.addEventListener('click', function(e){
+            const t = e.target;
+            if(!t) return;
+            const kind = t.getAttribute('data-kind');
+            if(kind === 'toggle-details'){
+                handleInput(e);
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

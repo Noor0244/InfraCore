@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.models.road_preset import PresetActivity, PresetActivityMaterialMap, PresetMaterial, RoadPreset
 from app.services.project_wizard_service import create_wizard, get_state, update_state, deactivate
 from app.utils.flash import flash
+from app.utils.dates import parse_date_ddmmyyyy_or_iso
 
 logger = logging.getLogger(__name__)
 
@@ -436,6 +437,18 @@ def wizard_step4_stretches_get(request: Request, wid: int, db: Session = Depends
         flash(request, "Select engineering type and a preset first.", "warning")
         return RedirectResponse(f"/projects/wizard/engineering?wid={wid}", status_code=302)
 
+    def _safe_json_list(raw: str | None) -> list:
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+            return value if isinstance(value, list) else []
+        except Exception:
+            return []
+
+    activity_defs = _safe_json_list(data.get("activity_preset_defs_json"))
+    material_defs = _safe_json_list(data.get("material_preset_defs_json"))
+
     meta = _wizard_step_meta(data, step_key="stretches")
 
     return templates.TemplateResponse(
@@ -446,6 +459,8 @@ def wizard_step4_stretches_get(request: Request, wid: int, db: Session = Depends
             "wid": wid,
             "data": data,
             "segments": data.get("stretch_segments") or [],
+            "activity_defs": activity_defs,
+            "material_defs": material_defs,
             **meta,
         },
     )
@@ -537,6 +552,65 @@ async def wizard_step4_stretches_post(request: Request, db: Session = Depends(ge
             end_m = int(item.get("end_m"))
             if start_m < 0 or end_m <= start_m:
                 raise ValueError("Invalid chainage range")
+
+            ps_raw = item.get("planned_start_date")
+            pe_raw = item.get("planned_end_date")
+            if (ps_raw is None) or (str(ps_raw).strip() == ""):
+                raise ValueError("Each stretch must have planned start date")
+            if (pe_raw is None) or (str(pe_raw).strip() == ""):
+                raise ValueError("Each stretch must have planned end date")
+
+            try:
+                seg_planned_start = parse_date_ddmmyyyy_or_iso(str(ps_raw))
+                seg_planned_end = parse_date_ddmmyyyy_or_iso(str(pe_raw))
+            except Exception:
+                raise ValueError("Invalid stretch planned dates. Use DD/MM/YYYY.")
+
+            if seg_planned_end < seg_planned_start:
+                raise ValueError("Stretch planned end date must be after start date")
+
+            seg_acts_raw = item.get("activities") or []
+            seg_mats_raw = item.get("materials") or []
+
+            seg_acts = [a for a in (seg_acts_raw or []) if isinstance(a, dict) and str(a.get("name") or "").strip()]
+            seg_mats = [m for m in (seg_mats_raw or []) if isinstance(m, dict) and str(m.get("name") or "").strip()]
+
+            if not seg_acts:
+                raise ValueError("Each stretch must have at least one activity")
+            if not seg_mats:
+                raise ValueError("Each stretch must have at least one material")
+
+            active_count = 0
+            for a in seg_acts:
+                include = a.get("include")
+                if include is None:
+                    include = a.get("enabled")
+                include_b = bool(include) if include is not None else True
+                if include_b:
+                    active_count += 1
+
+                a_ps_raw = a.get("planned_start_date") or seg_planned_start
+                a_pe_raw = a.get("planned_end_date") or seg_planned_end
+                try:
+                    a_ps = a_ps_raw if hasattr(a_ps_raw, "strftime") else parse_date_ddmmyyyy_or_iso(str(a_ps_raw))
+                    a_pe = a_pe_raw if hasattr(a_pe_raw, "strftime") else parse_date_ddmmyyyy_or_iso(str(a_pe_raw))
+                except Exception:
+                    raise ValueError("Invalid activity dates. Use DD/MM/YYYY.")
+
+                if a_pe < a_ps:
+                    raise ValueError("Activity end date must be after start date")
+                if a_ps < seg_planned_start or a_pe > seg_planned_end:
+                    raise ValueError("Activity dates must fall within stretch dates")
+
+            if active_count <= 0:
+                raise ValueError("Each stretch must have at least one activity")
+
+            for m in seg_mats:
+                qty_raw = m.get("quantity")
+                if qty_raw is None:
+                    qty_raw = m.get("planned_quantity")
+                if qty_raw is None or str(qty_raw).strip() == "":
+                    raise ValueError("All material quantities must be filled")
             segments.append({
                 "sequence_no": int(item.get("sequence_no") or 0) or (len(segments) + 1),
                 "stretch_code": str(item.get("stretch_code") or f"ST-{len(segments)+1:03d}"),
@@ -544,6 +618,10 @@ async def wizard_step4_stretches_post(request: Request, db: Session = Depends(ge
                 "start_m": start_m,
                 "end_m": end_m,
                 "length_m": int(end_m - start_m),
+                "planned_start_date": seg_planned_start,
+                "planned_end_date": seg_planned_end,
+                "activities": seg_acts_raw,
+                "materials": seg_mats_raw,
             })
 
         segments = sorted(segments, key=lambda s: int(s.get("sequence_no") or 0))

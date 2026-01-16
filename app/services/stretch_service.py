@@ -204,7 +204,14 @@ def compute_stretch_materials(project_id: int, *, overwrite_existing: bool = Fal
             return 0
 
         # Map of material_id -> PlannedMaterial.id for this project
-        planned = db.query(PlannedMaterial).filter(PlannedMaterial.project_id == int(project_id)).all()
+        planned = (
+            db.query(PlannedMaterial)
+            .filter(
+                PlannedMaterial.project_id == int(project_id),
+                PlannedMaterial.stretch_id == None,  # noqa: E711
+            )
+            .all()
+        )
         planned_by_material_id = {int(pm.material_id): int(pm.id) for pm in planned}
 
         # Optional per-stretch exclusions

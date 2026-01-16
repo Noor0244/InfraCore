@@ -1,0 +1,1173 @@
+{% set fallback_project_types = ["Road", "Bridge", "Flyover", "Building", "Utility / Pipeline"] %}
+{% set fallback_legacy_project_types = ["Residential", "Commercial", "Industrial", "Utility", "Other"] %}
+{% set fallback_road_categories = ["Expressway", "National Highway (NH)", "State Highway (SH)", "Major District Road (MDR)", "Other District Road (ODR)", "Village / Rural Road (VR)", "Urban Road", "Service Road"] %}
+{% set project_types = classification_metadata.get('project_types', []) %}
+{% set legacy_project_types = classification_metadata.get('legacy_project_types', []) %}
+{% set road_categories = classification_metadata.get('road_categories', []) %}
+{% if not project_types %}{% set project_types = fallback_project_types %}{% endif %}
+{% if not legacy_project_types %}{% set legacy_project_types = fallback_legacy_project_types %}{% endif %}
+{% if not road_categories %}{% set road_categories = fallback_road_categories %}{% endif %}
+
+<h1 class="page-title">Create New Project</h1>
+
+<div class="help-text" style="margin:-6px 0 14px;opacity:0.9">
+    Prefer a guided flow? <a href="/projects/wizard/start">Start the Project Wizard</a>
+</div>
+
+<div class="card card--page">
+
+<style>
+    .form-errors{display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)}
+    .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
+    .date-dual{display:flex;gap:8px;align-items:center}
+    .date-dual input[type="date"]{max-width:170px}
+</style>
+
+<form id="createProjectForm" method="post" action="/projects/create">
+
+    <div id="formErrors" class="form-errors"></div>
+
+    <!-- ================= BASIC INFO ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Basic Information</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Project Name <span class="required">*</span></label>
+                <input type="text" name="name" required>
+                <div class="help-text">Use a concise, descriptive name (e.g. NH-66 Upgrade)</div>
+            </div>
+
+            <div>
+                <label>Project Code / Package No</label>
+                <input type="text" name="project_code">
+            </div>
+
+            <div>
+                <label>Client / Authority</label>
+                <input type="text" name="client_authority">
+            </div>
+
+            <div>
+                <label>Contractor</label>
+                <input type="text" name="contractor">
+            </div>
+
+            <div>
+                <label>Consultant / PMC</label>
+                <input type="text" name="consultant_pmc">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= ROLE BASED USER ================= -->
+    <section class="form-section" id="project_team_section">
+        <h3 class="section-title">Role Based User</h3>
+        <div class="help-text">Assign users to this project and set their role.</div>
+
+        <div class="form-grid">
+            <div>
+                <label>User</label>
+                <select id="project_team_user">
+                    <option value="">Select User</option>
+                    {% for u in (all_users or []) %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>Role in Project</label>
+                <select id="project_team_role">
+                    <option value="manager">Manager</option>
+                    <option value="member" selected>Member</option>
+                    <option value="viewer">Viewer</option>
+                    {% if user and user["role"] == "admin" %}
+                        <option value="admin">Admin</option>
+                    {% endif %}
+                </select>
+            </div>
+
+            <div style="display:flex;align-items:flex-end">
+                <button type="button" class="btn-secondary" id="add_project_team">Add User</button>
+            </div>
+        </div>
+
+        <div id="project_team_list" style="margin-top:12px"></div>
+    </section>
+
+    <hr>
+
+    <!-- ================= PROJECT TIMELINE ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Project Timeline</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Project Start Date <span class="required">*</span></label>
+                <div class="date-dual">
+                    <input type="text" name="planned_start_date" id="planned_start_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" placeholder="DD/MM/YYYY">
+                    <input type="date" id="planned_start_date_picker">
+                </div>
+                <div class="help-text">Use DD/MM/YYYY or pick from calendar.</div>
+            </div>
+
+            <div>
+                <label>Project End Date <span class="required">*</span></label>
+                <div class="date-dual">
+                    <input type="text" name="planned_end_date" id="planned_end_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" placeholder="DD/MM/YYYY">
+                    <input type="date" id="planned_end_date_picker">
+                </div>
+                <div class="help-text">End date must be after start date.</div>
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= ROAD SETUP ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Project Classification & Road Details</h3>
+
+        <div class="form-grid">
+            <div style="min-width:260px">
+                <label>Project Type <span class="required">*</span></label>
+                <select name="project_type" id="project_type" required>
+                    <option value="">-- Select project type --</option>
+                    {% for pt in (project_types + legacy_project_types) %}
+                        <option value="{{ pt }}">{{ pt }}</option>
+                    {% endfor %}
+                </select>
+                <div class="help-text">Road projects must also fill Road Category and Road Engineering Type below.</div>
+            </div>
+        </div>
+
+        <div class="form-grid" id="road_fields_block" style="margin-top:10px;display:none">
+            <div style="min-width:260px">
+                <label>Road Category (required only for Road)</label>
+                <select name="road_category" id="road_category">
+                    <option value="">-- Select road category --</option>
+                    {% for rc in road_categories %}
+                        <option value="{{ rc }}">{{ rc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="min-width:260px">
+                <label>Road Engineering Type (required only for Road)</label>
+                <select name="road_engineering_type" id="road_engineering_type">
+                    <option value="">-- Select engineering type --</option>
+                    <option value="Flexible">Flexible</option>
+                    <option value="Rigid">Rigid</option>
+                    <option value="Overlay">Overlay</option>
+                    <option value="Urban">Urban</option>
+                    <option value="Rural">Rural</option>
+                    <option value="Composite">Composite</option>
+                </select>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= STRETCH SYSTEM (ROAD ONLY) ================= -->
+    <section class="form-section" id="stretch_system_block" style="display:none">
+        <h3 class="section-title">Stretch System (Road Projects)</h3>
+        <div class="help-text">Mandatory for Road projects. Stretches remain editable after creation.</div>
+
+        <input type="hidden" name="stretch_enabled" id="stretch_enabled" value="1">
+
+        <div class="form-grid" style="margin-top:10px">
+            <div>
+                <label>Total Road Length (km) <span class="required">*</span></label>
+                <input type="number" id="stretch_total_length_km" step="0.01" min="0" placeholder="e.g. 12.50">
+                <input type="hidden" name="road_length_km" id="road_length_km">
+            </div>
+            <div>
+                <label>Total Number of Stretches <span class="required">*</span></label>
+                <input type="number" id="stretch_number_of_stretches" min="1" step="1" value="5">
+            </div>
+            <div style="display:flex;align-items:flex-end">
+                <button type="button" class="btn-secondary" id="btnGenerateStretches">Generate stretches</button>
+            </div>
+        </div>
+
+        <input type="hidden" name="stretch_segments_json" id="stretch_segments_json">
+
+        <div id="stretch_editor" style="margin-top:14px;display:none">
+            <div class="help-text">Edit stretch length to update chainage. Total length must equal the road length.</div>
+
+            <div style="overflow:auto;border:1px solid rgba(255,255,255,0.08);border-radius:12px;margin-top:10px">
+                <table class="table" style="margin:0;min-width:920px">
+                    <thead>
+                        <tr>
+                            <th style="width:80px">No</th>
+                            <th style="width:220px">Stretch Name</th>
+                            <th style="width:140px">Start Chainage</th>
+                            <th style="width:140px">End Chainage</th>
+                            <th style="width:120px">Length (m)</th>
+                            <th style="width:170px">Start Date</th>
+                            <th style="width:170px">End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stretchSegmentList"></tbody>
+                </table>
+            </div>
+
+            <div id="stretchDetailsList" style="margin-top:12px"></div>
+        </div>
+        <div style="margin-top:16px">
+            <h4 class="section-title" style="font-size:14px">Road Details (fill for Road projects)</h4>
+
+        <div class="form-grid">
+            <div>
+                <label>Lanes</label>
+                <input type="number" name="lanes" min="1">
+            </div>
+
+            <div>
+                <label>Road Width (m)</label>
+                <input type="number" step="0.01" name="road_width">
+            </div>
+
+            <div>
+                <label>Carriageway Width (m)</label>
+                <input type="number" step="0.01" name="carriageway_width">
+            </div>
+
+            <div>
+                <label>Shoulder Type</label>
+                <input type="text" name="shoulder_type">
+            </div>
+
+            <div>
+                <label>Median Type</label>
+                <input type="text" name="median_type">
+            </div>
+        </div>
+
+        <div style="margin-top:16px">
+            <h4 class="section-title" style="font-size:14px">Road Metadata (optional)</h4>
+
+        <div class="form-grid">
+            <div>
+                <label>Road Name</label>
+                <input type="text" name="road_name">
+            </div>
+
+            <div>
+                <label>Lane Configuration</label>
+                <input type="text" name="lane_configuration" placeholder="e.g. 2L">
+            </div>
+
+            <div>
+                <label>Pavement Type</label>
+                <select name="road_pavement_type">
+                    <option value="">-- Select --</option>
+                    <option value="Flexible">Flexible</option>
+                    <option value="Rigid">Rigid</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Terrain Type</label>
+                <select name="terrain_type">
+                    <option value="">-- Select --</option>
+                    <option value="Plain">Plain</option>
+                    <option value="Rolling">Rolling</option>
+                    <option value="Hilly">Hilly</option>
+                </select>
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= CONCRETE DETAILS ================= -->
+    <section class="form-section" id="concrete_details_block" style="display:none">
+        <h3 class="section-title">Concrete Pavement Details (optional)</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Concrete Pavement Type</label>
+                <select name="pavement_type">
+                    <option value="">-- Select --</option>
+                    <option value="PQC">PQC</option>
+                    <option value="RCC">RCC</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Slab Thickness (mm)</label>
+                <input type="number" name="slab_thickness_mm" min="100" step="1">
+            </div>
+
+            <div>
+                <label>Grade of Concrete</label>
+                <select name="grade_of_concrete">
+                    <option value="">-- Select grade --</option>
+                    <option value="M30">M30</option>
+                    <option value="M35">M35</option>
+                    <option value="M40">M40</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Joint Spacing (m)</label>
+                <input type="number" name="joint_spacing_m" min="3" step="0.1">
+            </div>
+
+            <div>
+                <label>Dowel Diameter (mm)</label>
+                <input type="number" name="dowel_diameter_mm" min="16" step="1">
+            </div>
+
+            <div>
+                <label>Tie Bar Diameter (mm)</label>
+                <input type="number" name="tie_bar_diameter_mm" min="12" step="1">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= LOCATION ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Location</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Country <span class="required">*</span></label>
+                <input type="text" name="country" value="India" required>
+            </div>
+
+            <div>
+                <label>State / Province</label>
+                <input type="text" name="state">
+            </div>
+
+            <div>
+                <label>District</label>
+                <input type="text" name="district">
+            </div>
+
+            <div>
+                <label>City <span class="required">*</span></label>
+                <input type="text" name="city" required>
+            </div>
+        </div>
+
+        <div class="form-grid" style="margin-top:12px">
+            <div>
+                <label>Start Chainage</label>
+                <input type="text" name="chainage_start">
+            </div>
+
+            <div>
+                <label>End Chainage</label>
+                <input type="text" name="chainage_end">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= HIDDEN PAYLOADS ================= -->
+    <input type="hidden" name="activity_presets_json">
+    <input type="hidden" name="activity_preset_defs_json">
+    <input type="hidden" name="material_presets_json">
+    <input type="hidden" name="material_preset_defs_json">
+    <input type="hidden" name="project_team_json">
+    <input type="hidden" name="road_extras_json">
+
+    <!-- ================= ACTIONS ================= -->
+    <div style="display:flex;gap:12px;margin-top:20px">
+        <button class="btn-primary" type="submit">Create Project</button>
+        <a href="/dashboard" class="btn-secondary">Cancel</a>
+    </div>
+
+    <script>
+    (function(){
+        const allowAdminRole = {{ 'true' if user and user["role"] == "admin" else 'false' }};
+        const projectType = document.querySelector('select[name="project_type"]');
+        const roadCategory = document.querySelector('select[name="road_category"]');
+        const roadEngineering = document.querySelector('select[name="road_engineering_type"]');
+        const stretchBlock = document.getElementById('stretch_system_block');
+        const roadFieldsBlock = document.getElementById('road_fields_block');
+        const concreteBlock = document.getElementById('concrete_details_block');
+        const stretchEnabled = document.getElementById('stretch_enabled');
+        const totalLenKm = document.getElementById('stretch_total_length_km');
+        const stretchCount = document.getElementById('stretch_number_of_stretches');
+        const btnGenerate = document.getElementById('btnGenerateStretches');
+        const stretchEditor = document.getElementById('stretch_editor');
+        const stretchList = document.getElementById('stretchSegmentList');
+        const stretchDetails = document.getElementById('stretchDetailsList');
+        const segmentsJson = document.getElementById('stretch_segments_json');
+        const roadLengthKm = document.querySelector('input[name="road_length_km"]');
+
+        const startText = document.getElementById('planned_start_date_text');
+        const endText = document.getElementById('planned_end_date_text');
+        const startPicker = document.getElementById('planned_start_date_picker');
+        const endPicker = document.getElementById('planned_end_date_picker');
+
+        const activityDefsInput = document.querySelector('input[name="activity_preset_defs_json"]');
+        const materialDefsInput = document.querySelector('input[name="material_preset_defs_json"]');
+        const teamInput = document.querySelector('input[name="project_team_json"]');
+
+        const teamUserSelect = document.getElementById('project_team_user');
+        const teamRoleSelect = document.getElementById('project_team_role');
+        const teamList = document.getElementById('project_team_list');
+        const teamAddBtn = document.getElementById('add_project_team');
+
+        let presetData = { activities: [], activity_preset_defs: [], materials: [] };
+        let segments = [];
+        let teamMembers = [];
+
+        function roleOptions(selected){
+            const sel = String(selected || 'member').toLowerCase();
+            let opts = '';
+            const base = [
+                { value: 'manager', label: 'Manager' },
+                { value: 'member', label: 'Member' },
+                { value: 'viewer', label: 'Viewer' },
+            ];
+            if(allowAdminRole){
+                base.unshift({ value: 'admin', label: 'Admin' });
+            }
+            opts = base.map(function(r){
+                const isSel = r.value === sel ? ' selected' : '';
+                return '<option value="' + r.value + '"' + isSel + '>' + r.label + '</option>';
+            }).join('');
+            return opts;
+        }
+
+        function renderTeamList(){
+            if(!teamList){
+                return;
+            }
+            if(!teamMembers.length){
+                teamList.innerHTML = '<div class="help-text">No users assigned yet.</div>';
+            } else {
+                const rows = teamMembers.map(function(m, idx){
+                    const role = String(m.role_in_project || '').toUpperCase();
+                    return (
+                        '<tr>' +
+                            '<td>' + String(m.username || 'User') + '</td>' +
+                            '<td>' +
+                                '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+                                    '<span class="badge badge-info">' + role + '</span>' +
+                                    '<select data-action="change-role" data-idx="' + idx + '">' + roleOptions(m.role_in_project) + '</select>' +
+                                '</div>' +
+                            '</td>' +
+                            '<td><button type="button" class="btn-danger" data-action="remove-team" data-idx="' + idx + '">Remove</button></td>' +
+                        '</tr>'
+                    );
+                }).join('');
+                teamList.innerHTML = (
+                    '<table class="table" style="margin:0">' +
+                        '<thead><tr><th>User</th><th>Role</th><th>Action</th></tr></thead>' +
+                        '<tbody>' + rows + '</tbody>' +
+                    '</table>'
+                );
+            }
+            if(teamInput){
+                teamInput.value = JSON.stringify(teamMembers.map(function(m){
+                    return { user_id: m.user_id, role_in_project: m.role_in_project };
+                }));
+            }
+        }
+
+        function addTeamMember(){
+            if(!teamUserSelect || !teamRoleSelect){
+                return;
+            }
+            const userId = parseInt(teamUserSelect.value || '0', 10);
+            if(!userId){
+                return;
+            }
+            const role = String(teamRoleSelect.value || 'member').toLowerCase();
+            const username = teamUserSelect.options[teamUserSelect.selectedIndex].text || 'User';
+
+            const existing = teamMembers.find(function(m){ return m.user_id === userId; });
+            if(existing){
+                existing.role_in_project = role;
+                existing.username = username;
+            } else {
+                teamMembers.push({ user_id: userId, role_in_project: role, username: username });
+            }
+            renderTeamList();
+        }
+
+        function ddmmyyyyToIso(v){
+            const s = String(v || '').trim();
+            if(!s) return '';
+            const parts = s.split('/');
+            if(parts.length !== 3) return '';
+            const [dd, mm, yyyy] = parts;
+            if(!dd || !mm || !yyyy) return '';
+            return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+        }
+
+        function isoToDdmmyyyy(v){
+            const s = String(v || '').trim();
+            if(!s) return '';
+            const parts = s.split('-');
+            if(parts.length !== 3) return '';
+            const [yyyy, mm, dd] = parts;
+            return `${dd.padStart(2,'0')}/${mm.padStart(2,'0')}/${yyyy}`;
+        }
+
+        function chainageFromMeters(m){
+            const km = Math.floor(m / 1000);
+            const mm = String(m % 1000).padStart(3, '0');
+            return `${km}+${mm}`;
+        }
+
+        function isRoad(){
+            return projectType && projectType.value === 'Road';
+        }
+
+        function toggleRoadFields(){
+            if(!roadFieldsBlock) return;
+            if(isRoad()){
+                roadFieldsBlock.style.display = '';
+                if(roadCategory) roadCategory.required = true;
+                if(roadEngineering) roadEngineering.required = true;
+            } else {
+                roadFieldsBlock.style.display = 'none';
+                if(roadCategory){
+                    roadCategory.required = false;
+                    roadCategory.value = '';
+                }
+                if(roadEngineering){
+                    roadEngineering.required = false;
+                    roadEngineering.value = '';
+                }
+                if(concreteBlock){
+                    concreteBlock.style.display = 'none';
+                }
+            }
+        }
+
+        function toggleConcreteBlock(){
+            if(!concreteBlock) return;
+            const et = roadEngineering ? String(roadEngineering.value || '').trim() : '';
+            if(isRoad() && et === 'Rigid'){
+                concreteBlock.style.display = '';
+            } else {
+                concreteBlock.style.display = 'none';
+            }
+        }
+
+        function syncTimelineInputs(){
+            if(startPicker && startText){
+                startPicker.value = ddmmyyyyToIso(startText.value);
+            }
+            if(endPicker && endText){
+                endPicker.value = ddmmyyyyToIso(endText.value);
+            }
+        }
+
+        if(startPicker && startText){
+            startPicker.addEventListener('change', function(){
+                startText.value = isoToDdmmyyyy(startPicker.value);
+                updateStretchDatesFromProject();
+            });
+        }
+        if(endPicker && endText){
+            endPicker.addEventListener('change', function(){
+                endText.value = isoToDdmmyyyy(endPicker.value);
+                updateStretchDatesFromProject();
+            });
+        }
+        if(startText){
+            startText.addEventListener('change', syncTimelineInputs);
+        }
+        if(endText){
+            endText.addEventListener('change', syncTimelineInputs);
+        }
+
+        if(teamAddBtn){
+            teamAddBtn.addEventListener('click', addTeamMember);
+        }
+
+        if(teamList){
+            teamList.addEventListener('click', function(e){
+                const target = e.target;
+                if(!target || !target.getAttribute){
+                    return;
+                }
+                if(target.getAttribute('data-action') === 'remove-team'){
+                    const idx = parseInt(target.getAttribute('data-idx') || '-1', 10);
+                    if(idx >= 0){
+                        teamMembers.splice(idx, 1);
+                        renderTeamList();
+                    }
+                }
+            });
+
+            teamList.addEventListener('change', function(e){
+                const target = e.target;
+                if(!target || !target.getAttribute){
+                    return;
+                }
+                if(target.getAttribute('data-action') === 'change-role'){
+                    const idx = parseInt(target.getAttribute('data-idx') || '-1', 10);
+                    const role = String(target.value || 'member').toLowerCase();
+                    if(idx >= 0 && teamMembers[idx]){
+                        teamMembers[idx].role_in_project = role;
+                        renderTeamList();
+                    }
+                }
+            });
+        }
+
+        renderTeamList();
+
+        function showStretchBlock(){
+            if(!stretchBlock) return;
+            if(isRoad()){
+                stretchBlock.style.display = '';
+                if(stretchEnabled) stretchEnabled.value = '1';
+            } else {
+                stretchBlock.style.display = 'none';
+                if(stretchEnabled) stretchEnabled.value = '';
+                segments = [];
+                renderSegments();
+            }
+        }
+
+        function syncTotalLength(){
+            if(roadLengthKm && totalLenKm){
+                roadLengthKm.value = String(totalLenKm.value || '').trim();
+            }
+        }
+
+        async function loadRoadPresets(){
+            if(!isRoad()) return;
+            const rc = (roadCategory && roadCategory.value) ? roadCategory.value : '';
+            const et = (roadEngineering && roadEngineering.value) ? roadEngineering.value : '';
+            if(!rc || !et) return;
+            try{
+                const url = `/projects/road-presets?road_category=${encodeURIComponent(rc)}&engineering_type=${encodeURIComponent(et)}`;
+                const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                const data = await resp.json();
+                if(data){
+                    presetData.activities = Array.isArray(data.activities) ? data.activities : [];
+                    presetData.activity_preset_defs = Array.isArray(data.activity_preset_defs) ? data.activity_preset_defs : [];
+                    presetData.materials = Array.isArray(data.materials) ? data.materials : [];
+                    if(activityDefsInput){
+                        activityDefsInput.value = JSON.stringify(presetData.activity_preset_defs || []);
+                    }
+                    if(materialDefsInput){
+                        materialDefsInput.value = JSON.stringify(presetData.materials || []);
+                    }
+                    if(segments && segments.length){
+                        // Refresh activity/material lists after preset load
+                        segments = segments.map(s => ({
+                            ...s,
+                            _showDetails: s._showDetails === true,
+                            activities: baseActivities(),
+                            materials: baseMaterials(),
+                        }));
+                        renderSegments();
+                    }
+                }
+            }catch(e){
+                presetData = { activities: [], activity_preset_defs: [], materials: [] };
+            }
+        }
+
+        function baseActivities(){
+            const defs = Array.isArray(presetData.activity_preset_defs) ? presetData.activity_preset_defs : [];
+            if(defs.length){
+                return defs
+                    .filter(d => String(d.activity_scope || d.scope || '').toUpperCase() !== 'COMMON')
+                    .map(d => ({
+                        name: String(d.name || '').trim(),
+                        include: true,
+                        planned_start_date: startText ? String(startText.value || '').trim() : '',
+                        planned_end_date: endText ? String(endText.value || '').trim() : '',
+                        start_time: String(d.start_time || '').trim(),
+                        end_time: String(d.end_time || '').trim(),
+                        planned_duration_hours: null,
+                    }))
+                    .filter(a => !!a.name);
+            }
+            return (Array.isArray(presetData.activities) ? presetData.activities : [])
+                .map(n => ({
+                    name: String(n || '').trim(),
+                    include: true,
+                    planned_start_date: startText ? String(startText.value || '').trim() : '',
+                    planned_end_date: endText ? String(endText.value || '').trim() : '',
+                    start_time: '',
+                    end_time: '',
+                    planned_duration_hours: null,
+                }))
+                .filter(a => !!a.name);
+        }
+
+        function baseMaterials(){
+            return (Array.isArray(presetData.materials) ? presetData.materials : [])
+                .map(m => ({
+                    name: String(m.name || '').trim(),
+                    unit: String(m.default_unit || m.unit || 'unit').trim() || 'unit',
+                    include: true,
+                    quantity: '',
+                }))
+                .filter(m => !!m.name);
+        }
+
+        function updateStretchDatesFromProject(){
+            segments.forEach(seg => {
+                if(!seg._manual_start){
+                    seg.planned_start_date = startText ? String(startText.value || '').trim() : '';
+                }
+                if(!seg._manual_end){
+                    seg.planned_end_date = endText ? String(endText.value || '').trim() : '';
+                }
+                syncActivitiesToStretch(seg, true);
+            });
+            renderSegments();
+        }
+
+        function syncActivitiesToStretch(seg, forceAll){
+            if(!seg) return;
+            const sStart = String(seg.planned_start_date || '').trim();
+            const sEnd = String(seg.planned_end_date || '').trim();
+            (seg.activities || []).forEach(a => {
+                if(forceAll || !a.planned_start_date) a.planned_start_date = sStart;
+                if(forceAll || !a.planned_end_date) a.planned_end_date = sEnd;
+
+                // Clamp activity dates to stretch window if both are set
+                if(sStart && a.planned_start_date && a.planned_start_date < sStart){
+                    a.planned_start_date = sStart;
+                }
+                if(sEnd && a.planned_end_date && a.planned_end_date > sEnd){
+                    a.planned_end_date = sEnd;
+                }
+                // Ensure start <= end
+                if(a.planned_start_date && a.planned_end_date && a.planned_start_date > a.planned_end_date){
+                    a.planned_end_date = a.planned_start_date;
+                }
+            });
+        }
+
+        function computeHours(a){
+            const sd = ddmmyyyyToIso(a.planned_start_date || '');
+            const ed = ddmmyyyyToIso(a.planned_end_date || '');
+            if(!sd || !ed) return null;
+            const st = a.start_time || '00:00';
+            const et = a.end_time || '00:00';
+            const start = new Date(`${sd}T${st}:00`);
+            const end = new Date(`${ed}T${et}:00`);
+            if(isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+            const diff = (end.getTime() - start.getTime()) / 3600000;
+            return diff >= 0 ? Math.round(diff * 100) / 100 : null;
+        }
+
+        function normalizeSegmentsTotal(){
+            if(!segments.length || !totalLenKm) return;
+            const totalKm = parseFloat(String(totalLenKm.value || '0')) || 0;
+            if(totalKm <= 0) return;
+            const totalM = Math.round(totalKm * 1000);
+
+            segments.forEach(s => {
+                const len = parseInt(String(s.length_m || '0'), 10) || 1;
+                s.length_m = Math.max(1, len);
+            });
+
+            const lastIdx = segments.length - 1;
+            const sumAll = segments.reduce((acc, s) => acc + (parseInt(String(s.length_m || '0'), 10) || 0), 0);
+            if(sumAll !== totalM){
+                const sumExceptLast = sumAll - segments[lastIdx].length_m;
+                let newLast = totalM - sumExceptLast;
+                if(newLast < 1){
+                    // Enforce at least 1m per stretch
+                    segments.forEach((s, idx) => { s.length_m = (idx === lastIdx ? 1 : 1); });
+                    newLast = Math.max(1, totalM - (segments.length - 1));
+                    segments[lastIdx].length_m = newLast;
+                } else {
+                    segments[lastIdx].length_m = newLast;
+                }
+            }
+
+            let cursor = 0;
+            segments.forEach(s => {
+                s.start_m = cursor;
+                s.end_m = cursor + s.length_m;
+                cursor = s.end_m;
+            });
+        }
+
+        function refreshStretchChainageUI(){
+            if(!stretchList) return;
+            const active = document.activeElement;
+            segments.forEach((seg, idx) => {
+                const startEl = stretchList.querySelector(`[data-kind="chainage-start"][data-idx="${idx}"]`);
+                const endEl = stretchList.querySelector(`[data-kind="chainage-end"][data-idx="${idx}"]`);
+                if(startEl) startEl.textContent = chainageFromMeters(seg.start_m);
+                if(endEl) endEl.textContent = chainageFromMeters(seg.end_m);
+
+                const lenInput = stretchList.querySelector(`input[data-kind="stretch-length"][data-idx="${idx}"]`);
+                if(lenInput && lenInput !== active){
+                    lenInput.value = String(seg.length_m);
+                }
+            });
+        }
+
+        function generateSegments(){
+            const totalKm = parseFloat(String(totalLenKm && totalLenKm.value || '0')) || 0;
+            const count = parseInt(String(stretchCount && stretchCount.value || '0'), 10) || 0;
+            if(totalKm <= 0 || count <= 0) return;
+            const totalM = Math.round(totalKm * 1000);
+            const base = Math.floor(totalM / count);
+            let cursor = 0;
+            segments = [];
+            for(let i=1;i<=count;i++){
+                const isLast = i === count;
+                const end = isLast ? totalM : (cursor + base);
+                segments.push({
+                    sequence_no: i,
+                    stretch_code: `ST-${String(i).padStart(3,'0')}`,
+                    stretch_name: `Stretch ${i}`,
+                    start_m: cursor,
+                    end_m: end,
+                    length_m: Math.max(end - cursor, 1),
+                    planned_start_date: startText ? String(startText.value || '').trim() : '',
+                    planned_end_date: endText ? String(endText.value || '').trim() : '',
+                    _manual_start: false,
+                    _manual_end: false,
+                    _showDetails: false,
+                    activities: baseActivities(),
+                    materials: baseMaterials(),
+                });
+                cursor = end;
+            }
+        }
+
+        function serializeSegments(){
+            if(!segmentsJson) return;
+            const payload = segments.map(seg => ({
+                sequence_no: seg.sequence_no,
+                stretch_code: seg.stretch_code,
+                stretch_name: seg.stretch_name,
+                start_m: seg.start_m,
+                end_m: seg.end_m,
+                length_m: seg.length_m,
+                planned_start_date: seg.planned_start_date,
+                planned_end_date: seg.planned_end_date,
+                activities: (seg.activities || []).map(a => ({
+                    name: a.name,
+                    include: !!a.include,
+                    planned_start_date: a.planned_start_date,
+                    planned_end_date: a.planned_end_date,
+                    start_time: a.start_time || null,
+                    end_time: a.end_time || null,
+                    planned_duration_hours: a.planned_duration_hours,
+                })),
+                materials: (seg.materials || []).map(m => ({
+                    name: m.name,
+                    include: !!m.include,
+                    quantity: m.quantity,
+                })),
+            }));
+            segmentsJson.value = JSON.stringify(payload);
+        }
+
+        function renderSegments(){
+            if(!stretchEditor || !stretchList || !stretchDetails) return;
+            stretchList.innerHTML = '';
+            stretchDetails.innerHTML = '';
+            if(!segments.length){
+                stretchEditor.style.display = 'none';
+                serializeSegments();
+                return;
+            }
+            stretchEditor.style.display = '';
+
+            segments.forEach((seg, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${seg.sequence_no}</strong></td>
+                    <td><input type="text" value="${seg.stretch_name}" data-kind="stretch-name" data-idx="${idx}" style="width:100%"></td>
+                    <td><span data-kind="chainage-start" data-idx="${idx}">${chainageFromMeters(seg.start_m)}</span></td>
+                    <td><span data-kind="chainage-end" data-idx="${idx}">${chainageFromMeters(seg.end_m)}</span></td>
+                    <td><input type="number" min="1" step="1" value="${seg.length_m}" data-kind="stretch-length" data-idx="${idx}" style="width:100%"></td>
+                    <td>
+                        <div class="date-dual">
+                            <input type="text" value="${seg.planned_start_date || ''}" placeholder="DD/MM/YYYY" data-kind="stretch-start" data-idx="${idx}">
+                            <input type="date" value="${ddmmyyyyToIso(seg.planned_start_date || '')}" data-kind="stretch-start-picker" data-idx="${idx}">
+                        </div>
+                    </td>
+                    <td>
+                        <div class="date-dual">
+                            <input type="text" value="${seg.planned_end_date || ''}" placeholder="DD/MM/YYYY" data-kind="stretch-end" data-idx="${idx}">
+                            <input type="date" value="${ddmmyyyyToIso(seg.planned_end_date || '')}" data-kind="stretch-end-picker" data-idx="${idx}">
+                        </div>
+                    </td>
+                `;
+                stretchList.appendChild(tr);
+
+                const detail = document.createElement('div');
+                detail.style.marginTop = '12px';
+                detail.style.border = '1px solid rgba(255,255,255,0.08)';
+                detail.style.borderRadius = '10px';
+                detail.style.padding = '10px 12px';
+                const showDetails = (seg._showDetails === true);
+                detail.innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+                        <div style="font-weight:600">${seg.stretch_name}</div>
+                        <button type="button" class="btn-secondary btn-small" data-kind="toggle-details" data-idx="${idx}">
+                            ${showDetails ? 'Hide' : 'Show'}
+                        </button>
+                    </div>
+                    <div class="help-text" style="margin-top:-4px">Activities and materials for this stretch.</div>
+                    <div data-kind="details-body" data-idx="${idx}" style="display:${showDetails ? '' : 'none'}">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+                            <div>
+                                <div style="font-weight:600">Activities</div>
+                                <div class="help-text">Start/End dates must be within stretch dates.</div>
+                                <div style="margin:6px 0">
+                                    <button type="button" class="btn-secondary btn-small" data-kind="act-add" data-idx="${idx}">+ Add Activity</button>
+                                </div>
+                                <div data-kind="act-list" data-idx="${idx}"></div>
+                            </div>
+                            <div>
+                                <div style="font-weight:600">Materials</div>
+                                <div class="help-text">Quantity is required (max 5 decimals).</div>
+                                <div style="margin:6px 0">
+                                    <button type="button" class="btn-secondary btn-small" data-kind="mat-add" data-idx="${idx}">+ Add Material</button>
+                                </div>
+                                <div data-kind="mat-list" data-idx="${idx}"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                stretchDetails.appendChild(detail);
+
+                const actList = detail.querySelector('[data-kind="act-list"]');
+                if(!showDetails){
+                    return;
+                }
+                (seg.activities || []).forEach((a, aidx) => {
+                    const hours = computeHours(a);
+                    a.planned_duration_hours = hours;
+                    const row = document.createElement('div');
+                    row.style.display = 'grid';
+                    row.style.gridTemplateColumns = 'minmax(180px,1fr) 130px 130px 90px 90px 90px 70px';
+                    row.style.gap = '8px';
+                    row.style.marginTop = '8px';
+                    row.innerHTML = `
+                        <input type="text" value="${a.name}" data-kind="act-name" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-start-date" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-end-date" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="time" value="${a.start_time || ''}" data-kind="act-start-time" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="time" value="${a.end_time || ''}" data-kind="act-end-time" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="text" value="${hours === null ? '' : hours}" readonly>
+                        <button type="button" class="btn-secondary btn-small" data-kind="act-remove" data-idx="${idx}" data-aidx="${aidx}">Remove</button>
+                    `;
+                    actList.appendChild(row);
+                });
+
+                const matList = detail.querySelector('[data-kind="mat-list"]');
+                (seg.materials || []).forEach((m, midx) => {
+                    const row = document.createElement('div');
+                    row.style.display = 'grid';
+                    row.style.gridTemplateColumns = 'minmax(160px,1fr) 80px 120px 70px';
+                    row.style.gap = '8px';
+                    row.style.marginTop = '8px';
+                    row.innerHTML = `
+                        <input type="text" value="${m.name || ''}" placeholder="Material name" data-kind="mat-name" data-idx="${idx}" data-midx="${midx}">
+                        <input type="text" value="${m.unit || ''}" placeholder="Unit" data-kind="mat-unit" data-idx="${idx}" data-midx="${midx}" style="width:100%">
+                        <input type="number" step="0.00001" min="0" placeholder="Qty" value="${m.quantity || ''}" data-kind="mat-qty" data-idx="${idx}" data-midx="${midx}">
+                        <button type="button" class="btn-secondary btn-small" data-kind="mat-remove" data-idx="${idx}" data-midx="${midx}">Remove</button>
+                    `;
+                    matList.appendChild(row);
+                });
+            });
+
+            serializeSegments();
+        }
+
+        function handleInput(e){
+            const t = e.target;
+            if(!t) return;
+            const kind = t.getAttribute('data-kind');
+            const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+            if(idx < 0 || idx >= segments.length) return;
+
+            if(kind === 'stretch-name'){
+                segments[idx].stretch_name = String(t.value || '').trim() || segments[idx].stretch_name;
+            }
+            if(kind === 'stretch-start'){
+                segments[idx].planned_start_date = String(t.value || '').trim();
+                segments[idx]._manual_start = true;
+                const row = t.closest('tr');
+                const picker = row ? row.querySelector('[data-kind="stretch-start-picker"]') : null;
+                if(picker) picker.value = ddmmyyyyToIso(segments[idx].planned_start_date);
+                syncActivitiesToStretch(segments[idx], true);
+            }
+            if(kind === 'stretch-end'){
+                segments[idx].planned_end_date = String(t.value || '').trim();
+                segments[idx]._manual_end = true;
+                const row = t.closest('tr');
+                const picker = row ? row.querySelector('[data-kind="stretch-end-picker"]') : null;
+                if(picker) picker.value = ddmmyyyyToIso(segments[idx].planned_end_date);
+                syncActivitiesToStretch(segments[idx], true);
+            }
+            if(kind === 'stretch-start-picker'){
+                const dd = isoToDdmmyyyy(String(t.value || '').trim());
+                segments[idx].planned_start_date = dd;
+                segments[idx]._manual_start = true;
+                const row = t.closest('tr');
+                const textInput = row ? row.querySelector('[data-kind="stretch-start"]') : null;
+                if(textInput) textInput.value = dd;
+                syncActivitiesToStretch(segments[idx], true);
+            }
+            if(kind === 'stretch-end-picker'){
+                const dd = isoToDdmmyyyy(String(t.value || '').trim());
+                segments[idx].planned_end_date = dd;
+                segments[idx]._manual_end = true;
+                const row = t.closest('tr');
+                const textInput = row ? row.querySelector('[data-kind="stretch-end"]') : null;
+                if(textInput) textInput.value = dd;
+                syncActivitiesToStretch(segments[idx], true);
+            }
+            if(kind === 'stretch-length'){
+                const val = parseInt(String(t.value || '0'), 10) || 1;
+                segments[idx].length_m = Math.max(1, val);
+                normalizeSegmentsTotal();
+                refreshStretchChainageUI();
+                serializeSegments();
+                return;
+            }
+
+            const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+            if(aidx >= 0 && segments[idx].activities && segments[idx].activities[aidx]){
+                const a = segments[idx].activities[aidx];
+                if(kind === 'act-name') a.name = String(t.value || '').trim();
+                if(kind === 'act-start-date') a.planned_start_date = String(t.value || '').trim();
+                if(kind === 'act-end-date') a.planned_end_date = String(t.value || '').trim();
+                if(kind === 'act-start-time') a.start_time = String(t.value || '').trim();
+                if(kind === 'act-end-time') a.end_time = String(t.value || '').trim();
+            }
+
+            const midx = parseInt(t.getAttribute('data-midx') || '-1', 10);
+            if(midx >= 0 && segments[idx].materials && segments[idx].materials[midx]){
+                const m = segments[idx].materials[midx];
+                if(kind === 'mat-name') m.name = String(t.value || '').trim();
+                if(kind === 'mat-unit') m.unit = String(t.value || '').trim();
+                if(kind === 'mat-qty') m.quantity = String(t.value || '').trim();
+            }
+
+            serializeSegments();
+        }
+
+        function handleClick(e){
+            const t = e.target;
+            if(!t) return;
+            const kind = t.getAttribute('data-kind');
+            const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+            if(idx < 0 || idx >= segments.length) return;
+
+            if(kind === 'toggle-details'){
+                segments[idx]._showDetails = !(segments[idx]._showDetails !== false);
+                renderSegments();
+                return;
+            }
+
+            if(kind === 'act-add'){
+                if(!segments[idx].activities) segments[idx].activities = [];
+                segments[idx].activities.push({
+                    name: '',
+                    include: true,
+                    planned_start_date: segments[idx].planned_start_date || '',
+                    planned_end_date: segments[idx].planned_end_date || '',
+                    start_time: '',
+                    end_time: '',
+                    planned_duration_hours: null,
+                });
+                renderSegments();
+                return;
+            }
+
+            if(kind === 'act-remove'){
+                const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+                if(aidx >= 0 && segments[idx].activities && segments[idx].activities[aidx]){
+                    segments[idx].activities.splice(aidx, 1);
+                    renderSegments();
+                }
+                return;
+            }
+
+            if(kind === 'mat-add'){
+                if(!segments[idx].materials) segments[idx].materials = [];
+                segments[idx].materials.push({
+                    name: '',
+                    unit: '',
+                    include: true,
+                    quantity: '',
+                });
+                renderSegments();
+                return;
+            }
+
+            if(kind === 'mat-remove'){
+                const midx = parseInt(t.getAttribute('data-midx') || '-1', 10);
+                if(midx >= 0 && segments[idx].materials && segments[idx].materials[midx]){
+                    segments[idx].materials.splice(midx, 1);
+                    renderSegments();
+                }
+            }
+        }
+
+        if(btnGenerate){
+            btnGenerate.addEventListener('click', function(){
+                syncTotalLength();
+                generateSegments();
+                renderSegments();
+            });
+        }
+
+        if(stretchBlock){
+            stretchBlock.addEventListener('input', handleInput);
+            stretchBlock.addEventListener('click', handleClick);
+        }
+
+        if(projectType){
+            projectType.addEventListener('change', function(){
+                showStretchBlock();
+                toggleRoadFields();
+                toggleConcreteBlock();
+                loadRoadPresets();
+            });
+        }
+        if(roadCategory){
+            roadCategory.addEventListener('change', function(){
+                toggleConcreteBlock();
+                loadRoadPresets();
+            });
+        }
+        if(roadEngineering){
+            roadEngineering.addEventListener('change', function(){
+                toggleConcreteBlock();
+                loadRoadPresets();
+            });
+        }
+        if(totalLenKm){
+            totalLenKm.addEventListener('change', syncTotalLength);
+            totalLenKm.addEventListener('input', syncTotalLength);
+        }
+
+        toggleRoadFields();
+        showStretchBlock();
+        toggleConcreteBlock();
+        syncTimelineInputs();
+        loadRoadPresets();
+    })();
+    </script>
+
+</form>
+
+</div>

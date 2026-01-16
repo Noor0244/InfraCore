@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Date, DateTime, Boolean, Text
+    Column, Integer, String, Float, Date, DateTime, Boolean, Text, ForeignKey
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -81,6 +81,9 @@ class Project(Base):
     district = Column(String(100), nullable=True)
     city = Column(String(100), nullable=False)
 
+    # Normalized Location (optional; keeps legacy fields intact)
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
+
     chainage_start = Column(String(50), nullable=True)
     chainage_end = Column(String(50), nullable=True)
 
@@ -129,3 +132,5 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan"
     )
+
+    location = relationship("Location")

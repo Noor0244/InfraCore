@@ -9,7 +9,8 @@ from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 import logging
 import json
 
@@ -135,6 +136,206 @@ def _create_road_activity_presets(db: Session, project: Project):
                 end_date=project.planned_end_date,
             )
             db.add(pa)
+
+
+def _ensure_project_road_presets(db: Session, project: Project) -> None:
+    if not project or project.project_type != "Road":
+        return
+
+    has_project_activities = (
+        db.query(ProjectActivity)
+        .filter(ProjectActivity.project_id == int(project.id))
+        .first()
+        is not None
+    )
+    has_planned_materials = (
+        db.query(PlannedMaterial)
+        .filter(
+            PlannedMaterial.project_id == int(project.id),
+            PlannedMaterial.stretch_id == None,  # noqa: E711
+        )
+        .first()
+        is not None
+    )
+
+    if has_project_activities and has_planned_materials:
+        return
+
+    road_category = (getattr(project, "road_category", None) or getattr(project, "road_type", None) or "").strip()
+    engineering_type = (getattr(project, "road_engineering_type", None) or getattr(project, "road_type", None) or "").strip()
+
+    road_preset = get_road_preset(
+        road_category=road_category,
+        road_engineering_type=engineering_type,
+        road_extras_json=getattr(project, "road_extras_json", None),
+        db=db,
+    )
+
+    if road_preset:
+        activities = list(road_preset.activities or [])
+        activity_defs = list(road_preset.activity_defs or [])
+        materials = list(road_preset.materials or [])
+        links = list(road_preset.links or [])
+    else:
+        preset = get_presets_for_engineering_type(engineering_type)
+        activities = list(preset.get("activities", []))
+        activity_defs = [{"name": n, "activity_scope": "STRETCH"} for n in activities]
+        materials = list(preset.get("materials", []))
+        links = list(get_activity_material_links("Road", engineering_type))
+
+    activity_defs_by_name: dict[str, dict] = {}
+    for d in activity_defs:
+        if not isinstance(d, dict):
+            continue
+        n = str(d.get("name") or "").strip()
+        if not n:
+            continue
+        activity_defs_by_name[n.lower()] = d
+
+    next_act_code = activity_code_allocator(db, Activity, project_id=int(project.id), width=6, project_width=6)
+
+    for act_name in activities:
+        name = str(act_name or "").strip()
+        if not name:
+            continue
+        act = (
+            db.query(Activity)
+            .filter(Activity.project_id == int(project.id), Activity.name == name)
+            .first()
+        )
+        if not act:
+            act = Activity(
+                name=name,
+                is_standard=True,
+                project_id=int(project.id),
+                code=next_act_code(),
+            )
+            db.add(act)
+            db.flush()
+
+        d = activity_defs_by_name.get(name.lower())
+        scope = "STRETCH"
+        if isinstance(d, dict):
+            raw_scope = d.get("activity_scope")
+            if raw_scope is None:
+                raw_scope = d.get("scope")
+            scope_candidate = str(raw_scope or "").strip().upper()
+            if scope_candidate in {"COMMON", "STRETCH"}:
+                scope = scope_candidate
+
+        pa_exists = (
+            db.query(ProjectActivity)
+            .filter(
+                ProjectActivity.project_id == int(project.id),
+                ProjectActivity.activity_id == int(act.id),
+            )
+            .first()
+        )
+        if not pa_exists:
+            db.add(
+                ProjectActivity(
+                    project_id=int(project.id),
+                    activity_id=int(act.id),
+                    planned_quantity=0.0,
+                    unit=str(getattr(act, "display_unit", None) or "unit"),
+                    start_date=project.planned_start_date,
+                    end_date=project.planned_end_date,
+                    activity_scope=scope,
+                )
+            )
+        else:
+            try:
+                pa_exists.activity_scope = scope
+                db.add(pa_exists)
+            except Exception:
+                pass
+
+    for m in materials:
+        mat_name = str(getattr(m, "name", None) or "").strip()
+        if not mat_name:
+            continue
+        unit = str(getattr(m, "default_unit", None) or "unit").strip() or "unit"
+        allowed_units = list(getattr(m, "allowed_units", None) or [])
+        allowed_units = [str(u or "").strip() for u in allowed_units if str(u or "").strip()]
+        if not allowed_units:
+            allowed_units = [unit]
+        if unit not in allowed_units:
+            allowed_units.insert(0, unit)
+
+        mat = db.query(Material).filter(Material.name == mat_name).first()
+        if not mat:
+            mat = Material(
+                name=mat_name,
+                unit=unit,
+                standard_unit=unit,
+                allowed_units=json.dumps(allowed_units),
+            )
+            db.add(mat)
+            db.commit()
+            db.refresh(mat)
+
+        pm_exists = (
+            db.query(PlannedMaterial)
+            .filter(
+                PlannedMaterial.project_id == int(project.id),
+                PlannedMaterial.material_id == int(mat.id),
+                PlannedMaterial.stretch_id == None,  # noqa: E711
+            )
+            .first()
+        )
+        if not pm_exists:
+            db.add(
+                PlannedMaterial(
+                    project_id=int(project.id),
+                    material_id=int(mat.id),
+                    stretch_id=None,
+                    unit=unit,
+                    allowed_units=json.dumps(allowed_units),
+                    planned_quantity=Decimal("0"),
+                )
+            )
+
+    db.commit()
+
+    # Create activity-material links
+    for link in links:
+        try:
+            act_name = str(getattr(link, "activity", None) or "").strip()
+            mat_def = getattr(link, "material", None)
+            mat_name = str(getattr(mat_def, "name", None) or "").strip()
+            rate = float(getattr(link, "consumption_rate", None) or 0)
+        except Exception:
+            continue
+        if not act_name or not mat_name:
+            continue
+
+        act = (
+            db.query(Activity)
+            .filter(Activity.project_id == int(project.id), Activity.name == act_name)
+            .first()
+        )
+        mat = db.query(Material).filter(Material.name == mat_name).first()
+        if not act or not mat:
+            continue
+
+        exists = (
+            db.query(ActivityMaterial)
+            .filter(
+                ActivityMaterial.activity_id == int(act.id),
+                ActivityMaterial.material_id == int(mat.id),
+            )
+            .first()
+        )
+        if not exists:
+            db.add(
+                ActivityMaterial(
+                    activity_id=int(act.id),
+                    material_id=int(mat.id),
+                    consumption_rate=rate,
+                )
+            )
+
+    db.commit()
 
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -317,12 +518,6 @@ def manage_projects_page(request: Request, view: str | None = "active", db: Sess
 
     query = db.query(Project)
 
-    # Keep the UI clean from seed/test/preset projects (matches Daily Execution behavior)
-    query = query.filter(
-        ~func.lower(Project.name).like("%preset%"),
-        ~func.lower(Project.name).like("%test%"),
-    )
-
     # Admin can manage all projects; others manage their own.
     if user.get("role") != "admin":
         query = query.filter(Project.created_by == user["id"])
@@ -365,7 +560,7 @@ def new_project_page(request: Request):
             db.close()
 
     return templates.TemplateResponse(
-        "new_project.html",
+        "projects/new_project.html",
         {
             "request": request,
             "user": user,
@@ -384,7 +579,7 @@ def create_project_form(
     stretch_method: str | None = Form(None),
     stretch_number_of_stretches: int | None = Form(None),
     stretch_length_m: int | None = Form(None),
-        stretch_segments_json: str | None = Form(None),
+    stretch_segments_json: str | None = Form(None),
     # Restore required fields; keep road-specific optional with conditional validation
     name: str = Form(...),
     # Basic fields
@@ -446,12 +641,38 @@ def create_project_form(
         flash(request, "Please login to continue", "warning")
         return RedirectResponse("/login?next=/projects/new", status_code=302)
 
+    default_start = date.today()
+    default_end = default_start + timedelta(days=1)
     try:
         planned_start_date = parse_date_ddmmyyyy_or_iso(planned_start_date)
+    except Exception:
+        planned_start_date = default_start
+        flash(request, "Project start date invalid; defaulted to today.", "warning")
+    try:
         planned_end_date = parse_date_ddmmyyyy_or_iso(planned_end_date)
     except Exception:
-        flash(request, "Invalid date. Please use DD/MM/YYYY.", "error")
-        return RedirectResponse('/projects/new', status_code=302)
+        planned_end_date = default_end
+        flash(request, "Project end date invalid; defaulted to tomorrow.", "warning")
+
+    if planned_end_date <= planned_start_date:
+        planned_end_date = planned_start_date + timedelta(days=1)
+        flash(request, "Project end date adjusted to be after start date.", "warning")
+
+    def _truthy(val) -> bool:
+        if val is None:
+            return False
+        if isinstance(val, bool):
+            return bool(val)
+        s = str(val).strip().lower()
+        return s in {"1", "true", "yes", "y", "on"}
+
+    validated_segments: list[dict] = []
+    validated_total_length_m: int | None = None
+    warnings: list[str] = []
+    allow_stretch_create = True
+
+    def add_warning(msg: str) -> None:
+        warnings.append(msg)
 
     # Derive numeric lanes from lane_configuration if needed (2L/4L/6L)
     derived_lanes = lanes
@@ -475,15 +696,250 @@ def create_project_form(
         if not effective_engineering_type:
             missing.append('Road Engineering Type')
         if missing:
-            logger.warning("Create Project blocked (missing road fields): %s", ", ".join(missing))
-            flash(request, f"Missing required road fields: {', '.join(missing)}", "error")
-            return RedirectResponse('/projects/new', status_code=302)
+            logger.warning("Create Project warning (missing road fields): %s", ", ".join(missing))
+            add_warning(f"Missing road fields: {', '.join(missing)}. You can update later.")
+
+        if planned_end_date <= planned_start_date:
+            add_warning("Project end date should be after start date. Please review timeline.")
+
+        # Strict non-wizard stretch validation
+        if not wizard_id:
+            if not _truthy(stretch_enabled):
+                add_warning("Stretch system is disabled; project will be created without stretches.")
+                allow_stretch_create = False
+
+            if not (stretch_segments_json or "").strip():
+                add_warning("Stretch segments missing; project will be created without stretches.")
+                allow_stretch_create = False
+
+            try:
+                segments_raw = json.loads(stretch_segments_json)
+            except Exception:
+                add_warning("Invalid stretch segments payload; project will be created without stretches.")
+                allow_stretch_create = False
+                segments_raw = []
+
+            if not isinstance(segments_raw, list) or not segments_raw:
+                add_warning("Stretch segments missing; project will be created without stretches.")
+                allow_stretch_create = False
+
+            total_length_m = int(round(float(road_length_km or 0.0) * 1000.0))
+            if total_length_m <= 0 and segments_raw:
+                try:
+                    last_end = max(int(s.get("end_m") or 0) for s in segments_raw if isinstance(s, dict))
+                    total_length_m = int(last_end)
+                except Exception:
+                    total_length_m = 0
+            if total_length_m <= 0:
+                add_warning("Road length (km) not set; project will be created without stretches.")
+                allow_stretch_create = False
+
+            validated_total_length_m = total_length_m
+            seen_codes: set[str] = set()
+
+            for item in segments_raw[:500]:
+                if not isinstance(item, dict):
+                    continue
+
+                try:
+                    seq = int(item.get("sequence_no") or item.get("sequence") or (len(validated_segments) + 1))
+                except Exception:
+                    seq = len(validated_segments) + 1
+
+                code = str(item.get("stretch_code") or item.get("code") or f"S{seq:02d}").strip() or f"S{seq:02d}"
+                name = str(item.get("stretch_name") or item.get("name") or f"Stretch {seq}").strip() or f"Stretch {seq}"
+
+                try:
+                    start_m = int(item.get("start_m"))
+                    end_m = int(item.get("end_m"))
+                except Exception:
+                    add_warning("Invalid stretch segment meters; some stretches skipped.")
+                    continue
+
+                ps_raw = item.get("planned_start_date") or item.get("start_date")
+                pe_raw = item.get("planned_end_date") or item.get("end_date")
+                if not ps_raw or not pe_raw:
+                    add_warning("Missing stretch planned dates; using project dates for that stretch.")
+                    ps_raw = planned_start_date
+                    pe_raw = planned_end_date
+
+                try:
+                    seg_planned_start = parse_date_ddmmyyyy_or_iso(str(ps_raw))
+                    seg_planned_end = parse_date_ddmmyyyy_or_iso(str(pe_raw))
+                except Exception:
+                    add_warning("Invalid stretch planned dates; using project dates.")
+                    seg_planned_start = planned_start_date
+                    seg_planned_end = planned_end_date
+
+                if seg_planned_end < seg_planned_start:
+                    add_warning("Stretch planned end date was before start date; corrected to start date.")
+                    seg_planned_end = seg_planned_start
+
+                if seg_planned_start < planned_start_date:
+                    add_warning("Stretch start was before project start; clamped.")
+                    seg_planned_start = planned_start_date
+                if seg_planned_end > planned_end_date:
+                    add_warning("Stretch end was after project end; clamped.")
+                    seg_planned_end = planned_end_date
+
+                if start_m < 0 or end_m <= start_m:
+                    add_warning("Invalid stretch chainage range; stretch skipped.")
+                    continue
+
+                if code.lower() in seen_codes:
+                    add_warning("Duplicate stretch code detected; stretch skipped.")
+                    continue
+                seen_codes.add(code.lower())
+
+                seg_acts_raw = item.get("activities") or item.get("stretch_activities") or []
+                seg_mats_raw = item.get("materials") or item.get("stretch_materials") or []
+
+                seg_acts: list[dict] = []
+                if isinstance(seg_acts_raw, list):
+                    for a in seg_acts_raw[:500]:
+                        if not isinstance(a, dict):
+                            continue
+                        an = str(a.get("name") or a.get("activity") or "").strip()
+                        if not an:
+                            continue
+                        include = a.get("include")
+                        if include is None:
+                            include = a.get("enabled")
+                        include_b = bool(include) if include is not None else True
+                        if not include_b:
+                            seg_acts.append({"name": an, "include": False})
+                            continue
+
+                        act_ps_raw = a.get("planned_start_date")
+                        act_pe_raw = a.get("planned_end_date")
+                        if not act_ps_raw or not act_pe_raw:
+                            add_warning(f"Activity '{an}' missing dates; using stretch dates.")
+                            act_ps_raw = seg_planned_start
+                            act_pe_raw = seg_planned_end
+                        try:
+                            act_ps = parse_date_ddmmyyyy_or_iso(str(act_ps_raw))
+                            act_pe = parse_date_ddmmyyyy_or_iso(str(act_pe_raw))
+                        except Exception:
+                            add_warning(f"Invalid planned dates for activity '{an}'; using stretch dates.")
+                            act_ps = seg_planned_start
+                            act_pe = seg_planned_end
+                        if act_pe < act_ps:
+                            add_warning(f"Activity '{an}' end date was before start date; corrected.")
+                            act_pe = act_ps
+                        if act_ps < seg_planned_start:
+                            add_warning(f"Activity '{an}' start before stretch; clamped.")
+                            act_ps = seg_planned_start
+                        if act_pe > seg_planned_end:
+                            add_warning(f"Activity '{an}' end after stretch; clamped.")
+                            act_pe = seg_planned_end
+
+                        hrs_raw = a.get("planned_duration_hours")
+                        if hrs_raw is None:
+                            hrs_raw = a.get("duration_hours")
+                        hrs_val = None
+                        if hrs_raw is not None and str(hrs_raw).strip() != "":
+                            try:
+                                hrs_val = float(hrs_raw)
+                            except Exception:
+                                hrs_val = None
+
+                        planned_start_time = a.get("start_time", None)
+                        planned_end_time = a.get("end_time", None)
+                        if planned_start_time is not None:
+                            planned_start_time = str(planned_start_time).strip() or None
+                        if planned_end_time is not None:
+                            planned_end_time = str(planned_end_time).strip() or None
+
+                        seg_acts.append(
+                            {
+                                "name": an,
+                                "include": True,
+                                "planned_start_date": act_ps,
+                                "planned_end_date": act_pe,
+                                "planned_duration_hours": hrs_val,
+                                "start_time": planned_start_time,
+                                "end_time": planned_end_time,
+                            }
+                        )
+
+                seg_mats: list[dict] = []
+                if isinstance(seg_mats_raw, list):
+                    for m in seg_mats_raw[:500]:
+                        if not isinstance(m, dict):
+                            continue
+                        mn = str(m.get("name") or m.get("material") or "").strip()
+                        if not mn:
+                            continue
+                        include = m.get("include")
+                        if include is None:
+                            include = m.get("enabled")
+                        include_b = bool(include) if include is not None else True
+                        qty_raw = m.get("quantity")
+                        if qty_raw is None:
+                            qty_raw = m.get("planned_quantity")
+
+                        qty_val = None
+                        if include_b:
+                            if qty_raw is None or str(qty_raw).strip() == "":
+                                qty_val = None
+                            else:
+                                try:
+                                    qty_val = Decimal(str(qty_raw))
+                                except InvalidOperation:
+                                    add_warning(f"Invalid quantity for material '{mn}'; material skipped.")
+                                    continue
+                                if qty_val < 0:
+                                    add_warning(f"Material '{mn}' quantity cannot be negative; material skipped.")
+                                    continue
+                                if qty_val.as_tuple().exponent < -5:
+                                    add_warning(f"Material '{mn}' quantity supports max 5 decimals; material skipped.")
+                                    continue
+
+                        seg_mats.append({"name": mn, "include": include_b, "quantity": qty_val})
+
+                validated_segments.append(
+                    {
+                        "sequence_no": seq,
+                        "stretch_code": code,
+                        "stretch_name": name,
+                        "start_m": start_m,
+                        "end_m": end_m,
+                        "length_m": int(end_m - start_m),
+                        "planned_start_date": seg_planned_start,
+                        "planned_end_date": seg_planned_end,
+                        "activities": seg_acts,
+                        "materials": seg_mats,
+                    }
+                )
+
+            validated_segments = sorted(validated_segments, key=lambda s: int(s.get("sequence_no") or 0))
+            if not validated_segments:
+                add_warning("No valid stretch segments; project will be created without stretches.")
+                allow_stretch_create = False
+
+            last_end = None
+            for seg in validated_segments:
+                if last_end is None and int(seg["start_m"]) != 0:
+                    add_warning("First stretch does not start at 0; stretch creation skipped.")
+                    allow_stretch_create = False
+                    break
+                if last_end is not None and int(seg["start_m"]) != int(last_end):
+                    add_warning("Stretch segments are not continuous; stretch creation skipped.")
+                    allow_stretch_create = False
+                    break
+                last_end = int(seg["end_m"])
+
+            if allow_stretch_create and int(last_end or 0) != int(total_length_m):
+                add_warning("Stretch segments do not match total length; stretch creation skipped.")
+                allow_stretch_create = False
 
     # For non-road projects, provide safe defaults for non-nullable DB columns
     # Store legacy `road_type` as the selected Road Category for compatibility.
-    safe_road_type = (road_category or road_type or '')
+    safe_road_type = (road_category or road_type or project_type or "Road")
     safe_lanes = derived_lanes or 0
     safe_road_width = road_width or 0.0
+    if not road_length_km and validated_total_length_m:
+        road_length_km = float(validated_total_length_m) / 1000.0
     safe_road_length_km = road_length_km or 0.0
 
     project = Project(
@@ -532,10 +988,10 @@ def create_project_form(
         db.commit()
         # Refresh to get id
         db.refresh(project)
-    except Exception:
+    except Exception as exc:
         db.rollback()
         logger.exception("Create Project failed during commit")
-        flash(request, "Failed to create project. Please try again.", "error")
+        flash(request, f"Failed to create project: {str(exc)}", "error")
         return RedirectResponse('/projects/new', status_code=302)
 
     # Audit: Project CREATE (best-effort)
@@ -549,6 +1005,10 @@ def create_project_form(
         old_value=None,
         new_value=model_to_dict(project),
     )
+
+    if warnings:
+        for msg in warnings[:10]:
+            flash(request, msg, "warning")
 
     # Auto-create activity presets for certain road construction types
     try:
@@ -823,11 +1283,34 @@ def create_project_form(
 
                 pm_exists = (
                     db.query(PlannedMaterial)
-                    .filter(PlannedMaterial.project_id == project.id, PlannedMaterial.material_id == mat.id)
+                    .filter(
+                        PlannedMaterial.project_id == project.id,
+                        PlannedMaterial.material_id == mat.id,
+                        PlannedMaterial.stretch_id == None,  # noqa: E711
+                    )
                     .first()
                 )
                 if not pm_exists:
-                    db.add(PlannedMaterial(project_id=project.id, material_id=mat.id, planned_quantity=0))
+                    db.add(
+                        PlannedMaterial(
+                            project_id=project.id,
+                            material_id=mat.id,
+                            stretch_id=None,
+                            unit=unit,
+                            allowed_units=json.dumps(allowed_units),
+                            planned_quantity=Decimal("0"),
+                        )
+                    )
+                else:
+                    changed_pm = False
+                    if not getattr(pm_exists, "unit", None):
+                        pm_exists.unit = unit
+                        changed_pm = True
+                    if not getattr(pm_exists, "allowed_units", None):
+                        pm_exists.allowed_units = json.dumps(allowed_units)
+                        changed_pm = True
+                    if changed_pm:
+                        db.add(pm_exists)
 
             db.commit()
 
@@ -907,7 +1390,7 @@ def create_project_form(
                         # Validate & persist stretches
                         created_stretches = 0
                         seen_codes: set[str] = set()
-                        segments = []
+                        segments: list[dict] = []
                         for item in segments_raw[:500]:
                             if not isinstance(item, dict):
                                 continue
@@ -921,111 +1404,31 @@ def create_project_form(
                             code = str(item.get("stretch_code") or f"ST-{seq:03d}").strip() or f"ST-{seq:03d}"
                             name = str(item.get("stretch_name") or "").strip() or f"Stretch {seq}"
 
+                            ps_raw = item.get("planned_start_date") or item.get("start_date")
+                            pe_raw = item.get("planned_end_date") or item.get("end_date")
+                            if not ps_raw or not pe_raw:
+                                raise ValueError("Each stretch must have planned start and end dates")
+
+                            try:
+                                seg_planned_start = parse_date_ddmmyyyy_or_iso(str(ps_raw))
+                                seg_planned_end = parse_date_ddmmyyyy_or_iso(str(pe_raw))
+                            except Exception:
+                                raise ValueError("Invalid stretch planned dates. Use DD/MM/YYYY.")
+
+                            if seg_planned_end < seg_planned_start:
+                                raise ValueError("Stretch planned end date must be after start date")
+
+                            if seg_planned_start < planned_start_date or seg_planned_end > planned_end_date:
+                                raise ValueError("Stretch dates must be within project dates")
+
                             if start_m < 0 or end_m <= start_m:
                                 raise ValueError("Invalid stretch chainage range")
                             if code.lower() in seen_codes:
                                 raise ValueError("Duplicate stretch code")
                             seen_codes.add(code.lower())
 
-                            segments.append(
-                                {
-                                    "sequence_no": seq,
-                                    "stretch_code": code,
-                                    "stretch_name": name,
-                                    "start_m": start_m,
-                                    "end_m": end_m,
-                                    "length_m": int(end_m - start_m),
-                                }
-                            )
-
-                        segments = sorted(segments, key=lambda s: int(s.get("sequence_no") or 0))
-                        if not segments:
-                            raise ValueError("No stretch segments")
-
-                        last_end = None
-                        for seg in segments:
-                            if last_end is None and int(seg["start_m"]) != 0:
-                                raise ValueError("First stretch must start at 0")
-                            if last_end is not None and int(seg["start_m"]) != int(last_end):
-                                raise ValueError("Stretch segments must be continuous")
-                            last_end = int(seg["end_m"])
-
-                        if total_length_m is not None and int(last_end or 0) != int(total_length_m):
-                            raise ValueError("Stretch segments do not match total length")
-
-                        for seg in segments:
-                            db.add(
-                                RoadStretch(
-                                    project_id=int(project.id),
-                                    stretch_code=str(seg["stretch_code"]),
-                                    stretch_name=str(seg["stretch_name"]),
-                                    start_chainage=chainage_from_meters(int(seg["start_m"])),
-                                    end_chainage=chainage_from_meters(int(seg["end_m"])),
-                                    length_m=int(seg["length_m"]),
-                                    sequence_no=int(seg["sequence_no"]),
-                                    is_active=True,
-                                )
-                            )
-                            created_stretches += 1
-
-                        db.commit()
-
-                        # Create stretch-wise activity rows (best-effort; uses separate DB session internally)
-                        try:
-                            apply_activities_to_stretches(int(project.id), mode="ALL")
-                        except Exception:
-                            logger.exception("Stretch activity mapping failed (project_id=%s)", project.id)
-
-                        flash(request, f"Stretch system enabled: created {created_stretches} stretch(es).", "success")
-
-                # ---------------- STRETCH SYSTEM (non-wizard create form) ----------------
-                # If user created project via /projects/new (no wizard_id), allow auto-generation.
-                if (not wizard_state) and _truthy(stretch_enabled):
-                    # derive total length from road_length_km
-                    total_km = float(road_length_km or 0.0)
-                    total_length_m2 = int(round(total_km * 1000.0))
-                    if total_length_m2 <= 0:
-                        raise ValueError("Road length (km) must be set to generate stretches")
-
-                    handled_ui_segments = False
-
-                    # If UI provided explicit stretch segments, prefer them.
-                    segments_from_ui = None
-                    try:
-                        if (stretch_segments_json or "").strip():
-                            segments_from_ui = json.loads(stretch_segments_json)
-                    except Exception:
-                        segments_from_ui = None
-
-                    if isinstance(segments_from_ui, list) and segments_from_ui:
-                        segments: list[dict] = []
-                        seen_codes: set[str] = set()
-
-                        for item in segments_from_ui[:500]:
-                            if not isinstance(item, dict):
-                                continue
-
-                            try:
-                                seq = int(item.get("sequence_no") or item.get("sequence") or (len(segments) + 1))
-                            except Exception:
-                                seq = len(segments) + 1
-
-                            code = str(item.get("stretch_code") or item.get("code") or f"S{seq:02d}").strip() or f"S{seq:02d}"
-                            name = str(item.get("stretch_name") or item.get("name") or f"Stretch {seq}").strip() or f"Stretch {seq}"
-
-                            try:
-                                start_m = int(item.get("start_m"))
-                                end_m = int(item.get("end_m"))
-                            except Exception:
-                                raise ValueError("Invalid stretch segment meters")
-
-                            # Optional per-stretch overrides (activities/materials)
-                            seg_acts_raw = item.get("activities")
-                            if seg_acts_raw is None:
-                                seg_acts_raw = item.get("stretch_activities")
-                            seg_mats_raw = item.get("materials")
-                            if seg_mats_raw is None:
-                                seg_mats_raw = item.get("stretch_materials")
+                            seg_acts_raw = item.get("activities") or item.get("stretch_activities") or []
+                            seg_mats_raw = item.get("materials") or item.get("stretch_materials") or []
 
                             seg_acts: list[dict] = []
                             if isinstance(seg_acts_raw, list):
@@ -1039,26 +1442,47 @@ def create_project_form(
                                     if include is None:
                                         include = a.get("enabled")
                                     include_b = bool(include) if include is not None else True
+                                    if not include_b:
+                                        seg_acts.append({"name": an, "include": False})
+                                        continue
+
+                                    act_ps_raw = a.get("planned_start_date")
+                                    act_pe_raw = a.get("planned_end_date")
+                                    if not act_ps_raw or not act_pe_raw:
+                                        raise ValueError(f"Activity '{an}' must have planned start and end dates")
+                                    try:
+                                        act_ps = parse_date_ddmmyyyy_or_iso(str(act_ps_raw))
+                                        act_pe = parse_date_ddmmyyyy_or_iso(str(act_pe_raw))
+                                    except Exception:
+                                        raise ValueError(f"Invalid planned dates for activity '{an}'")
+                                    if act_pe < act_ps:
+                                        raise ValueError(f"Activity '{an}' end date must be after start date")
+                                    if act_ps < seg_planned_start or act_pe > seg_planned_end:
+                                        raise ValueError(f"Activity '{an}' dates must be within stretch dates")
+
                                     hrs_raw = a.get("planned_duration_hours")
                                     if hrs_raw is None:
                                         hrs_raw = a.get("duration_hours")
-                                    planned_start_time = a.get("start_time", None)
-                                    planned_end_time = a.get("end_time", None)
-
-                                    if planned_start_time is not None:
-                                        planned_start_time = str(planned_start_time).strip() or None
-                                    if planned_end_time is not None:
-                                        planned_end_time = str(planned_end_time).strip() or None
                                     hrs_val = None
                                     if hrs_raw is not None and str(hrs_raw).strip() != "":
                                         try:
                                             hrs_val = float(hrs_raw)
                                         except Exception:
                                             hrs_val = None
+
+                                    planned_start_time = a.get("start_time", None)
+                                    planned_end_time = a.get("end_time", None)
+                                    if planned_start_time is not None:
+                                        planned_start_time = str(planned_start_time).strip() or None
+                                    if planned_end_time is not None:
+                                        planned_end_time = str(planned_end_time).strip() or None
+
                                     seg_acts.append(
                                         {
                                             "name": an,
-                                            "include": include_b,
+                                            "include": True,
+                                            "planned_start_date": act_ps,
+                                            "planned_end_date": act_pe,
                                             "planned_duration_hours": hrs_val,
                                             "start_time": planned_start_time,
                                             "end_time": planned_end_time,
@@ -1077,35 +1501,24 @@ def create_project_form(
                                     if include is None:
                                         include = m.get("enabled")
                                     include_b = bool(include) if include is not None else True
-                                    seg_mats.append({"name": mn, "include": include_b})
+                                    qty_raw = m.get("quantity")
+                                    if qty_raw is None:
+                                        qty_raw = m.get("planned_quantity")
 
-                            # Planned dates (per stretch)
-                            ps_raw = item.get("planned_start_date")
-                            pe_raw = item.get("planned_end_date")
-                            if ps_raw is None:
-                                ps_raw = item.get("start_date")
-                            if pe_raw is None:
-                                pe_raw = item.get("end_date")
+                                    qty_val = None
+                                    if include_b:
+                                        if qty_raw is None or str(qty_raw).strip() == "":
+                                            raise ValueError(f"Material '{mn}' requires a quantity")
+                                        try:
+                                            qty_val = Decimal(str(qty_raw))
+                                        except InvalidOperation:
+                                            raise ValueError(f"Invalid quantity for material '{mn}'")
+                                        if qty_val < 0:
+                                            raise ValueError(f"Material '{mn}' quantity cannot be negative")
+                                        if qty_val.as_tuple().exponent < -5:
+                                            raise ValueError(f"Material '{mn}' quantity supports max 5 decimal places")
 
-                            if (ps_raw is None) or (str(ps_raw).strip() == ""):
-                                raise ValueError("Each stretch must have planned start date")
-                            if (pe_raw is None) or (str(pe_raw).strip() == ""):
-                                raise ValueError("Each stretch must have planned end date")
-
-                            try:
-                                seg_planned_start = parse_date_ddmmyyyy_or_iso(str(ps_raw))
-                                seg_planned_end = parse_date_ddmmyyyy_or_iso(str(pe_raw))
-                            except Exception:
-                                raise ValueError("Invalid stretch planned dates. Use DD/MM/YYYY.")
-
-                            if seg_planned_end < seg_planned_start:
-                                raise ValueError("Stretch planned end date must be after start date")
-
-                            if start_m < 0 or end_m <= start_m:
-                                raise ValueError("Invalid stretch chainage range")
-                            if code.lower() in seen_codes:
-                                raise ValueError("Duplicate stretch code")
-                            seen_codes.add(code.lower())
+                                    seg_mats.append({"name": mn, "include": include_b, "quantity": qty_val})
 
                             segments.append(
                                 {
@@ -1134,15 +1547,9 @@ def create_project_form(
                                 raise ValueError("Stretch segments must be continuous")
                             last_end = int(seg["end_m"])
 
-                        if int(last_end or 0) != int(total_length_m2):
+                        if total_length_m is not None and int(last_end or 0) != int(total_length_m):
                             raise ValueError("Stretch segments do not match total length")
 
-                        db.query(RoadStretch).filter(
-                            RoadStretch.project_id == int(project.id),
-                            RoadStretch.is_active == True,  # noqa: E712
-                        ).update({RoadStretch.is_active: False})
-
-                        created_stretches = 0
                         for seg in segments:
                             db.add(
                                 RoadStretch(
@@ -1162,56 +1569,7 @@ def create_project_form(
 
                         db.commit()
 
-                        # Ensure ProjectActivity rows exist with correct scope so stretch cloning works.
-                        try:
-                            acts = (
-                                db.query(Activity)
-                                .filter(Activity.project_id == project.id, Activity.is_active == True)  # noqa: E712
-                                .order_by(Activity.id.asc())
-                                .all()
-                            )
-                            for act in acts:
-                                d = activity_defs_by_name.get(str(getattr(act, "name", "") or "").strip().lower())
-                                scope = "STRETCH"
-                                if isinstance(d, dict):
-                                    raw_scope = d.get("activity_scope")
-                                    if raw_scope is None:
-                                        raw_scope = d.get("scope")
-                                    scope_candidate = str(raw_scope or "").strip().upper()
-                                    if scope_candidate in {"COMMON", "STRETCH"}:
-                                        scope = scope_candidate
-
-                                pa_exists = (
-                                    db.query(ProjectActivity)
-                                    .filter(
-                                        ProjectActivity.project_id == project.id,
-                                        ProjectActivity.activity_id == act.id,
-                                    )
-                                    .first()
-                                )
-                                if not pa_exists:
-                                    db.add(
-                                        ProjectActivity(
-                                            project_id=int(project.id),
-                                            activity_id=int(act.id),
-                                            planned_quantity=0.0,
-                                            unit=str(getattr(act, "display_unit", None) or "unit"),
-                                            start_date=project.planned_start_date,
-                                            end_date=project.planned_end_date,
-                                            activity_scope=scope,
-                                        )
-                                    )
-                                else:
-                                    try:
-                                        pa_exists.activity_scope = scope
-                                        db.add(pa_exists)
-                                    except Exception:
-                                        pass
-
-                            db.commit()
-                        except Exception:
-                            db.rollback()
-
+                        # Create stretch-wise activity rows (best-effort; uses separate DB session internally)
                         try:
                             apply_activities_to_stretches(int(project.id), mode="ALL")
                         except Exception:
@@ -1240,10 +1598,14 @@ def create_project_form(
                             mat_rows = (
                                 db.query(PlannedMaterial, Material)
                                 .join(Material, Material.id == PlannedMaterial.material_id)
-                                .filter(PlannedMaterial.project_id == int(project.id))
+                                .filter(
+                                    PlannedMaterial.project_id == int(project.id),
+                                    PlannedMaterial.stretch_id == None,  # noqa: E711
+                                )
                                 .all()
                             )
                             material_id_by_name = {str(m.name or "").strip().lower(): int(m.id) for (pm, m) in mat_rows if m and (m.name or "").strip()}
+                            planned_by_material_id = {int(pm.material_id): pm for (pm, m) in mat_rows if pm}
 
                             for seg in segments:
                                 stretch = stretch_by_code.get(str(seg.get("stretch_code") or "").strip().lower())
@@ -1314,12 +1676,17 @@ def create_project_form(
                                             db.add(sa)
                                         continue
 
+                                    act_start_raw = ao.get("planned_start_date") or seg.get("planned_start_date")
+                                    act_end_raw = ao.get("planned_end_date") or seg.get("planned_end_date")
+                                    act_start = parse_date_ddmmyyyy_or_iso(str(act_start_raw)) if act_start_raw else None
+                                    act_end = parse_date_ddmmyyyy_or_iso(str(act_end_raw)) if act_end_raw else None
+
                                     if sa is None:
                                         sa = StretchActivity(
                                             stretch_id=int(stretch.id),
                                             project_activity_id=int(pa.id),
-                                            planned_start_date=seg.get("planned_start_date"),
-                                            planned_end_date=seg.get("planned_end_date"),
+                                            planned_start_date=act_start,
+                                            planned_end_date=act_end,
                                             planned_duration_hours=float(hrs) if hrs is not None else None,
                                             planned_start_time=planned_start_time,
                                             planned_end_time=planned_end_time,
@@ -1333,11 +1700,15 @@ def create_project_form(
                                         sa.is_active = True
                                         sa.planned_start_time = planned_start_time
                                         sa.planned_end_time = planned_end_time
+                                        if act_start is not None:
+                                            sa.planned_start_date = act_start
+                                        if act_end is not None:
+                                            sa.planned_end_date = act_end
                                         if hrs is not None:
                                             sa.planned_duration_hours = float(hrs)
                                         db.add(sa)
 
-                                # Materials: store exclusions per stretch
+                                # Materials: store per-stretch quantities + exclusions
                                 for mo in (seg.get("materials") or []):
                                     if not isinstance(mo, dict):
                                         continue
@@ -1348,6 +1719,10 @@ def create_project_form(
                                     if not mid:
                                         continue
                                     include = bool(mo.get("include"))
+                                    qty_raw = mo.get("quantity")
+                                    if qty_raw is None:
+                                        qty_raw = mo.get("planned_quantity")
+
                                     existing = (
                                         db.query(StretchMaterialExclusion)
                                         .filter(
@@ -1356,9 +1731,46 @@ def create_project_form(
                                         )
                                         .first()
                                     )
+
                                     if include:
                                         if existing is not None:
                                             db.delete(existing)
+                                        base_pm = planned_by_material_id.get(int(mid))
+                                        if base_pm:
+                                            unit_locked = str(getattr(base_pm, "unit", None) or "unit").strip() or "unit"
+                                            allowed_locked = base_pm.get_allowed_units() if hasattr(base_pm, "get_allowed_units") else [unit_locked]
+                                        else:
+                                            unit_locked = "unit"
+                                            allowed_locked = [unit_locked]
+
+                                        try:
+                                            qty_val = Decimal(str(qty_raw))
+                                        except InvalidOperation:
+                                            qty_val = Decimal("0")
+
+                                        pm_stretch = (
+                                            db.query(PlannedMaterial)
+                                            .filter(
+                                                PlannedMaterial.project_id == int(project.id),
+                                                PlannedMaterial.material_id == int(mid),
+                                                PlannedMaterial.stretch_id == int(stretch.id),
+                                            )
+                                            .first()
+                                        )
+                                        if not pm_stretch:
+                                            pm_stretch = PlannedMaterial(
+                                                project_id=int(project.id),
+                                                material_id=int(mid),
+                                                stretch_id=int(stretch.id),
+                                                unit=unit_locked,
+                                                allowed_units=json.dumps(allowed_locked),
+                                                planned_quantity=qty_val,
+                                            )
+                                        else:
+                                            pm_stretch.planned_quantity = qty_val
+                                            pm_stretch.unit = unit_locked
+                                            pm_stretch.allowed_units = json.dumps(allowed_locked)
+                                        db.add(pm_stretch)
                                     else:
                                         if existing is None:
                                             db.add(
@@ -1374,102 +1786,309 @@ def create_project_form(
                             logger.exception("Failed to apply per-stretch overrides (project_id=%s)", project.id)
 
                         flash(request, f"Stretch system enabled: created {created_stretches} stretch(es).", "success")
-                        handled_ui_segments = True
 
-                    if not handled_ui_segments:
-                        method = str(stretch_method or "count").strip().lower()
-                        if method == "length":
-                            slm = int(stretch_length_m or 0)
-                            if slm <= 0:
-                                raise ValueError("Stretch length (m) must be > 0")
-                            preview_segments = generate_stretch_segments(total_length_m=total_length_m2, stretch_length_m=slm)
-                        else:
-                            cnt = int(stretch_number_of_stretches or 0)
-                            if cnt <= 0:
-                                cnt = 5
-                            preview_segments = generate_stretch_segments(total_length_m=total_length_m2, number_of_stretches=cnt)
+                # ---------------- STRETCH SYSTEM (non-wizard create form) ----------------
+                # Road projects must provide explicit stretch segments (no auto-generation).
+                if (not wizard_state) and _truthy(stretch_enabled) and allow_stretch_create:
+                    segments = list(validated_segments or [])
+                    if not segments:
+                        raise ValueError("Stretch segments are required for Road projects")
 
-                        db.query(RoadStretch).filter(
-                            RoadStretch.project_id == int(project.id),
-                            RoadStretch.is_active == True,  # noqa: E712
-                        ).update({RoadStretch.is_active: False})
+                    total_length_m2 = int(validated_total_length_m or 0)
+                    if total_length_m2 <= 0:
+                        raise ValueError("Road length (km) must be set to generate stretches")
 
-                        created_stretches = 0
-                        for seg in preview_segments:
-                            db.add(
-                                RoadStretch(
-                                    project_id=int(project.id),
-                                    stretch_code=str(seg.get("stretch_code") or ""),
-                                    stretch_name=str(seg.get("stretch_name") or ""),
-                                    start_chainage=str(seg.get("start_chainage") or chainage_from_meters(int(seg.get("start_m") or 0))),
-                                    end_chainage=str(seg.get("end_chainage") or chainage_from_meters(int(seg.get("end_m") or 0))),
-                                    length_m=int(seg.get("length_m") or 0),
-                                    sequence_no=int(seg.get("sequence_no") or (created_stretches + 1)),
-                                    planned_start_date=project.planned_start_date,
-                                    planned_end_date=project.planned_end_date,
-                                    is_active=True,
-                                )
+                    db.query(RoadStretch).filter(
+                        RoadStretch.project_id == int(project.id),
+                        RoadStretch.is_active == True,  # noqa: E712
+                    ).update({RoadStretch.is_active: False})
+
+                    created_stretches = 0
+                    for seg in segments:
+                        db.add(
+                            RoadStretch(
+                                project_id=int(project.id),
+                                stretch_code=str(seg["stretch_code"]),
+                                stretch_name=str(seg["stretch_name"]),
+                                start_chainage=chainage_from_meters(int(seg["start_m"])),
+                                end_chainage=chainage_from_meters(int(seg["end_m"])),
+                                length_m=int(seg["length_m"]),
+                                sequence_no=int(seg["sequence_no"]),
+                                planned_start_date=seg.get("planned_start_date"),
+                                planned_end_date=seg.get("planned_end_date"),
+                                is_active=True,
                             )
-                            created_stretches += 1
+                        )
+                        created_stretches += 1
+
+                    db.commit()
+
+                    # Ensure ProjectActivity rows exist with correct scope so stretch cloning works.
+                    try:
+                        acts = (
+                            db.query(Activity)
+                            .filter(Activity.project_id == project.id, Activity.is_active == True)  # noqa: E712
+                            .order_by(Activity.id.asc())
+                            .all()
+                        )
+                        for act in acts:
+                            d = activity_defs_by_name.get(str(getattr(act, "name", "") or "").strip().lower())
+                            scope = "STRETCH"
+                            if isinstance(d, dict):
+                                raw_scope = d.get("activity_scope")
+                                if raw_scope is None:
+                                    raw_scope = d.get("scope")
+                                scope_candidate = str(raw_scope or "").strip().upper()
+                                if scope_candidate in {"COMMON", "STRETCH"}:
+                                    scope = scope_candidate
+
+                            pa_exists = (
+                                db.query(ProjectActivity)
+                                .filter(
+                                    ProjectActivity.project_id == project.id,
+                                    ProjectActivity.activity_id == act.id,
+                                )
+                                .first()
+                            )
+                            if not pa_exists:
+                                db.add(
+                                    ProjectActivity(
+                                        project_id=int(project.id),
+                                        activity_id=int(act.id),
+                                        planned_quantity=0.0,
+                                        unit=str(getattr(act, "display_unit", None) or "unit"),
+                                        start_date=project.planned_start_date,
+                                        end_date=project.planned_end_date,
+                                        activity_scope=scope,
+                                    )
+                                )
+                            else:
+                                try:
+                                    pa_exists.activity_scope = scope
+                                    db.add(pa_exists)
+                                except Exception:
+                                    pass
 
                         db.commit()
+                    except Exception:
+                        db.rollback()
 
-                        # Ensure ProjectActivity rows exist with correct scope so stretch cloning works.
-                        try:
-                            acts = (
-                                db.query(Activity)
-                                .filter(Activity.project_id == project.id, Activity.is_active == True)  # noqa: E712
-                                .order_by(Activity.id.asc())
-                                .all()
+                    try:
+                        apply_activities_to_stretches(int(project.id), mode="ALL")
+                    except Exception:
+                        logger.exception("Stretch activity mapping failed (project_id=%s)", project.id)
+
+                    # Apply per-stretch overrides (best-effort)
+                    try:
+                        active_stretches = (
+                            db.query(RoadStretch)
+                            .filter(
+                                RoadStretch.project_id == int(project.id),
+                                RoadStretch.is_active == True,  # noqa: E712
                             )
-                            for act in acts:
-                                d = activity_defs_by_name.get(str(getattr(act, "name", "") or "").strip().lower())
-                                scope = "STRETCH"
-                                if isinstance(d, dict):
-                                    raw_scope = d.get("activity_scope")
-                                    if raw_scope is None:
-                                        raw_scope = d.get("scope")
-                                    scope_candidate = str(raw_scope or "").strip().upper()
-                                    if scope_candidate in {"COMMON", "STRETCH"}:
-                                        scope = scope_candidate
+                            .all()
+                        )
+                        stretch_by_code = {str(s.stretch_code or "").strip().lower(): s for s in active_stretches}
 
-                                pa_exists = (
-                                    db.query(ProjectActivity)
+                        pa_rows = (
+                            db.query(ProjectActivity, Activity)
+                            .join(Activity, Activity.id == ProjectActivity.activity_id)
+                            .filter(ProjectActivity.project_id == int(project.id))
+                            .all()
+                        )
+                        pa_by_name = {str(a.name or "").strip().lower(): pa for (pa, a) in pa_rows if a and (a.name or "").strip()}
+
+                        mat_rows = (
+                            db.query(PlannedMaterial, Material)
+                            .join(Material, Material.id == PlannedMaterial.material_id)
+                            .filter(
+                                PlannedMaterial.project_id == int(project.id),
+                                PlannedMaterial.stretch_id == None,  # noqa: E711
+                            )
+                            .all()
+                        )
+                        material_id_by_name = {str(m.name or "").strip().lower(): int(m.id) for (pm, m) in mat_rows if m and (m.name or "").strip()}
+                        planned_by_material_id = {int(pm.material_id): pm for (pm, m) in mat_rows if pm}
+
+                        for seg in segments:
+                            stretch = stretch_by_code.get(str(seg.get("stretch_code") or "").strip().lower())
+                            if not stretch:
+                                continue
+
+                            # Activities: include/exclude + duration hours
+                            for ao in (seg.get("activities") or []):
+                                if not isinstance(ao, dict):
+                                    continue
+                                aname = str(ao.get("name") or "").strip()
+                                if not aname:
+                                    continue
+                                key = aname.lower()
+                                include = bool(ao.get("include"))
+                                hrs = ao.get("planned_duration_hours")
+                                planned_start_time = ao.get("start_time")
+                                planned_end_time = ao.get("end_time")
+                                if planned_start_time is not None:
+                                    planned_start_time = str(planned_start_time).strip() or None
+                                if planned_end_time is not None:
+                                    planned_end_time = str(planned_end_time).strip() or None
+
+                                pa = pa_by_name.get(key)
+                                if pa is None and include:
+                                    # Create a new STRETCH-scoped activity only for this project (used for this stretch)
+                                    new_act = Activity(
+                                        project_id=int(project.id),
+                                        code=activity_code_allocator(int(project.id), aname),
+                                        name=str(aname),
+                                        default_start_time=None,
+                                        default_end_time=None,
+                                        is_standard=False,
+                                        is_active=True,
+                                    )
+                                    db.add(new_act)
+                                    db.flush()
+                                    new_pa = ProjectActivity(
+                                        project_id=int(project.id),
+                                        activity_id=int(new_act.id),
+                                        planned_quantity=0.0,
+                                        unit=str(getattr(new_act, "display_unit", None) or "hours"),
+                                        start_date=project.planned_start_date,
+                                        end_date=project.planned_end_date,
+                                        activity_scope="STRETCH",
+                                        default_duration_hours=float(hrs) if hrs is not None else None,
+                                    )
+                                    db.add(new_pa)
+                                    db.flush()
+                                    pa = new_pa
+                                    pa_by_name[key] = pa
+
+                                if pa is None:
+                                    continue
+
+                                sa = (
+                                    db.query(StretchActivity)
                                     .filter(
-                                        ProjectActivity.project_id == project.id,
-                                        ProjectActivity.activity_id == act.id,
+                                        StretchActivity.stretch_id == int(stretch.id),
+                                        StretchActivity.project_activity_id == int(pa.id),
                                     )
                                     .first()
                                 )
-                                if not pa_exists:
-                                    db.add(
-                                        ProjectActivity(
-                                            project_id=int(project.id),
-                                            activity_id=int(act.id),
-                                            planned_quantity=0.0,
-                                            unit=str(getattr(act, "display_unit", None) or "unit"),
-                                            start_date=project.planned_start_date,
-                                            end_date=project.planned_end_date,
-                                            activity_scope=scope,
-                                        )
+
+                                if not include:
+                                    if sa is not None:
+                                        sa.is_active = False
+                                        db.add(sa)
+                                    continue
+
+                                act_start_raw = ao.get("planned_start_date") or seg.get("planned_start_date")
+                                act_end_raw = ao.get("planned_end_date") or seg.get("planned_end_date")
+                                act_start = parse_date_ddmmyyyy_or_iso(str(act_start_raw)) if act_start_raw else None
+                                act_end = parse_date_ddmmyyyy_or_iso(str(act_end_raw)) if act_end_raw else None
+
+                                if sa is None:
+                                    sa = StretchActivity(
+                                        stretch_id=int(stretch.id),
+                                        project_activity_id=int(pa.id),
+                                        planned_start_date=act_start,
+                                        planned_end_date=act_end,
+                                        planned_duration_hours=float(hrs) if hrs is not None else None,
+                                        planned_start_time=planned_start_time,
+                                        planned_end_time=planned_end_time,
+                                        planned_quantity=None,
+                                        actual_quantity=None,
+                                        progress_percent=None,
+                                        is_active=True,
                                     )
+                                    db.add(sa)
                                 else:
+                                    sa.is_active = True
+                                    sa.planned_start_time = planned_start_time
+                                    sa.planned_end_time = planned_end_time
+                                    if act_start is not None:
+                                        sa.planned_start_date = act_start
+                                    if act_end is not None:
+                                        sa.planned_end_date = act_end
+                                    if hrs is not None:
+                                        sa.planned_duration_hours = float(hrs)
+                                    db.add(sa)
+
+                            # Materials: store per-stretch quantities + exclusions
+                            for mo in (seg.get("materials") or []):
+                                if not isinstance(mo, dict):
+                                    continue
+                                mname = str(mo.get("name") or "").strip()
+                                if not mname:
+                                    continue
+                                mid = material_id_by_name.get(mname.lower())
+                                if not mid:
+                                    continue
+                                include = bool(mo.get("include"))
+                                qty_raw = mo.get("quantity")
+                                if qty_raw is None:
+                                    qty_raw = mo.get("planned_quantity")
+
+                                existing = (
+                                    db.query(StretchMaterialExclusion)
+                                    .filter(
+                                        StretchMaterialExclusion.stretch_id == int(stretch.id),
+                                        StretchMaterialExclusion.material_id == int(mid),
+                                    )
+                                    .first()
+                                )
+
+                                if include:
+                                    if existing is not None:
+                                        db.delete(existing)
+                                    base_pm = planned_by_material_id.get(int(mid))
+                                    if base_pm:
+                                        unit_locked = str(getattr(base_pm, "unit", None) or "unit").strip() or "unit"
+                                        allowed_locked = base_pm.get_allowed_units() if hasattr(base_pm, "get_allowed_units") else [unit_locked]
+                                    else:
+                                        unit_locked = "unit"
+                                        allowed_locked = [unit_locked]
+
                                     try:
-                                        pa_exists.activity_scope = scope
-                                        db.add(pa_exists)
-                                    except Exception:
-                                        pass
+                                        qty_val = Decimal(str(qty_raw))
+                                    except InvalidOperation:
+                                        qty_val = Decimal("0")
 
-                            db.commit()
-                        except Exception:
-                            db.rollback()
+                                    pm_stretch = (
+                                        db.query(PlannedMaterial)
+                                        .filter(
+                                            PlannedMaterial.project_id == int(project.id),
+                                            PlannedMaterial.material_id == int(mid),
+                                            PlannedMaterial.stretch_id == int(stretch.id),
+                                        )
+                                        .first()
+                                    )
+                                    if not pm_stretch:
+                                        pm_stretch = PlannedMaterial(
+                                            project_id=int(project.id),
+                                            material_id=int(mid),
+                                            stretch_id=int(stretch.id),
+                                            unit=unit_locked,
+                                            allowed_units=json.dumps(allowed_locked),
+                                            planned_quantity=qty_val,
+                                        )
+                                    else:
+                                        pm_stretch.planned_quantity = qty_val
+                                        pm_stretch.unit = unit_locked
+                                        pm_stretch.allowed_units = json.dumps(allowed_locked)
+                                    db.add(pm_stretch)
+                                else:
+                                    if existing is None:
+                                        db.add(
+                                            StretchMaterialExclusion(
+                                                stretch_id=int(stretch.id),
+                                                material_id=int(mid),
+                                            )
+                                        )
 
-                        try:
-                            apply_activities_to_stretches(int(project.id), mode="ALL")
-                        except Exception:
-                            logger.exception("Stretch activity mapping failed (project_id=%s)", project.id)
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                        logger.exception("Failed to apply per-stretch overrides (project_id=%s)", project.id)
 
-                        flash(request, f"Stretch system enabled: created {created_stretches} stretch(es).", "success")
+                    flash(request, f"Stretch system enabled: created {created_stretches} stretch(es).", "success")
             except Exception as e:
                 db.rollback()
                 logger.exception("Stretch setup failed during project creation (project_id=%s)", project.id)
@@ -1572,11 +2191,34 @@ def create_project_form(
 
                 pm_exists = (
                     db.query(PlannedMaterial)
-                    .filter(PlannedMaterial.project_id == project.id, PlannedMaterial.material_id == mat.id)
+                    .filter(
+                        PlannedMaterial.project_id == project.id,
+                        PlannedMaterial.material_id == mat.id,
+                        PlannedMaterial.stretch_id == None,  # noqa: E711
+                    )
                     .first()
                 )
                 if not pm_exists:
-                    db.add(PlannedMaterial(project_id=project.id, material_id=mat.id, planned_quantity=0))
+                    db.add(
+                        PlannedMaterial(
+                            project_id=project.id,
+                            material_id=mat.id,
+                            stretch_id=None,
+                            unit=unit,
+                            allowed_units=json.dumps(allowed_units),
+                            planned_quantity=Decimal("0"),
+                        )
+                    )
+                else:
+                    changed_pm = False
+                    if not getattr(pm_exists, "unit", None):
+                        pm_exists.unit = unit
+                        changed_pm = True
+                    if not getattr(pm_exists, "allowed_units", None):
+                        pm_exists.allowed_units = json.dumps(allowed_units)
+                        changed_pm = True
+                    if changed_pm:
+                        db.add(pm_exists)
 
             db.commit()
     except Exception:
@@ -1764,10 +2406,449 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
         flash(request, "You do not have permission to edit this project.", "error")
         return RedirectResponse("/projects/manage", status_code=302)
 
+    _ensure_project_road_presets(db, project)
+
+    stretches = (
+        db.query(RoadStretch)
+        .filter(
+            RoadStretch.project_id == int(project.id),
+            RoadStretch.is_active.isnot(False),
+        )
+        .order_by(RoadStretch.sequence_no.asc())
+        .all()
+    )
+
+    # Auto-generate stretches for road projects if none exist
+    if not stretches and project.project_type == "Road":
+        try:
+            total_length_m = int(round(float(project.road_length_km or 0) * 1000.0))
+            if total_length_m > 0:
+                segments = generate_stretch_segments(total_length_m=total_length_m, number_of_stretches=5)
+                for seg in segments:
+                    stretch = RoadStretch(
+                        project_id=int(project.id),
+                        stretch_code=str(seg.get("stretch_code") or ""),
+                        stretch_name=str(seg.get("stretch_name") or ""),
+                        start_chainage=str(seg.get("start_chainage") or "0+000"),
+                        end_chainage=str(seg.get("end_chainage") or "0+000"),
+                        length_m=int(seg.get("length_m") or 0),
+                        sequence_no=int(seg.get("sequence_no") or 0),
+                        planned_start_date=project.planned_start_date,
+                        planned_end_date=project.planned_end_date,
+                        is_active=True,
+                    )
+                    db.add(stretch)
+                db.commit()
+                try:
+                    apply_activities_to_stretches(int(project.id), mode="ALL")
+                except Exception:
+                    logger.exception("Stretch activity mapping failed after auto-generate (project_id=%s)", project.id)
+
+                stretches = (
+                    db.query(RoadStretch)
+                    .filter(
+                        RoadStretch.project_id == int(project.id),
+                        RoadStretch.is_active.isnot(False),
+                    )
+                    .order_by(RoadStretch.sequence_no.asc())
+                    .all()
+                )
+        except Exception:
+            logger.exception("Auto-generate stretches failed (project_id=%s)", project.id)
+
+    # Ensure stretch activities exist if project activities are present
+    if stretches:
+        try:
+            existing_sa = (
+                db.query(StretchActivity)
+                .join(RoadStretch, RoadStretch.id == StretchActivity.stretch_id)
+                .filter(RoadStretch.project_id == int(project.id))
+                .first()
+            )
+        except Exception:
+            existing_sa = None
+        if not existing_sa:
+            try:
+                apply_activities_to_stretches(int(project.id), mode="ALL")
+            except Exception:
+                logger.exception("Stretch activity mapping failed on edit page (project_id=%s)", project.id)
+
+    materials_payload: list[dict] = []
+    try:
+        pm_rows = (
+            db.query(PlannedMaterial, Material)
+            .join(Material, Material.id == PlannedMaterial.material_id)
+            .filter(
+                PlannedMaterial.project_id == int(project.id),
+                PlannedMaterial.stretch_id == None,  # noqa: E711
+            )
+            .all()
+        )
+        for pm, mat in pm_rows:
+            allowed_raw = getattr(pm, "allowed_units", None) or getattr(mat, "allowed_units", None) or "[]"
+            try:
+                allowed_units = json.loads(allowed_raw) if isinstance(allowed_raw, str) else list(allowed_raw or [])
+            except Exception:
+                allowed_units = []
+            allowed_units = [str(u or "").strip() for u in allowed_units if str(u or "").strip()]
+            unit = str(getattr(pm, "unit", None) or getattr(mat, "standard_unit", None) or getattr(mat, "unit", None) or "unit").strip() or "unit"
+            if not allowed_units:
+                allowed_units = [unit]
+            if unit not in allowed_units:
+                allowed_units.insert(0, unit)
+            materials_payload.append({"name": mat.name, "unit": unit, "allowed_units": allowed_units})
+    except Exception:
+        materials_payload = []
+
+    stretch_payload = []
+    for stretch in stretches:
+        acts = (
+            db.query(StretchActivity, ProjectActivity, Activity)
+            .join(ProjectActivity, ProjectActivity.id == StretchActivity.project_activity_id)
+            .join(Activity, Activity.id == ProjectActivity.activity_id)
+            .filter(StretchActivity.stretch_id == int(stretch.id))
+            .order_by(Activity.id.asc())
+            .all()
+        )
+        act_payload = []
+        for sa, pa, act in acts:
+            act_payload.append(
+                {
+                    "id": int(sa.id),
+                    "name": str(getattr(act, "name", "") or ""),
+                    "planned_start_date": sa.planned_start_date.strftime("%d/%m/%Y") if sa.planned_start_date else "",
+                    "planned_end_date": sa.planned_end_date.strftime("%d/%m/%Y") if sa.planned_end_date else "",
+                }
+            )
+
+        stretch_payload.append(
+            {
+                "id": int(stretch.id),
+                "stretch_code": stretch.stretch_code,
+                "stretch_name": stretch.stretch_name,
+                "planned_start_date": stretch.planned_start_date.strftime("%d/%m/%Y") if stretch.planned_start_date else "",
+                "planned_end_date": stretch.planned_end_date.strftime("%d/%m/%Y") if stretch.planned_end_date else "",
+                "activities": act_payload,
+                "materials": materials_payload,
+            }
+        )
+
     return templates.TemplateResponse(
         "edit_project.html",
-        {"request": request, "project": project, "user": user}
+        {
+            "request": request,
+            "project": project,
+            "user": user,
+            "classification_metadata": get_classification_metadata(),
+            "stretches_json": json.dumps(stretch_payload),
+        }
     )
+
+
+@router.get("/{project_id}/stretches/edit", response_class=HTMLResponse)
+def edit_project_stretches_page(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    project, role = get_project_access(db, project_id, user)
+
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit stretches.", "error")
+        return RedirectResponse("/projects/manage", status_code=302)
+
+    _ensure_project_road_presets(db, project)
+
+    stretches = (
+        db.query(RoadStretch)
+        .filter(
+            RoadStretch.project_id == int(project.id),
+            RoadStretch.is_active.isnot(False),
+        )
+        .order_by(RoadStretch.sequence_no.asc())
+        .all()
+    )
+
+    # Auto-generate stretches for road projects if none exist
+    if not stretches and project.project_type == "Road":
+        try:
+            total_length_m = int(round(float(project.road_length_km or 0) * 1000.0))
+            if total_length_m > 0:
+                segments = generate_stretch_segments(total_length_m=total_length_m, number_of_stretches=5)
+                for seg in segments:
+                    stretch = RoadStretch(
+                        project_id=int(project.id),
+                        stretch_code=str(seg.get("stretch_code") or ""),
+                        stretch_name=str(seg.get("stretch_name") or ""),
+                        start_chainage=str(seg.get("start_chainage") or "0+000"),
+                        end_chainage=str(seg.get("end_chainage") or "0+000"),
+                        length_m=int(seg.get("length_m") or 0),
+                        sequence_no=int(seg.get("sequence_no") or 0),
+                        planned_start_date=project.planned_start_date,
+                        planned_end_date=project.planned_end_date,
+                        is_active=True,
+                    )
+                    db.add(stretch)
+                db.commit()
+                try:
+                    apply_activities_to_stretches(int(project.id), mode="ALL")
+                except Exception:
+                    logger.exception("Stretch activity mapping failed after auto-generate (project_id=%s)", project.id)
+
+                stretches = (
+                    db.query(RoadStretch)
+                    .filter(
+                        RoadStretch.project_id == int(project.id),
+                        RoadStretch.is_active.isnot(False),
+                    )
+                    .order_by(RoadStretch.sequence_no.asc())
+                    .all()
+                )
+        except Exception:
+            logger.exception("Auto-generate stretches failed (project_id=%s)", project.id)
+
+    # Ensure stretch activities exist if project activities are present
+    if stretches:
+        try:
+            existing_sa = (
+                db.query(StretchActivity)
+                .join(RoadStretch, RoadStretch.id == StretchActivity.stretch_id)
+                .filter(RoadStretch.project_id == int(project.id))
+                .first()
+            )
+        except Exception:
+            existing_sa = None
+        if not existing_sa:
+            try:
+                apply_activities_to_stretches(int(project.id), mode="ALL")
+            except Exception:
+                logger.exception("Stretch activity mapping failed on stretch edit page (project_id=%s)", project.id)
+
+    materials_payload: list[dict] = []
+    try:
+        pm_rows = (
+            db.query(PlannedMaterial, Material)
+            .join(Material, Material.id == PlannedMaterial.material_id)
+            .filter(
+                PlannedMaterial.project_id == int(project.id),
+                PlannedMaterial.stretch_id == None,  # noqa: E711
+            )
+            .all()
+        )
+        for pm, mat in pm_rows:
+            allowed_raw = getattr(pm, "allowed_units", None) or getattr(mat, "allowed_units", None) or "[]"
+            try:
+                allowed_units = json.loads(allowed_raw) if isinstance(allowed_raw, str) else list(allowed_raw or [])
+            except Exception:
+                allowed_units = []
+            allowed_units = [str(u or "").strip() for u in allowed_units if str(u or "").strip()]
+            unit = str(getattr(pm, "unit", None) or getattr(mat, "standard_unit", None) or getattr(mat, "unit", None) or "unit").strip() or "unit"
+            if not allowed_units:
+                allowed_units = [unit]
+            if unit not in allowed_units:
+                allowed_units.insert(0, unit)
+            materials_payload.append({"name": mat.name, "unit": unit, "allowed_units": allowed_units})
+    except Exception:
+        materials_payload = []
+
+    payload = []
+    for stretch in stretches:
+        acts = (
+            db.query(StretchActivity, ProjectActivity, Activity)
+            .join(ProjectActivity, ProjectActivity.id == StretchActivity.project_activity_id)
+            .join(Activity, Activity.id == ProjectActivity.activity_id)
+            .filter(StretchActivity.stretch_id == int(stretch.id))
+            .order_by(Activity.id.asc())
+            .all()
+        )
+        act_payload = []
+        for sa, pa, act in acts:
+            act_payload.append(
+                {
+                    "id": int(sa.id),
+                    "name": str(getattr(act, "name", "") or ""),
+                    "planned_start_date": sa.planned_start_date.strftime("%d/%m/%Y") if sa.planned_start_date else "",
+                    "planned_end_date": sa.planned_end_date.strftime("%d/%m/%Y") if sa.planned_end_date else "",
+                }
+            )
+
+        payload.append(
+            {
+                "id": int(stretch.id),
+                "stretch_code": stretch.stretch_code,
+                "stretch_name": stretch.stretch_name,
+                "planned_start_date": stretch.planned_start_date.strftime("%d/%m/%Y") if stretch.planned_start_date else "",
+                "planned_end_date": stretch.planned_end_date.strftime("%d/%m/%Y") if stretch.planned_end_date else "",
+                "activities": act_payload,
+                "materials": materials_payload,
+            }
+        )
+
+    return templates.TemplateResponse(
+        "projects/edit_stretches.html",
+        {
+            "request": request,
+            "project": project,
+            "user": user,
+            "stretches_json": json.dumps(payload),
+        }
+    )
+
+
+@router.post("/{project_id}/stretches/update")
+def update_project_stretches(
+    project_id: int,
+    request: Request,
+    stretch_segments_json: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    project, role = get_project_access(db, project_id, user)
+
+    if not project or role not in ["owner", "admin", "manager"]:
+        flash(request, "You do not have permission to edit stretches.", "error")
+        return RedirectResponse("/projects/manage", status_code=302)
+
+    try:
+        segments = json.loads(stretch_segments_json or "[]")
+    except Exception:
+        flash(request, "Invalid stretch payload.", "error")
+        return RedirectResponse(f"/projects/{project_id}/stretches/edit", status_code=302)
+
+    if not isinstance(segments, list):
+        flash(request, "Invalid stretch payload.", "error")
+        return RedirectResponse(f"/projects/{project_id}/stretches/edit", status_code=302)
+
+    warnings: list[str] = []
+
+    created_new_stretches = 0
+    for seg in segments[:500]:
+        if not isinstance(seg, dict):
+            continue
+        sid = int(seg.get("id") or 0)
+        stretch = None
+        if sid > 0:
+            stretch = (
+                db.query(RoadStretch)
+                .filter(RoadStretch.id == sid, RoadStretch.project_id == int(project.id))
+                .first()
+            )
+
+        if not stretch:
+            # Create new stretch
+            seq = int(seg.get("sequence_no") or 0) or None
+            if not seq:
+                last_seq = (
+                    db.query(func.max(RoadStretch.sequence_no))
+                    .filter(RoadStretch.project_id == int(project.id))
+                    .scalar()
+                    or 0
+                )
+                seq = int(last_seq) + 1
+            code = str(seg.get("stretch_code") or f"ST-{seq:03d}").strip() or f"ST-{seq:03d}"
+            name = str(seg.get("stretch_name") or f"Stretch {seq}").strip() or f"Stretch {seq}"
+
+            try:
+                start_m = int(seg.get("start_m") or 0)
+                end_m = int(seg.get("end_m") or (start_m + int(seg.get("length_m") or 0)))
+            except Exception:
+                start_m = 0
+                end_m = 0
+
+            length_m = max(int(end_m - start_m), 1)
+            stretch = RoadStretch(
+                project_id=int(project.id),
+                stretch_code=code,
+                stretch_name=name,
+                start_chainage=chainage_from_meters(int(start_m)),
+                end_chainage=chainage_from_meters(int(end_m)),
+                length_m=length_m,
+                sequence_no=int(seq),
+                is_active=True,
+            )
+            db.add(stretch)
+            db.flush()
+            created_new_stretches += 1
+
+        name = str(seg.get("stretch_name") or "").strip()
+        if name:
+            stretch.stretch_name = name
+
+        ps_raw = str(seg.get("planned_start_date") or "").strip()
+        pe_raw = str(seg.get("planned_end_date") or "").strip()
+        try:
+            ps = parse_date_ddmmyyyy_or_iso(ps_raw) if ps_raw else None
+        except Exception:
+            ps = None
+            warnings.append(f"Invalid start date for stretch {stretch.stretch_code}")
+        try:
+            pe = parse_date_ddmmyyyy_or_iso(pe_raw) if pe_raw else None
+        except Exception:
+            pe = None
+            warnings.append(f"Invalid end date for stretch {stretch.stretch_code}")
+
+        if ps:
+            stretch.planned_start_date = ps
+        if pe:
+            stretch.planned_end_date = pe
+
+        if stretch.planned_start_date and stretch.planned_end_date:
+            if stretch.planned_end_date < stretch.planned_start_date:
+                stretch.planned_end_date = stretch.planned_start_date
+                warnings.append(f"Stretch {stretch.stretch_code} end date adjusted to start date")
+
+        # Update stretch activities
+        acts = seg.get("activities") or []
+        if isinstance(acts, list):
+            for a in acts[:1000]:
+                if not isinstance(a, dict):
+                    continue
+                aid = int(a.get("id") or 0)
+                if aid <= 0:
+                    continue
+                sa = db.query(StretchActivity).filter(StretchActivity.id == aid).first()
+                if not sa:
+                    continue
+
+                aps_raw = str(a.get("planned_start_date") or "").strip()
+                ape_raw = str(a.get("planned_end_date") or "").strip()
+                try:
+                    aps = parse_date_ddmmyyyy_or_iso(aps_raw) if aps_raw else None
+                except Exception:
+                    aps = None
+                    warnings.append("Invalid activity start date; skipped.")
+                try:
+                    ape = parse_date_ddmmyyyy_or_iso(ape_raw) if ape_raw else None
+                except Exception:
+                    ape = None
+                    warnings.append("Invalid activity end date; skipped.")
+
+                if aps:
+                    sa.planned_start_date = aps
+                if ape:
+                    sa.planned_end_date = ape
+
+                # Clamp to stretch dates
+                if stretch.planned_start_date and sa.planned_start_date and sa.planned_start_date < stretch.planned_start_date:
+                    sa.planned_start_date = stretch.planned_start_date
+                if stretch.planned_end_date and sa.planned_end_date and sa.planned_end_date > stretch.planned_end_date:
+                    sa.planned_end_date = stretch.planned_end_date
+                if sa.planned_start_date and sa.planned_end_date and sa.planned_end_date < sa.planned_start_date:
+                    sa.planned_end_date = sa.planned_start_date
+
+                db.add(sa)
+
+        db.add(stretch)
+
+    db.commit()
+
+    if created_new_stretches:
+        try:
+            apply_activities_to_stretches(int(project.id), mode="ALL")
+        except Exception:
+            logger.exception("Stretch activity mapping failed after stretch creation (project_id=%s)", project.id)
+
+    for msg in warnings[:10]:
+        flash(request, msg, "warning")
+    flash(request, "Stretches updated successfully", "success")
+    return RedirectResponse(f"/projects/{project_id}/stretches/edit", status_code=302)
 
 @router.post("/{project_id}/update")
 def update_project_form(
@@ -1889,7 +2970,10 @@ def project_materials_page(project_id: int, request: Request, db: Session = Depe
     # Planned materials for this project
     planned_rows = (
         db.query(PlannedMaterial)
-        .filter(PlannedMaterial.project_id == project_id)
+        .filter(
+            PlannedMaterial.project_id == project_id,
+            PlannedMaterial.stretch_id == None,  # noqa: E711
+        )
         .all()
     )
 
@@ -1903,9 +2987,9 @@ def project_materials_page(project_id: int, request: Request, db: Session = Depe
             "planned_material_id": int(pm.id),
             "material_id": int(mat.id),
             "name": mat.name,
-            "unit": getattr(mat, "unit", "") or "",
+            "unit": getattr(pm, "unit", None) or getattr(mat, "unit", "") or "",
             "standard_unit": getattr(mat, "standard_unit", None),
-            "allowed_units": (mat.get_allowed_units() if hasattr(mat, "get_allowed_units") else []),
+            "allowed_units": (pm.get_allowed_units() if hasattr(pm, "get_allowed_units") else (mat.get_allowed_units() if hasattr(mat, "get_allowed_units") else [])),
             "planned_quantity": float(pm.planned_quantity or 0),
         })
         planned_name_keys.add((mat.name or "").strip().lower())
@@ -2069,12 +3153,36 @@ async def project_materials_add(
 
         pm_exists = (
             db.query(PlannedMaterial)
-            .filter(PlannedMaterial.project_id == project.id, PlannedMaterial.material_id == mat.id)
+            .filter(
+                PlannedMaterial.project_id == project.id,
+                PlannedMaterial.material_id == mat.id,
+                PlannedMaterial.stretch_id == None,  # noqa: E711
+            )
             .first()
         )
         if not pm_exists:
-            db.add(PlannedMaterial(project_id=project.id, material_id=mat.id, planned_quantity=0))
+            db.add(
+                PlannedMaterial(
+                    project_id=project.id,
+                    material_id=mat.id,
+                    stretch_id=None,
+                    unit=unit,
+                    allowed_units=json.dumps(allowed_units),
+                    planned_quantity=Decimal("0"),
+                )
+            )
             db.commit()
+        else:
+            changed_pm = False
+            if not getattr(pm_exists, "unit", None):
+                pm_exists.unit = unit
+                changed_pm = True
+            if not getattr(pm_exists, "allowed_units", None):
+                pm_exists.allowed_units = json.dumps(allowed_units)
+                changed_pm = True
+            if changed_pm:
+                db.add(pm_exists)
+                db.commit()
 
         flash(request, f"Material added: {mat.name}", "success")
     except Exception:
@@ -2112,7 +3220,11 @@ async def project_materials_update(
 
     pm = (
         db.query(PlannedMaterial)
-        .filter(PlannedMaterial.id == pm_id, PlannedMaterial.project_id == project_id)
+        .filter(
+            PlannedMaterial.id == pm_id,
+            PlannedMaterial.project_id == project_id,
+            PlannedMaterial.stretch_id == None,  # noqa: E711
+        )
         .first()
     )
     if not pm:
@@ -2120,7 +3232,10 @@ async def project_materials_update(
         return RedirectResponse(f"/projects/{project_id}/materials", status_code=302)
 
     try:
-        pm.planned_quantity = qty
+        try:
+            pm.planned_quantity = Decimal(str(qty_raw))
+        except InvalidOperation:
+            pm.planned_quantity = Decimal("0")
         db.add(pm)
         db.commit()
         flash(request, "Planned quantity updated.", "success")
@@ -2152,7 +3267,11 @@ async def project_materials_remove(
 
     pm = (
         db.query(PlannedMaterial)
-        .filter(PlannedMaterial.id == pm_id, PlannedMaterial.project_id == project_id)
+        .filter(
+            PlannedMaterial.id == pm_id,
+            PlannedMaterial.project_id == project_id,
+            PlannedMaterial.stretch_id == None,  # noqa: E711
+        )
         .first()
     )
     if not pm:
@@ -2194,7 +3313,10 @@ def project_activity_materials_page(project_id: int, request: Request, db: Sessi
 
     planned_rows = (
         db.query(PlannedMaterial)
-        .filter(PlannedMaterial.project_id == project_id)
+        .filter(
+            PlannedMaterial.project_id == project_id,
+            PlannedMaterial.stretch_id == None,  # noqa: E711
+        )
         .all()
     )
     planned_materials = [pm.material for pm in planned_rows if pm.material]
@@ -2444,11 +3566,41 @@ async def project_activity_materials_add(project_id: int, request: Request, db: 
 
         pm_exists = (
             db.query(PlannedMaterial)
-            .filter(PlannedMaterial.project_id == project_id, PlannedMaterial.material_id == material_id)
+            .filter(
+                PlannedMaterial.project_id == project_id,
+                PlannedMaterial.material_id == material_id,
+                PlannedMaterial.stretch_id == None,  # noqa: E711
+            )
             .first()
         )
+        unit_locked = (getattr(material, "standard_unit", None) or getattr(material, "unit", None) or "unit").strip() or "unit"
+        allowed_locked = material.get_allowed_units() if hasattr(material, "get_allowed_units") else [unit_locked]
+        allowed_locked = [str(u or "").strip() for u in allowed_locked if str(u or "").strip()]
+        if not allowed_locked:
+            allowed_locked = [unit_locked]
+        if unit_locked not in allowed_locked:
+            allowed_locked.insert(0, unit_locked)
         if not pm_exists:
-            db.add(PlannedMaterial(project_id=project_id, material_id=material_id, planned_quantity=0))
+            db.add(
+                PlannedMaterial(
+                    project_id=project_id,
+                    material_id=material_id,
+                    stretch_id=None,
+                    unit=unit_locked,
+                    allowed_units=json.dumps(allowed_locked),
+                    planned_quantity=Decimal("0"),
+                )
+            )
+        else:
+            changed_pm = False
+            if not getattr(pm_exists, "unit", None):
+                pm_exists.unit = unit_locked
+                changed_pm = True
+            if not getattr(pm_exists, "allowed_units", None):
+                pm_exists.allowed_units = json.dumps(allowed_locked)
+                changed_pm = True
+            if changed_pm:
+                db.add(pm_exists)
 
         db.commit()
         flash(request, "Mapping added.", "success")
@@ -2729,12 +3881,43 @@ def project_activity_materials_apply_presets(project_id: int, request: Request, 
 
                 pm_exists = (
                     db.query(PlannedMaterial)
-                    .filter(PlannedMaterial.project_id == project_id, PlannedMaterial.material_id == material.id)
+                    .filter(
+                        PlannedMaterial.project_id == project_id,
+                        PlannedMaterial.material_id == material.id,
+                        PlannedMaterial.stretch_id == None,  # noqa: E711
+                    )
                     .first()
                 )
+                unit_locked = (getattr(material, "standard_unit", None) or getattr(material, "unit", None) or "unit").strip() or "unit"
+                allowed_locked = material.get_allowed_units() if hasattr(material, "get_allowed_units") else [unit_locked]
+                allowed_locked = [str(u or "").strip() for u in allowed_locked if str(u or "").strip()]
+                if not allowed_locked:
+                    allowed_locked = [unit_locked]
+                if unit_locked not in allowed_locked:
+                    allowed_locked.insert(0, unit_locked)
                 if not pm_exists:
-                    db.add(PlannedMaterial(project_id=project_id, material_id=material.id, planned_quantity=0))
+                    db.add(
+                        PlannedMaterial(
+                            project_id=project_id,
+                            material_id=material.id,
+                            stretch_id=None,
+                            unit=unit_locked,
+                            allowed_units=json.dumps(allowed_locked),
+                            planned_quantity=Decimal("0"),
+                        )
+                    )
                     db.commit()
+                else:
+                    changed_pm = False
+                    if not getattr(pm_exists, "unit", None):
+                        pm_exists.unit = unit_locked
+                        changed_pm = True
+                    if not getattr(pm_exists, "allowed_units", None):
+                        pm_exists.allowed_units = json.dumps(allowed_locked)
+                        changed_pm = True
+                    if changed_pm:
+                        db.add(pm_exists)
+                        db.commit()
 
                 exists = (
                     db.query(ActivityMaterial)

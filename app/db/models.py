@@ -14,6 +14,9 @@ from app.models.project_wizard import ProjectWizardState
 
 # -------- ROAD STRETCH / CHAINAGE (OPTIONAL EXTENSION) --------
 from app.models.road_stretch import RoadStretch
+from app.models.road_geometry import RoadGeometry
+from app.models.pavement_design import PavementDesign
+from app.models.location import Location
 from app.models.stretch_activity import StretchActivity
 from app.models.stretch_material import StretchMaterial
 from app.models.stretch_material_exclusion import StretchMaterialExclusion

@@ -20,6 +20,12 @@ class RoadStretch(Base):
 
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
 
+    # Stretch-specific classification (can vary per stretch)
+    road_category = Column(String(100), nullable=True)
+    engineering_type = Column(String(50), nullable=True)
+
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=True, index=True)
+
     stretch_code = Column(String(20), nullable=False, index=True)
     stretch_name = Column(String(255), nullable=False)
 
@@ -28,6 +34,10 @@ class RoadStretch(Base):
 
     length_m = Column(Integer, nullable=False)
     sequence_no = Column(Integer, nullable=False, index=True)
+
+    # Planned schedule (stretch-scoped)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
 
     planned_start_date = Column(Date, nullable=True)
     planned_end_date = Column(Date, nullable=True)
@@ -38,6 +48,21 @@ class RoadStretch(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     project = relationship("Project")
+    location = relationship("Location")
+
+    geometry = relationship(
+        "RoadGeometry",
+        back_populates="stretch",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+    pavement_design = relationship(
+        "PavementDesign",
+        back_populates="stretch",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     stretch_activities = relationship(
         "StretchActivity",

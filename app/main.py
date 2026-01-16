@@ -85,6 +85,7 @@ from app.routes.project_wizard import router as project_wizard_router
 
 # 🔥 DESIGN DATA (NEW)
 from app.routes.design_data import router as design_data_router   # ✅ NEW
+from app.routes.road_projects import router as road_projects_router
 
 # FLASH
 from app.utils.flash import get_flashed_messages, flash
@@ -103,6 +104,11 @@ app = FastAPI(
 # ---------------- TEMPLATES & STATIC ----------------
 templates = Jinja2Templates(directory="app/templates")
 register_template_filters(templates)
+try:
+    templates.env.auto_reload = True
+    templates.env.cache = {}
+except Exception:
+    pass
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ---------------- SESSION ----------------
@@ -135,6 +141,7 @@ app.include_router(dashboard_router)
 app.include_router(projects_router)
 app.include_router(project_wizard_router)
 app.include_router(design_data_router)   # ✅ NEW (Design Data routes)
+app.include_router(road_projects_router)
 app.include_router(settings_router)
 app.include_router(reports_router, prefix="/reports")
 app.include_router(users_router, prefix="/users")
@@ -374,6 +381,27 @@ def startup_tasks():
                 "ALTER TABLE projects ADD COLUMN joint_spacing_m FLOAT",
                 "ALTER TABLE projects ADD COLUMN dowel_diameter_mm INTEGER",
                 "ALTER TABLE projects ADD COLUMN tie_bar_diameter_mm INTEGER",
+                "ALTER TABLE projects ADD COLUMN location_id INTEGER",
+            ]:
+                try:
+                    conn.exec_driver_sql(stmt)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # ==================================================
+    # ROAD STRETCH EXTENSIONS (SAFE, SQLITE)
+    # Adds per-stretch classification + planned dates.
+    # ==================================================
+    try:
+        with engine.begin() as conn:
+            for stmt in [
+                "ALTER TABLE road_stretches ADD COLUMN road_category VARCHAR(100)",
+                "ALTER TABLE road_stretches ADD COLUMN engineering_type VARCHAR(50)",
+                "ALTER TABLE road_stretches ADD COLUMN start_date DATE",
+                "ALTER TABLE road_stretches ADD COLUMN end_date DATE",
+                "ALTER TABLE road_stretches ADD COLUMN location_id INTEGER",
             ]:
                 try:
                     conn.exec_driver_sql(stmt)
@@ -449,6 +477,24 @@ def startup_tasks():
                 "ALTER TABLE material_usages ADD COLUMN quantity FLOAT",
                 "ALTER TABLE material_usages ADD COLUMN is_planned BOOLEAN",
                 "ALTER TABLE material_usages ADD COLUMN unit VARCHAR(50)",
+            ]:
+                try:
+                    conn.exec_driver_sql(stmt)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # ==================================================
+    # PLANNED MATERIALS EXTENSION (SAFE, SQLITE)
+    # Adds optional stretch_id for per-stretch planning.
+    # ==================================================
+    try:
+        with engine.begin() as conn:
+            for stmt in [
+                "ALTER TABLE planned_materials ADD COLUMN stretch_id INTEGER",
+                "ALTER TABLE planned_materials ADD COLUMN unit VARCHAR(50)",
+                "ALTER TABLE planned_materials ADD COLUMN allowed_units VARCHAR(500)",
             ]:
                 try:
                     conn.exec_driver_sql(stmt)

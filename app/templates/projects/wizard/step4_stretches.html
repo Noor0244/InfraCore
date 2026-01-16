@@ -65,10 +65,12 @@
         <thead>
           <tr>
             <th style="width:90px">No</th>
-            <th style="width:260px">Stretch Name</th>
+            <th style="width:220px">Stretch Name</th>
             <th style="width:160px">Start Chainage</th>
             <th style="width:160px">End Chainage</th>
             <th style="width:140px">Length (m)</th>
+            <th style="width:160px">Start Date</th>
+            <th style="width:160px">End Date</th>
             <th style="width:180px">Advanced (m)</th>
           </tr>
         </thead>
@@ -83,6 +85,8 @@
                 <td class="seg-start">{{ s.start_chainage if s.start_chainage else '' }}</td>
                 <td class="seg-end">{{ s.end_chainage if s.end_chainage else '' }}</td>
                 <td class="seg-len">{{ s.length_m }}</td>
+                <td><input class="seg-date-start" type="text" placeholder="DD/MM/YYYY" value="{{ data.get('planned_start_date') or '' }}"></td>
+                <td><input class="seg-date-end" type="text" placeholder="DD/MM/YYYY" value="{{ data.get('planned_end_date') or '' }}"></td>
                 <td>
                   <div style="display:flex;gap:8px;align-items:center">
                     <input class="seg-startm" type="number" step="1" min="0" value="{{ s.start_m }}" style="max-width:120px" disabled>
@@ -100,6 +104,8 @@
     </div>
 
     <input type="hidden" name="segments_json" id="segmentsJson" value="">
+
+    <div id="stretchDetails" style="margin-top:12px"></div>
 
     <div style="display:flex;gap:10px;margin-top:14px">
       <a class="btn" href="/projects/wizard/engineering?wid={{ wid }}">← Back</a>
@@ -127,6 +133,14 @@
   const segmentsJson = document.getElementById('segmentsJson');
   const btnSave = document.getElementById('btnSave');
   const advancedToggle = document.getElementById('advancedToggle');
+  const stretchDetails = document.getElementById('stretchDetails');
+
+  const activityDefs = {{ activity_defs | tojson }};
+  const materialDefs = {{ material_defs | tojson }};
+  const projectStart = {{ (data.get('planned_start_date') or '') | tojson }};
+  const projectEnd = {{ (data.get('planned_end_date') or '') | tojson }};
+
+  let stretchState = [];
 
   function setStatus(msg, kind){
     previewStatus.textContent = msg;
@@ -158,6 +172,63 @@
   }
   advancedToggle.addEventListener('change', () => setAdvanced(advancedToggle.checked));
 
+  function baseActivities(){
+    const defs = Array.isArray(activityDefs) ? activityDefs : [];
+    return defs.map(d => ({
+      name: String(d.name || '').trim(),
+      include: !!(d.enabled !== false),
+      planned_start_date: projectStart || '',
+      planned_end_date: projectEnd || '',
+      start_time: String(d.start_time || '').trim(),
+      end_time: String(d.end_time || '').trim(),
+      planned_duration_hours: null,
+    })).filter(a => !!a.name);
+  }
+
+  function baseMaterials(){
+    const defs = Array.isArray(materialDefs) ? materialDefs : [];
+    return defs.map(m => ({
+      name: String(m.name || '').trim(),
+      unit: String(m.default_unit || m.unit || 'unit').trim() || 'unit',
+      include: true,
+      quantity: '',
+    })).filter(m => !!m.name);
+  }
+
+  function computeHours(a){
+    const sd = String(a.planned_start_date || '').trim();
+    const ed = String(a.planned_end_date || '').trim();
+    if(!sd || !ed) return null;
+    const sp = sd.split('/');
+    const ep = ed.split('/');
+    if(sp.length !== 3 || ep.length !== 3) return null;
+    const sIso = `${sp[2]}-${sp[1]}-${sp[0]}`;
+    const eIso = `${ep[2]}-${ep[1]}-${ep[0]}`;
+    const st = a.start_time || '00:00';
+    const et = a.end_time || '00:00';
+    const start = new Date(`${sIso}T${st}:00`);
+    const end = new Date(`${eIso}T${et}:00`);
+    if(isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+    const diff = (end.getTime() - start.getTime()) / 3600000;
+    return diff >= 0 ? Math.round(diff * 100) / 100 : null;
+  }
+
+  function ensureState(segments){
+    if(stretchState.length === segments.length) return;
+    stretchState = segments.map((s, idx) => ({
+      sequence_no: idx + 1,
+      stretch_code: `ST-${String(idx+1).padStart(3,'0')}`,
+      stretch_name: String(s.stretch_name || `Stretch ${idx+1}`),
+      start_m: Number(s.start_m || 0),
+      end_m: Number(s.end_m || 0),
+      length_m: Math.max(Number(s.length_m || 0), 0),
+      planned_start_date: projectStart || '',
+      planned_end_date: projectEnd || '',
+      activities: baseActivities(),
+      materials: baseMaterials(),
+    }));
+  }
+
   function collectSegments(){
     const rows = Array.from(segmentsBody.querySelectorAll('tr'));
     const segs = [];
@@ -165,48 +236,196 @@
       const name = tr.querySelector('.seg-name');
       const startm = tr.querySelector('.seg-startm');
       const endm = tr.querySelector('.seg-endm');
+      const sd = tr.querySelector('.seg-date-start');
+      const ed = tr.querySelector('.seg-date-end');
       if (!name || !startm || !endm) return;
+      const start_m = Number(startm.value);
+      const end_m = Number(endm.value);
+      const length_m = Math.max(end_m - start_m, 0);
+
+      if(stretchState[idx]){
+        stretchState[idx].stretch_name = String(name.value || '').trim() || stretchState[idx].stretch_name;
+        stretchState[idx].start_m = start_m;
+        stretchState[idx].end_m = end_m;
+        stretchState[idx].length_m = length_m;
+        stretchState[idx].planned_start_date = sd ? String(sd.value || '').trim() : stretchState[idx].planned_start_date;
+        stretchState[idx].planned_end_date = ed ? String(ed.value || '').trim() : stretchState[idx].planned_end_date;
+      }
+
       segs.push({
         sequence_no: idx + 1,
         stretch_code: `ST-${String(idx+1).padStart(3,'0')}`,
         stretch_name: String(name.value||'').trim() || `Stretch ${idx+1}`,
-        start_m: Number(startm.value),
-        end_m: Number(endm.value),
-        length_m: Math.max(Number(endm.value) - Number(startm.value), 0)
+        start_m,
+        end_m,
+        length_m,
       });
     });
     return segs;
   }
 
+  function serialize(){
+    const payload = stretchState.map(seg => ({
+      sequence_no: seg.sequence_no,
+      stretch_code: seg.stretch_code,
+      stretch_name: seg.stretch_name,
+      start_m: seg.start_m,
+      end_m: seg.end_m,
+      length_m: seg.length_m,
+      planned_start_date: seg.planned_start_date,
+      planned_end_date: seg.planned_end_date,
+      activities: (seg.activities || []).map(a => ({
+        name: a.name,
+        include: !!a.include,
+        planned_start_date: a.planned_start_date,
+        planned_end_date: a.planned_end_date,
+        start_time: a.start_time || null,
+        end_time: a.end_time || null,
+        planned_duration_hours: a.planned_duration_hours,
+      })),
+      materials: (seg.materials || []).map(m => ({
+        name: m.name,
+        include: !!m.include,
+        quantity: m.quantity,
+      })),
+    }));
+    segmentsJson.value = JSON.stringify(payload);
+  }
+
   function renderSegments(segments){
     segmentsBody.innerHTML = '';
-    segments.forEach((s) => {
+    stretchDetails.innerHTML = '';
+    if(!segments.length){
+      btnSave.disabled = true;
+      segmentsJson.value = '';
+      return;
+    }
+
+    ensureState(segments);
+
+    stretchState.forEach((seg, idx) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><strong>${s.sequence_no}</strong></td>
-        <td><input class="seg-name" type="text" value="${String(s.stretch_name||'')}"></td>
-        <td class="seg-start">${String(s.start_chainage||'')}</td>
-        <td class="seg-end">${String(s.end_chainage||'')}</td>
-        <td class="seg-len">${Number(s.length_m||0)}</td>
+        <td><strong>${seg.sequence_no}</strong></td>
+        <td><input class="seg-name" type="text" value="${String(seg.stretch_name||'')}"></td>
+        <td class="seg-start">${String(segments[idx].start_chainage||'')}</td>
+        <td class="seg-end">${String(segments[idx].end_chainage||'')}</td>
+        <td class="seg-len">${Number(seg.length_m||0)}</td>
+        <td><input class="seg-date-start" type="text" value="${seg.planned_start_date || ''}" placeholder="DD/MM/YYYY"></td>
+        <td><input class="seg-date-end" type="text" value="${seg.planned_end_date || ''}" placeholder="DD/MM/YYYY"></td>
         <td>
           <div style="display:flex;gap:8px;align-items:center">
-            <input class="seg-startm" type="number" step="1" min="0" value="${Number(s.start_m||0)}" style="max-width:120px" ${advancedToggle.checked ? '' : 'disabled'}>
+            <input class="seg-startm" type="number" step="1" min="0" value="${Number(seg.start_m||0)}" style="max-width:120px" ${advancedToggle.checked ? '' : 'disabled'}>
             <span class="help-text" style="margin:0">→</span>
-            <input class="seg-endm" type="number" step="1" min="1" value="${Number(s.end_m||0)}" style="max-width:120px" ${advancedToggle.checked ? '' : 'disabled'}>
+            <input class="seg-endm" type="number" step="1" min="1" value="${Number(seg.end_m||0)}" style="max-width:120px" ${advancedToggle.checked ? '' : 'disabled'}>
           </div>
         </td>
       `;
       segmentsBody.appendChild(tr);
-    });
 
-    btnSave.disabled = segments.length === 0;
-    segmentsJson.value = JSON.stringify(collectSegments());
+      const detail = document.createElement('div');
+      detail.style.marginTop = '12px';
+      detail.style.border = '1px solid rgba(255,255,255,0.08)';
+      detail.style.borderRadius = '10px';
+      detail.style.padding = '10px 12px';
+      detail.innerHTML = `
+        <div style="font-weight:600;margin-bottom:6px">${seg.stretch_name}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div style="font-weight:600">Activities</div>
+            <div class="help-text">Dates must be within stretch dates.</div>
+            <div data-kind="act-list" data-idx="${idx}"></div>
+          </div>
+          <div>
+            <div style="font-weight:600">Materials</div>
+            <div class="help-text">Quantity required (max 5 decimals).</div>
+            <div data-kind="mat-list" data-idx="${idx}"></div>
+          </div>
+        </div>
+      `;
+      stretchDetails.appendChild(detail);
 
-    segmentsBody.querySelectorAll('input').forEach(el => {
-      el.addEventListener('input', () => {
-        segmentsJson.value = JSON.stringify(collectSegments());
+      const actList = detail.querySelector('[data-kind="act-list"]');
+      (seg.activities || []).forEach((a, aidx) => {
+        const hours = computeHours(a);
+        a.planned_duration_hours = hours;
+        const row = document.createElement('div');
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = 'minmax(180px,1fr) 120px 120px 90px 90px 80px';
+        row.style.gap = '8px';
+        row.style.marginTop = '8px';
+        row.innerHTML = `
+          <input type="text" value="${a.name}" data-kind="act-name" data-idx="${idx}" data-aidx="${aidx}">
+          <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-start-date" data-idx="${idx}" data-aidx="${aidx}">
+          <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-end-date" data-idx="${idx}" data-aidx="${aidx}">
+          <input type="time" value="${a.start_time || ''}" data-kind="act-start-time" data-idx="${idx}" data-aidx="${aidx}">
+          <input type="time" value="${a.end_time || ''}" data-kind="act-end-time" data-idx="${idx}" data-aidx="${aidx}">
+          <input type="text" value="${hours === null ? '' : hours}" readonly>
+        `;
+        actList.appendChild(row);
+      });
+
+      const matList = detail.querySelector('[data-kind="mat-list"]');
+      (seg.materials || []).forEach((m, midx) => {
+        const row = document.createElement('div');
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = 'minmax(160px,1fr) 80px 120px';
+        row.style.gap = '8px';
+        row.style.marginTop = '8px';
+        row.innerHTML = `
+          <div>${m.name}</div>
+          <div class="help-text" style="margin:0">${m.unit || ''}</div>
+          <input type="number" step="0.00001" min="0" placeholder="Qty" value="${m.quantity || ''}" data-kind="mat-qty" data-idx="${idx}" data-midx="${midx}">
+        `;
+        matList.appendChild(row);
       });
     });
+
+    btnSave.disabled = false;
+    serialize();
+
+    segmentsBody.querySelectorAll('input').forEach(el => {
+      el.addEventListener('input', onInputChange);
+    });
+    stretchDetails.querySelectorAll('input').forEach(el => {
+      el.addEventListener('input', onInputChange);
+    });
+  }
+
+  function onInputChange(e){
+    const t = e.target;
+    if(!t) return;
+    const kind = t.getAttribute('data-kind');
+    const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+    if(idx < 0 || idx >= stretchState.length) return;
+
+    if(kind === 'stretch-name'){
+      stretchState[idx].stretch_name = String(t.value || '').trim();
+    }
+    if(kind === 'stretch-start'){
+      stretchState[idx].planned_start_date = String(t.value || '').trim();
+    }
+    if(kind === 'stretch-end'){
+      stretchState[idx].planned_end_date = String(t.value || '').trim();
+    }
+
+    const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+    if(aidx >= 0 && stretchState[idx].activities && stretchState[idx].activities[aidx]){
+      const a = stretchState[idx].activities[aidx];
+      if(kind === 'act-name') a.name = String(t.value || '').trim();
+      if(kind === 'act-start-date') a.planned_start_date = String(t.value || '').trim();
+      if(kind === 'act-end-date') a.planned_end_date = String(t.value || '').trim();
+      if(kind === 'act-start-time') a.start_time = String(t.value || '').trim();
+      if(kind === 'act-end-time') a.end_time = String(t.value || '').trim();
+    }
+
+    const midx = parseInt(t.getAttribute('data-midx') || '-1', 10);
+    if(midx >= 0 && stretchState[idx].materials && stretchState[idx].materials[midx]){
+      const m = stretchState[idx].materials[midx];
+      if(kind === 'mat-qty') m.quantity = String(t.value || '').trim();
+    }
+
+    renderSegments(collectSegments());
   }
 
   async function preview(){
@@ -253,8 +472,7 @@
 
   // If we have existing segments (from back), keep segments_json ready
   if (segmentsBody.querySelectorAll('.seg-name').length > 0) {
-    btnSave.disabled = false;
-    segmentsJson.value = JSON.stringify(collectSegments());
+    renderSegments(collectSegments());
   }
 })();
 </script>

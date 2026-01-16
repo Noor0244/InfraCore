@@ -1,312 +1,563 @@
 {% extends "base.html" %}
 {% block content %}
+{% set fallback_project_types = ["Road", "Bridge", "Flyover", "Building", "Utility / Pipeline"] %}
+{% set fallback_legacy_project_types = ["Residential", "Commercial", "Industrial", "Utility", "Other"] %}
+{% set fallback_road_categories = ["Expressway", "National Highway (NH)", "State Highway (SH)", "Major District Road (MDR)", "Other District Road (ODR)", "Village / Rural Road (VR)", "Urban Road", "Service Road"] %}
+{% set project_types = classification_metadata.get('project_types', []) %}
+{% set legacy_project_types = classification_metadata.get('legacy_project_types', []) %}
+{% set road_categories = classification_metadata.get('road_categories', []) %}
+{% if not project_types %}{% set project_types = fallback_project_types %}{% endif %}
+{% if not legacy_project_types %}{% set legacy_project_types = fallback_legacy_project_types %}{% endif %}
+{% if not road_categories %}{% set road_categories = fallback_road_categories %}{% endif %}
 
 <h1 class="page-title">Edit Project</h1>
 
-<div class="card" style="max-width:1100px;margin:auto">
+<div class="card card--page">
 
 <style>
-            .form-errors{display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)}
-            .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
-            .btn-primary[disabled]{opacity:0.65;cursor:not-allowed}
+    .form-errors{display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)}
+    .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
+    .date-dual{display:flex;gap:8px;align-items:center}
+    .date-dual input[type="date"]{max-width:170px}
+    .material-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .material-chip{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.08);font-size:12px}
+</style>
 
-            /* Presets editor (Project Form) */
-            .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
-            @media (max-width: 980px){.preset-grid{grid-template-columns:1fr}}
-            .preset-card{border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);border-radius:12px;padding:12px}
-            .preset-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
-            .preset-actions{display:flex;gap:8px;flex-wrap:wrap}
-            .btn-small{padding:7px 10px;font-size:12px;line-height:1}
-            .preset-list{display:flex;flex-direction:column;gap:8px}
-            .preset-row{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.15)}
-            .preset-row input[type="text"]{flex:1;min-width:160px}
-            .preset-row .pill{font-size:11px;opacity:0.8;border:1px solid rgba(255,255,255,0.12);padding:3px 8px;border-radius:999px}
-            .icon-btn{border:1px solid rgba(255,255,255,0.12);background:transparent;color:var(--text-primary);border-radius:10px;padding:6px 10px;cursor:pointer}
-            .icon-btn:hover{background:rgba(255,255,255,0.06)}
-            .muted{opacity:0.85}
-            </style>
+<form id="editProjectForm" method="post" action="/projects/{{ project.id }}/update">
+    <div id="formErrors" class="form-errors"></div>
 
-        <form id="editProjectForm" method="post" action="/projects/{{ project.id }}/update">
-
-            <div id="formErrors" class="form-errors"></div>
-
-            <!-- ================= BASIC INFO ================= -->
-            <section class="form-section">
-                <h3 class="section-title">Basic Information</h3>
-
-                <div class="form-grid">
-                    <div>
-                        <label>Project Name <span class="required">*</span></label>
-                        <input type="text" name="name" required value="{{ project.name }}" placeholder="NH-66 Highway Upgrade">
-                        <div class="help-text">Use a concise, descriptive name (e.g. NH-66 Upgrade)</div>
-                    </div>
-
-                    <div>
-                        <label>Project Code / Package No</label>
-                        <input type="text" name="project_code" value="{{ project.project_code or '' }}" placeholder="PKG-001">
-                    </div>
-
-                    <div>
-                        <label>Client / Authority</label>
-                        <input type="text" name="client_authority" value="{{ project.client_authority or '' }}" placeholder="NHAI">
-                    </div>
-
-                    <div>
-                        <label>Contractor</label>
-                        <input type="text" name="contractor" value="{{ project.contractor or '' }}" placeholder="ABC Constructions Pvt Ltd">
-                    </div>
-
-                    <div>
-                        <label>Consultant / PMC</label>
-                        <input type="text" name="consultant_pmc" value="{{ project.consultant_pmc or '' }}" placeholder="XYZ Consultants">
-                    </div>
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- ================= PROJECT CLASSIFICATION ================= -->
-            <section class="form-section">
-                <h3 class="section-title">Project Classification</h3>
-
-                <div class="form-grid">
-                    <div style="min-width:260px">
-                        <label>Project Type <span class="required">*</span></label>
-                        <select name="project_type" id="project_type" required aria-describedby="project-type-help">
-                            <option value="">-- Select project type --</option>
-                        </select>
-                        <div id="project-type-help" class="help-text">Project Type is locked after creation.</div>
-                    </div>
-                </div>
-
-                <div id="road_block" style="display:none">
-                    <h3 class="section-title" style="margin-top:14px">Road Classification</h3>
-
-                    <div id="road_classification" class="form-grid" style="display:none">
-                        <div id="road_category_field" style="display:none;min-width:260px">
-                            <label>Road Category <span class="required">*</span></label>
-                            <select id="road_category" name="road_category" disabled>
-                                <option value="">-- Select road category --</option>
-                            </select>
-                            <div class="help-text">Road Category is locked after creation.</div>
-                        </div>
-
-                        <div id="road_engineering_field" style="display:none;min-width:320px">
-                            <label>Road Engineering Type <span class="required">*</span></label>
-                            <select id="road_engineering_type" name="road_engineering_type" disabled>
-                                <option value="">-- Select engineering type --</option>
-                            </select>
-                            <div class="help-text">Road Engineering Type is locked after creation.</div>
-                        </div>
-                    </div>
-
-                    <div id="road_questions" class="form-grid" style="display:none;margin-top:10px">
-                        <div style="grid-column:1/-1">
-                            <label>Additional Questions</label>
-                            <div class="help-text">Stored classification details are read-only.</div>
-                        </div>
-                        <div id="road_questions_container" style="grid-column:1/-1"></div>
-                    </div>
-
-                    <div id="road_presets_panel" style="display:none;grid-column:1/-1">
-                        <label>Road Presets</label>
-                        <div class="project-helper muted">Presets are applied at creation. Manage Activities/Materials from their modules.</div>
-
-                        <div class="preset-grid">
-                            <div class="preset-card">
-                                <div class="preset-header">
-                                    <div>
-                                        <div style="font-weight:600">Activity Presets</div>
-                                        <div class="help-text">Shown for reference.</div>
-                                    </div>
-                                    <div class="preset-actions">
-                                        <button type="button" class="btn-secondary btn-small" id="btnResetActivities">Reset</button>
-                                        <button type="button" class="btn-primary btn-small" id="btnAddActivity">+ Add</button>
-                                    </div>
-                                </div>
-                                <div id="activityPresetList" class="preset-list"></div>
-                            </div>
-
-                            <div class="preset-card">
-                                <div class="preset-header">
-                                    <div>
-                                        <div style="font-weight:600">Material Presets</div>
-                                        <div class="help-text">Shown for reference.</div>
-                                    </div>
-                                    <div class="preset-actions">
-                                        <button type="button" class="btn-secondary btn-small" id="btnResetMaterials">Reset</button>
-                                        <button type="button" class="btn-primary btn-small" id="btnAddMaterial">+ Add</button>
-                                        <button type="button" class="btn-secondary btn-small" id="btnAllMaterials">All</button>
-                                        <button type="button" class="btn-secondary btn-small" id="btnNoMaterials">None</button>
-                                    </div>
-                                </div>
-                                <div id="materialPresetList" class="preset-list"></div>
-                            </div>
-                        </div>
-
-                        <input type="hidden" name="activity_presets_json" id="activity_presets_json">
-                        <input type="hidden" name="material_presets_json" id="material_presets_json">
-                        <input type="hidden" name="material_preset_defs_json" id="material_preset_defs_json">
-                    </div>
-
-                    <div id="road_details_fields" style="display:none">
-                        <label>Lanes <span class="required">*</span></label>
-                        <input type="number" name="lanes" min="1" value="{{ project.lanes }}" placeholder="2">
-                        <div class="help-text">Number of traffic lanes per carriageway.</div>
-                    </div>
-
-                    <div id="road_details_fields2" style="display:none">
-                        <label>Road Width (m) <span class="required">*</span></label>
-                        <input type="number" step="0.01" name="road_width" value="{{ project.road_width }}" placeholder="7.00">
-                        <div class="help-text">Total carriageway width in metres.</div>
-                    </div>
-
-                    <div>
-                        <label>Carriageway Width (m)</label>
-                        <input type="number" step="0.01" name="carriageway_width" value="{{ project.carriageway_width or '' }}" placeholder="6.00">
-                    </div>
-
-                    <div id="road_details_fields3" style="display:none">
-                        <label>Road Length (km) <span class="required">*</span></label>
-                        <input type="number" step="0.01" name="road_length_km" value="{{ project.road_length_km }}" placeholder="12.50">
-                        <div class="help-text">Enter project length. Use chainages for non-linear projects.</div>
-                    </div>
-
-                    <div>
-                        <label>Shoulder Type</label>
-                        <input type="text" name="shoulder_type" value="{{ project.shoulder_type or '' }}" placeholder="Paved / Earthen">
-                    </div>
-
-                    <div>
-                        <label>Median Type</label>
-                        <input type="text" name="median_type" value="{{ project.median_type or '' }}" placeholder="None / Raised / Painted">
-                    </div>
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- ================= LOCATION ================= -->
-            <section class="form-section">
-                <h3 class="section-title">Location</h3>
-
-                <div class="form-grid">
-                    <div>
-                        <label>Country <span class="required">*</span></label>
-                        <input type="text" name="country" required value="{{ project.country }}" placeholder="India">
-                    </div>
-                    <div>
-                        <label>State / Province</label>
-                        <input type="text" name="state" value="{{ project.state or '' }}" placeholder="Maharashtra">
-                    </div>
-                    <div>
-                        <label>District</label>
-                        <input type="text" name="district" value="{{ project.district or '' }}" placeholder="">
-                    </div>
-                    <div>
-                        <label>City <span class="required">*</span></label>
-                        <input type="text" name="city" required value="{{ project.city }}" placeholder="">
-                    </div>
-                    <div>
-                        <label>Chainage Start</label>
-                        <input type="text" name="chainage_start" value="{{ project.chainage_start or '' }}" placeholder="0+000">
-                    </div>
-                    <div>
-                        <label>Chainage End</label>
-                        <input type="text" name="chainage_end" value="{{ project.chainage_end or '' }}" placeholder="10+600">
-                    </div>
-                </div>
-            </section>
-
-            <hr>
-
-            <!-- ================= TIMELINE ================= -->
-            <section class="form-section">
-                <h3 class="section-title">Timeline</h3>
-                <div class="form-grid">
-                    <div>
-                        <label>Start Date <span class="required">*</span></label>
-                        <input type="text" name="planned_start_date" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_start_date.strftime('%d/%m/%Y') if project.planned_start_date else '' }}">
-                        <div class="help-text">Format: DD/MM/YYYY</div>
-                    </div>
-                    <div>
-                        <label>End Date <span class="required">*</span></label>
-                        <input type="text" name="planned_end_date" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_end_date.strftime('%d/%m/%Y') if project.planned_end_date else '' }}">
-                        <div class="help-text">Format: DD/MM/YYYY</div>
-                    </div>
-                </div>
-            </section>
-
-            <hr>
-
-            <div style="display:flex;gap:12px;margin-top:20px">
-                <button id="saveProjectBtn" class="btn-primary" type="submit">
-                    Save Changes
-                </button>
-
-                <a href="/projects/{{ project.id }}" class="btn-secondary">
-                    Cancel
-                </a>
+    <!-- ================= BASIC INFO ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Basic Information</h3>
+        <div class="form-grid">
+            <div>
+                <label>Project Name <span class="required">*</span></label>
+                <input type="text" name="name" required value="{{ project.name }}">
+                <div class="help-text">Use a concise, descriptive name (e.g. NH-66 Upgrade)</div>
             </div>
+            <div>
+                <label>Project Code / Package No</label>
+                <input type="text" name="project_code" value="{{ project.project_code or '' }}">
+            </div>
+            <div>
+                <label>Client / Authority</label>
+                <input type="text" name="client_authority" value="{{ project.client_authority or '' }}">
+            </div>
+            <div>
+                <label>Contractor</label>
+                <input type="text" name="contractor" value="{{ project.contractor or '' }}">
+            </div>
+            <div>
+                <label>Consultant / PMC</label>
+                <input type="text" name="consultant_pmc" value="{{ project.consultant_pmc or '' }}">
+            </div>
+        </div>
+    </section>
 
-        </form>
+    <hr>
 
+    <!-- ================= PROJECT TIMELINE ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Project Timeline</h3>
+        <div class="form-grid">
+            <div>
+                <label>Project Start Date <span class="required">*</span></label>
+                <div class="date-dual">
+                    <input type="text" name="planned_start_date" id="planned_start_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_start_date.strftime('%d/%m/%Y') if project.planned_start_date else '' }}" placeholder="DD/MM/YYYY">
+                    <input type="date" id="planned_start_date_picker">
+                </div>
+                <div class="help-text">Use DD/MM/YYYY or pick from calendar.</div>
+            </div>
+            <div>
+                <label>Project End Date <span class="required">*</span></label>
+                <div class="date-dual">
+                    <input type="text" name="planned_end_date" id="planned_end_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_end_date.strftime('%d/%m/%Y') if project.planned_end_date else '' }}" placeholder="DD/MM/YYYY">
+                    <input type="date" id="planned_end_date_picker">
+                </div>
+                <div class="help-text">End date must be after start date.</div>
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= PROJECT CLASSIFICATION & ROAD DETAILS ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Project Classification & Road Details</h3>
+        <div class="form-grid">
+            <div style="min-width:260px">
+                <label>Project Type <span class="required">*</span></label>
+                <select name="project_type" id="project_type" disabled>
+                    <option value="">-- Select project type --</option>
+                    {% for pt in (project_types + legacy_project_types) %}
+                        <option value="{{ pt }}" {% if pt == project.project_type %}selected{% endif %}>{{ pt }}</option>
+                    {% endfor %}
+                </select>
+                <div class="help-text">Project Type is locked after creation.</div>
+                <input type="hidden" name="project_type" value="{{ project.project_type }}">
+            </div>
         </div>
 
-        {% endblock %}
+        <div class="form-grid" id="road_fields_block" style="margin-top:10px;display:none">
+            <div style="min-width:260px">
+                <label>Road Category (locked)</label>
+                <select name="road_category" id="road_category" disabled>
+                    <option value="">-- Select road category --</option>
+                    {% for rc in road_categories %}
+                        <option value="{{ rc }}" {% if rc == project.road_category %}selected{% endif %}>{{ rc }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="road_category" value="{{ project.road_category or '' }}">
+            </div>
+            <div style="min-width:260px">
+                <label>Road Engineering Type (locked)</label>
+                <select name="road_engineering_type" id="road_engineering_type" disabled>
+                    <option value="">-- Select engineering type --</option>
+                    <option value="Flexible" {% if project.road_engineering_type == 'Flexible' %}selected{% endif %}>Flexible</option>
+                    <option value="Rigid" {% if project.road_engineering_type == 'Rigid' %}selected{% endif %}>Rigid</option>
+                    <option value="Overlay" {% if project.road_engineering_type == 'Overlay' %}selected{% endif %}>Overlay</option>
+                    <option value="Urban" {% if project.road_engineering_type == 'Urban' %}selected{% endif %}>Urban</option>
+                    <option value="Rural" {% if project.road_engineering_type == 'Rural' %}selected{% endif %}>Rural</option>
+                    <option value="Composite" {% if project.road_engineering_type == 'Composite' %}selected{% endif %}>Composite</option>
+                </select>
+                <input type="hidden" name="road_engineering_type" value="{{ project.road_engineering_type or '' }}">
+            </div>
+        </div>
 
-        {% block scripts %}
-        <script id="project-data" type="application/json">{{ {
-            'id': project.id,
+        {% if project.project_type == 'Road' %}
+        <div style="margin-top:16px">
+            <h4 class="section-title" style="font-size:14px">Road Details</h4>
+            <div class="form-grid">
+                <div>
+                    <label>Lanes <span class="required">*</span></label>
+                    <input type="number" name="lanes" min="1" value="{{ project.lanes }}">
+                </div>
+                <div>
+                    <label>Road Width (m) <span class="required">*</span></label>
+                    <input type="number" step="0.01" name="road_width" value="{{ project.road_width }}">
+                </div>
+                <div>
+                    <label>Road Length (km) <span class="required">*</span></label>
+                    <input type="number" step="0.01" name="road_length_km" value="{{ project.road_length_km }}">
+                </div>
+                <div>
+                    <label>Carriageway Width (m)</label>
+                    <input type="number" step="0.01" name="carriageway_width" value="{{ project.carriageway_width or '' }}">
+                </div>
+                <div>
+                    <label>Shoulder Type</label>
+                    <input type="text" name="shoulder_type" value="{{ project.shoulder_type or '' }}">
+                </div>
+                <div>
+                    <label>Median Type</label>
+                    <input type="text" name="median_type" value="{{ project.median_type or '' }}">
+                </div>
+            </div>
+        </div>
+        {% else %}
+            <input type="hidden" name="lanes" value="{{ project.lanes }}">
+            <input type="hidden" name="road_width" value="{{ project.road_width }}">
+            <input type="hidden" name="road_length_km" value="{{ project.road_length_km }}">
+            <input type="hidden" name="carriageway_width" value="{{ project.carriageway_width or '' }}">
+            <input type="hidden" name="shoulder_type" value="{{ project.shoulder_type or '' }}">
+            <input type="hidden" name="median_type" value="{{ project.median_type or '' }}">
+        {% endif %}
+    </section>
+
+    <hr>
+
+    <!-- ================= LOCATION ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Location</h3>
+        <div class="form-grid">
+            <div>
+                <label>Country <span class="required">*</span></label>
+                <input type="text" name="country" required value="{{ project.country }}">
+            </div>
+            <div>
+                <label>State / Province</label>
+                <input type="text" name="state" value="{{ project.state or '' }}">
+            </div>
+            <div>
+                <label>District</label>
+                <input type="text" name="district" value="{{ project.district or '' }}">
+            </div>
+            <div>
+                <label>City <span class="required">*</span></label>
+                <input type="text" name="city" required value="{{ project.city }}">
+            </div>
+            <div>
+                <label>Chainage Start</label>
+                <input type="text" name="chainage_start" value="{{ project.chainage_start or '' }}">
+            </div>
+            <div>
+                <label>Chainage End</label>
+                <input type="text" name="chainage_end" value="{{ project.chainage_end or '' }}">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= STRETCHES ================= -->
+    {% if project.project_type == 'Road' %}
+    <section class="form-section">
+        <h3 class="section-title">Stretches & Activities</h3>
+        <div class="help-text">Edit stretch names and dates, and adjust activity dates.</div>
+
+        <form id="editStretchesInlineForm" method="post" action="/projects/{{ project.id }}/stretches/update">
+            <input type="hidden" name="stretch_segments_json" id="stretch_segments_json">
+
+            <div class="stretch-card" id="stretchGenerator">
+                <div style="font-weight:600">Generate Stretches</div>
+                <div class="help-text">If no stretches exist, generate them here.</div>
+                <div class="form-grid" style="margin-top:8px">
+                    <div>
+                        <label>Total Road Length (km)</label>
+                        <input type="number" id="gen_total_km" step="0.01" min="0" value="{{ project.road_length_km or 0 }}">
+                    </div>
+                    <div>
+                        <label>Number of Stretches</label>
+                        <input type="number" id="gen_count" min="1" step="1" value="5">
+                    </div>
+                    <div style="display:flex;align-items:flex-end">
+                        <button type="button" class="btn-secondary" id="btnGenerate">Generate</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stretchContainer"></div>
+
+            <div style="display:flex;gap:12px;margin-top:12px">
+                <button class="btn-primary" type="submit">Save Stretch Changes</button>
+                <a href="/projects/{{ project.id }}/stretches/edit" class="btn-secondary">Open Full Editor</a>
+            </div>
+        </form>
+    </section>
+
+    <hr>
+    {% endif %}
+
+    <div style="display:flex;gap:12px;margin-top:20px">
+        <button id="saveProjectBtn" class="btn-primary" type="submit">Save Changes</button>
+        <a href="/projects/{{ project.id }}/stretches/edit" class="btn-secondary">Edit Stretches</a>
+        <a href="/projects/{{ project.id }}" class="btn-secondary">Cancel</a>
+    </div>
+</form>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+    const projectType = document.getElementById('project_type');
+    const roadFields = document.getElementById('road_fields_block');
+    const startText = document.getElementById('planned_start_date_text');
+    const endText = document.getElementById('planned_end_date_text');
+    const startPicker = document.getElementById('planned_start_date_picker');
+    const endPicker = document.getElementById('planned_end_date_picker');
+
+    function ddmmyyyyToIso(v){
+        const s = String(v || '').trim();
+        if(!s) return '';
+        const parts = s.split('/');
+        if(parts.length !== 3) return '';
+        const [dd, mm, yyyy] = parts;
+        if(!dd || !mm || !yyyy) return '';
+        return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+    }
+
+    function isoToDdmmyyyy(v){
+        const s = String(v || '').trim();
+        if(!s) return '';
+        const parts = s.split('-');
+        if(parts.length !== 3) return '';
+        const [yyyy, mm, dd] = parts;
+        return `${dd.padStart(2,'0')}/${mm.padStart(2,'0')}/${yyyy}`;
+    }
+
+    function isRoad(){
+        return projectType && projectType.value === 'Road';
+    }
+
+    function toggleRoadFields(){
+        if(!roadFields) return;
+        roadFields.style.display = isRoad() ? '' : 'none';
+    }
+
+    function syncTimelineInputs(){
+        if(startPicker && startText){
+            startPicker.value = ddmmyyyyToIso(startText.value);
+        }
+        if(endPicker && endText){
+            endPicker.value = ddmmyyyyToIso(endText.value);
+        }
+    }
+
+    if(startPicker && startText){
+        startPicker.addEventListener('change', function(){
+            startText.value = isoToDdmmyyyy(startPicker.value);
+        });
+    }
+    if(endPicker && endText){
+        endPicker.addEventListener('change', function(){
+            endText.value = isoToDdmmyyyy(endPicker.value);
+        });
+    }
+
+    toggleRoadFields();
+    syncTimelineInputs();
+})();
+</script>
+{% if project.project_type == 'Road' %}
+<script id="stretches-data" type="application/json">{{ stretches_json | default('[]') | safe }}</script>
+<script>
+(function(){
+    const container = document.getElementById('stretchContainer');
+    const hiddenInput = document.getElementById('stretch_segments_json');
+    let stretches = [];
+
+    function ddmmyyyyToIso(v){
+        const s = String(v || '').trim();
+        if(!s) return '';
+        const parts = s.split('/');
+        if(parts.length !== 3) return '';
+        const [dd, mm, yyyy] = parts;
+        if(!dd || !mm || !yyyy) return '';
+        return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+    }
+
+    function isoToDdmmyyyy(v){
+        const s = String(v || '').trim();
+        if(!s) return '';
+        const parts = s.split('-');
+        if(parts.length !== 3) return '';
+        const [yyyy, mm, dd] = parts;
+        return `${dd.padStart(2,'0')}/${mm.padStart(2,'0')}/${yyyy}`;
+    }
+
+    function serialize(){
+        if(hiddenInput){
+            hiddenInput.value = JSON.stringify(stretches || []);
+        }
+    }
+
+    function render(){
+        if(!container) return;
+        container.innerHTML = '';
+        const gen = document.getElementById('stretchGenerator');
+        if(!(stretches || []).length){
+            if(gen) gen.style.display = 'block';
+            const empty = document.createElement('div');
+            empty.className = 'stretch-card';
+            empty.textContent = 'No stretches found. Use Generate Stretches above.';
+            container.appendChild(empty);
+            serialize();
+            return;
+        }
+        if(gen) gen.style.display = 'none';
+        (stretches || []).forEach((st, idx) => {
+            const card = document.createElement('div');
+            card.className = 'stretch-card';
+            const showDetails = (st._showDetails === true);
+            card.innerHTML = `
+                <div class="stretch-header">
+                    <div><strong>${st.stretch_name || ('Stretch ' + (idx+1))}</strong></div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button type="button" class="btn-secondary btn-small" data-kind="toggle-details" data-idx="${idx}">${showDetails ? 'Hide' : 'Show'}</button>
+                        <div style="opacity:0.75">${st.stretch_code || ''}</div>
+                    </div>
+                </div>
+                <div data-kind="details-body" data-idx="${idx}" style="display:${showDetails ? '' : 'none'}">
+                <div class="form-grid" style="margin-top:10px">
+                    <div>
+                        <label>Stretch Name</label>
+                        <input type="text" value="${st.stretch_name || ''}" data-kind="stretch-name" data-idx="${idx}">
+                    </div>
+                    <div>
+                        <label>Start Date</label>
+                        <div class="date-dual">
+                            <input type="text" value="${st.planned_start_date || ''}" placeholder="DD/MM/YYYY" data-kind="stretch-start" data-idx="${idx}">
+                            <input type="date" value="${ddmmyyyyToIso(st.planned_start_date || '')}" data-kind="stretch-start-picker" data-idx="${idx}">
+                        </div>
+                    </div>
+                    <div>
+                        <label>End Date</label>
+                        <div class="date-dual">
+                            <input type="text" value="${st.planned_end_date || ''}" placeholder="DD/MM/YYYY" data-kind="stretch-end" data-idx="${idx}">
+                            <input type="date" value="${ddmmyyyyToIso(st.planned_end_date || '')}" data-kind="stretch-end-picker" data-idx="${idx}">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top:12px">
+                    <div style="font-weight:600">Activities</div>
+                    <div class="help-text">Activity dates are clamped to stretch dates on save.</div>
+                    ${(st.activities || []).map((a, aidx) => `
+                        <div class="activity-row">
+                            <input type="text" value="${a.name || ''}" disabled>
+                            <div class="date-dual">
+                                <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-start" data-idx="${idx}" data-aidx="${aidx}">
+                                <input type="date" value="${ddmmyyyyToIso(a.planned_start_date || '')}" data-kind="act-start-picker" data-idx="${idx}" data-aidx="${aidx}">
+                            </div>
+                            <div class="date-dual">
+                                <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" data-kind="act-end" data-idx="${idx}" data-aidx="${aidx}">
+                                <input type="date" value="${ddmmyyyyToIso(a.planned_end_date || '')}" data-kind="act-end-picker" data-idx="${idx}" data-aidx="${aidx}">
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div style="margin-top:12px">
+                    <div style="font-weight:600">Materials</div>
+                    <div class="help-text">Project planned materials available for this stretch.</div>
+                    ${(st.materials || []).length ? `
+                        <div class="material-list">
+                            ${(st.materials || []).map(m => `<span class="material-chip">${m.name || ''} (${m.unit || ''})</span>`).join('')}
+                        </div>
+                    ` : `<div class="help-text">No materials configured.</div>`}
+                </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+        serialize();
+    }
+
+    function handleInput(e){
+        const t = e.target;
+        if(!t) return;
+        const kind = t.getAttribute('data-kind');
+        const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+        if(idx < 0 || !stretches[idx]) return;
+
+        const st = stretches[idx];
+        const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+
+        if(kind === 'toggle-details'){
+            st._showDetails = !(st._showDetails === true);
+            render();
+            return;
+        }
+        if(kind === 'stretch-name') st.stretch_name = String(t.value || '').trim();
+        if(kind === 'stretch-start'){
+            st.planned_start_date = String(t.value || '').trim();
+            const picker = t.closest('.date-dual')?.querySelector('[data-kind="stretch-start-picker"]');
+            if(picker) picker.value = ddmmyyyyToIso(st.planned_start_date);
+        }
+        if(kind === 'stretch-end'){
+            st.planned_end_date = String(t.value || '').trim();
+            const picker = t.closest('.date-dual')?.querySelector('[data-kind="stretch-end-picker"]');
+            if(picker) picker.value = ddmmyyyyToIso(st.planned_end_date);
+        }
+        if(kind === 'stretch-start-picker'){
+            const dd = isoToDdmmyyyy(String(t.value || '').trim());
+            st.planned_start_date = dd;
+            const text = t.closest('.date-dual')?.querySelector('[data-kind="stretch-start"]');
+            if(text) text.value = dd;
+        }
+        if(kind === 'stretch-end-picker'){
+            const dd = isoToDdmmyyyy(String(t.value || '').trim());
+            st.planned_end_date = dd;
+            const text = t.closest('.date-dual')?.querySelector('[data-kind="stretch-end"]');
+            if(text) text.value = dd;
+        }
+
+        if(aidx >= 0 && st.activities && st.activities[aidx]){
+            const a = st.activities[aidx];
+            if(kind === 'act-start'){
+                a.planned_start_date = String(t.value || '').trim();
+                const picker = t.closest('.date-dual')?.querySelector('[data-kind="act-start-picker"]');
+                if(picker) picker.value = ddmmyyyyToIso(a.planned_start_date);
+            }
+            if(kind === 'act-end'){
+                a.planned_end_date = String(t.value || '').trim();
+                const picker = t.closest('.date-dual')?.querySelector('[data-kind="act-end-picker"]');
+                if(picker) picker.value = ddmmyyyyToIso(a.planned_end_date);
+            }
+            if(kind === 'act-start-picker'){
+                const dd = isoToDdmmyyyy(String(t.value || '').trim());
+                a.planned_start_date = dd;
+                const text = t.closest('.date-dual')?.querySelector('[data-kind="act-start"]');
+                if(text) text.value = dd;
+            }
+            if(kind === 'act-end-picker'){
+                const dd = isoToDdmmyyyy(String(t.value || '').trim());
+                a.planned_end_date = dd;
+                const text = t.closest('.date-dual')?.querySelector('[data-kind="act-end"]');
+                if(text) text.value = dd;
+            }
+        }
+        serialize();
+    }
+
+    try{
+        const raw = document.getElementById('stretches-data');
+        stretches = JSON.parse(raw.textContent || '[]') || [];
+    }catch(e){
+        stretches = [];
+    }
+
+    const btnGenerate = document.getElementById('btnGenerate');
+    if(btnGenerate){
+        btnGenerate.addEventListener('click', function(){
+            const totalKm = parseFloat(String(document.getElementById('gen_total_km')?.value || '0')) || 0;
+            const count = parseInt(String(document.getElementById('gen_count')?.value || '0'), 10) || 0;
+            if(totalKm <= 0 || count <= 0){
+                return;
+            }
+            const totalM = Math.round(totalKm * 1000);
+            const base = Math.floor(totalM / count);
+            let cursor = 0;
+            const startDate = "{{ project.planned_start_date.strftime('%d/%m/%Y') if project.planned_start_date else '' }}";
+            const endDate = "{{ project.planned_end_date.strftime('%d/%m/%Y') if project.planned_end_date else '' }}";
+
+            stretches = [];
+            for(let i=1;i<=count;i++){
+                const isLast = i === count;
+                const end = isLast ? totalM : (cursor + base);
+                stretches.push({
+                    id: null,
+                    sequence_no: i,
+                    stretch_code: `ST-${String(i).padStart(3,'0')}`,
+                    stretch_name: `Stretch ${i}`,
+                    start_m: cursor,
+                    end_m: end,
+                    length_m: Math.max(end - cursor, 1),
+                    planned_start_date: startDate,
+                    planned_end_date: endDate,
+                    activities: [],
+                });
+                cursor = end;
+            }
+            render();
+        });
+    }
+
+    render();
+    if(container){
+        container.addEventListener('input', handleInput);
+        container.addEventListener('change', handleInput);
+        container.addEventListener('click', function(e){
+            const t = e.target;
+            if(!t) return;
+            const kind = t.getAttribute('data-kind');
+            if(kind === 'toggle-details'){
+                handleInput(e);
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}
+{# LEGACY TEMPLATE REMOVED
             'project_type': project.project_type or '',
             'road_category': project.road_category or project.road_type or '',
             'road_engineering_type': project.road_engineering_type or '',
             'road_extras_json': project.road_extras_json or '{}'
         } | tojson }}</script>
-        <script>
-        // Prefill data for JS
-        var __project = {};
-        try {
-            var raw = document.getElementById('project-data');
-            __project = JSON.parse((raw && raw.textContent) ? raw.textContent : '{}') || {};
-        } catch(e) {
-            __project = {};
-        }
-
-        function setFormError(message){
-            var box = document.getElementById('formErrors');
-            if(!box) return;
-            if(message){
-                box.textContent = message;
-                box.style.display = 'block';
-            } else {
-                box.textContent = '';
-                box.style.display = 'none';
-            }
-        }
-
-        function updateSaveButtonState(){
-            var form = document.getElementById('editProjectForm');
-            var btn = document.getElementById('saveProjectBtn');
-            if(!form || !btn) return;
-            btn.disabled = !form.checkValidity();
-        }
-
-        // ---- Shared logic copied from Create Project ----
-        var __roadPresetsCache = null;
-        var __currentRoadPresets = null;
-        var __classification = null;
-
-        function _el(id){ return document.getElementById(id); }
-
-        function populateSelect(selectEl, options){
-            if(!selectEl) return;
-            var first = selectEl.querySelector('option');
-            selectEl.innerHTML = '';
-            if(first){
-                selectEl.appendChild(first);
-            } else {
-                var ph = document.createElement('option');
                 ph.value = '';
                 ph.textContent = '-- Select --';
                 selectEl.appendChild(ph);
@@ -583,3 +834,4 @@
         });
         </script>
         {% endblock %}
+        #}
