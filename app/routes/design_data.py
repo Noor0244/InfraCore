@@ -37,7 +37,7 @@ def get_project_access(db, project_id, user):
     if not project:
         return None, None
 
-    if user["role"] == "admin":
+    if user["role"] in {"admin", "superadmin"}:
         return project, "admin"
 
     if project.created_by == user["id"]:

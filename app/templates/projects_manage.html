@@ -15,7 +15,7 @@
     </a>
 
     <!-- ✅ CREATE PROJECT (ADMIN + MANAGER ONLY) -->
-    {% if user["role"] in ["admin", "manager"] %}
+    {% if user["role"] in ["admin", "superadmin", "manager"] %}
     <div style="margin-left:auto">
         <a href="/projects/new" class="btn-primary">
             + New Project
@@ -53,14 +53,14 @@
         </a>
 
         <!-- ✏️ EDIT -->
-        {% if user["role"] in ["admin", "manager"] %}
+        {% if user["role"] in ["admin", "superadmin", "manager"] %}
         <a href="/projects/{{ p.id }}/edit" class="btn-secondary">
             ✏️ Edit
         </a>
         {% endif %}
 
         <!-- 📦 ARCHIVE / RESTORE -->
-        {% if user["role"] in ["admin", "manager"] %}
+                {% if user["role"] in ["admin", "superadmin", "manager"] %}
         <form method="post" action="/projects/{{ p.id }}/archive"
               onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
             <button class="btn-warning">
@@ -74,7 +74,7 @@
         {% endif %}
 
         <!-- 🗑 DELETE -->
-                {% if user["role"] == "admin" %}
+                {% if user["role"] in ["admin", "superadmin"] %}
                 <form method="post"
                             action="/projects/{{ p.id }}/delete"
                             onsubmit="return confirm('Delete this project permanently? This action is irreversible and will remove all project data.')">
@@ -83,7 +83,7 @@
                 {% endif %}
 
         <!-- 👁 VIEW ONLY (LABEL FOR NON-EDITORS) -->
-        {% if user["role"] not in ["admin", "manager"] %}
+        {% if user["role"] not in ["admin", "superadmin", "manager"] %}
             <span class="badge badge-info">View Only</span>
         {% endif %}
 

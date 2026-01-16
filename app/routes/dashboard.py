@@ -48,17 +48,20 @@ async def dashboard(
     # =====================================================
     # PROJECT VISIBILITY (CONSISTENT WITH /projects)
     # =====================================================
-    base_query = (
-        db.query(Project)
-        .outerjoin(ProjectUser, Project.id == ProjectUser.project_id)
-        .filter(
-            or_(
-                Project.created_by == user_id,
-                ProjectUser.user_id == user_id,
+    if user.get("role") in {"admin", "superadmin"}:
+        base_query = db.query(Project)
+    else:
+        base_query = (
+            db.query(Project)
+            .outerjoin(ProjectUser, Project.id == ProjectUser.project_id)
+            .filter(
+                or_(
+                    Project.created_by == user_id,
+                    ProjectUser.user_id == user_id,
+                )
             )
+            .distinct()
         )
-        .distinct()
-    )
 
     # Only list active projects for selection and display
     projects = base_query.filter(Project.is_active == True).order_by(Project.id.desc()).all()
@@ -92,7 +95,7 @@ async def dashboard(
     # =====================================================
     project_role = "viewer"
 
-    if user["role"] == "admin":
+    if user["role"] in {"admin", "superadmin"}:
         project_role = "admin"
     elif project:
         pu = (
@@ -188,7 +191,7 @@ async def dashboard(
 
             # USER CONTEXT
             "user": user,
-            "is_admin": user["role"] == "admin",
+            "is_admin": user["role"] in {"admin", "superadmin"},
 
             # PROJECT CONTEXT
             "projects": projects,

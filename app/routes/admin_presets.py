@@ -26,8 +26,8 @@ templates = Jinja2Templates(directory="app/templates")
 
 def _admin_guard(request: Request):
     user = request.session.get("user")
-    if not user or user.get("role") != "admin":
-        flash(request, "Admin access required", "warning")
+    if not user or user.get("role") != "superadmin":
+        flash(request, "SuperAdmin access required", "warning")
         return None
     return user
 

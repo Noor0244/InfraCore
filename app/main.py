@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import hashlib
 import traceback
 from datetime import datetime
@@ -209,15 +210,41 @@ def startup_tasks():
         # Preset seeding must never block server startup
         pass
 
-    if not db.query(User).filter(User.username == "admin").first():
+    superadmin_exists = db.query(User).filter(User.role == "superadmin").first()
+    admin_user = db.query(User).filter(User.username == "admin").first()
+    sajjad_user = db.query(User).filter(User.username == "Sajjad").first()
+
+    if not superadmin_exists:
+        if admin_user:
+            admin_user.role = "superadmin"
+            db.add(admin_user)
+            db.commit()
+        else:
+            db.add(
+                User(
+                    username="admin",
+                    password_hash=hash_password("admin123"),
+                    role="superadmin",
+                    is_active=True,
+                )
+            )
+            db.commit()
+
+    if not sajjad_user:
         db.add(
             User(
-                username="admin",
-                password_hash=hash_password("admin123"),
-                role="admin",
+                username="Sajjad",
+                password_hash=hash_password("1234"),
+                role="superadmin",
                 is_active=True,
             )
         )
+        db.commit()
+    else:
+        sajjad_user.password_hash = hash_password("1234")
+        sajjad_user.role = "superadmin"
+        sajjad_user.is_active = True
+        db.add(sajjad_user)
         db.commit()
     # Ensure new columns exist (safe dev-time migration)
     try:
@@ -584,7 +611,7 @@ def login_action(
     next: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.username == username).first()
+    user = db.query(User).filter(func.lower(User.username) == username.lower()).first()
 
     if not user or user.password_hash != hash_password(password):
         flash(request, "Invalid username or password", "error")

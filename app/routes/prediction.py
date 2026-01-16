@@ -36,7 +36,7 @@ def _ensure_project_access(db: Session, project_id: int, user: dict | None) -> P
         )
     )
 
-    if user.get("role") == "admin":
+    if user.get("role") in {"admin", "superadmin"}:
         return base.first()
 
     return (

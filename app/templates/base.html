@@ -98,7 +98,7 @@
             </a>
 
             <!-- ================= REPORTS ================= -->
-            {% set can_reports = (user["role"] in ["admin", "manager"]) or (project_role in ["admin", "manager"]) %}
+            {% set can_reports = (user["role"] in ["admin", "superadmin", "manager"]) or (project_role in ["admin", "manager"]) %}
             {% if can_reports %}
             <a href="/reports"
                class="{% if request.url.path.startswith('/reports') %}active{% endif %}">
@@ -113,7 +113,7 @@
             </a>
 
             <!-- ================= PROCUREMENT ================= -->
-            {% set can_procure = (user["role"] in ["admin", "manager"]) or (project_role in ["admin", "manager"]) %}
+            {% set can_procure = (user["role"] in ["admin", "superadmin", "manager"]) or (project_role in ["admin", "manager"]) %}
             {% if can_procure %}
             <a href="{% if project_id %}/procurement/{{ project_id }}{% else %}/procurement{% endif %}"
                class="{% if request.url.path.startswith('/procurement') %}active{% endif %}">
@@ -122,7 +122,7 @@
             {% endif %}
 
             <!-- ================= ADMIN CONSOLE ================= -->
-            {% if user["role"] == "admin" %}
+            {% if user["role"] == "superadmin" %}
             <a href="/admin/users"
                class="{% if request.url.path.startswith('/admin') %}active{% endif %}">
                 🛠️ Admin Console

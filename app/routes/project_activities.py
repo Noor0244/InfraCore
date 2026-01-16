@@ -30,7 +30,7 @@ register_template_filters(templates)
 # ==================================================
 
 def get_project_role(db: Session, user: dict, project_id: int):
-    if user["role"] == "admin":
+    if user["role"] in {"admin", "superadmin"}:
         return "admin"
 
     pu = (

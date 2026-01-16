@@ -34,7 +34,7 @@ register_template_filters(templates)
 def _can_plan(user: dict | None) -> bool:
     if not user:
         return False
-    return user.get("role") in ["admin", "manager"]
+    return user.get("role") in {"admin", "superadmin", "manager"}
 
 
 def _visible_projects(db: Session, user: dict) -> list[Project]:
@@ -50,7 +50,7 @@ def _visible_projects(db: Session, user: dict) -> list[Project]:
         )
     )
 
-    if user.get("role") == "admin":
+    if user.get("role") in {"admin", "superadmin"}:
         return base.distinct().order_by(Project.created_at.desc()).all()
 
     return (

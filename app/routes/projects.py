@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+import hashlib
 import logging
 import json
 
@@ -342,6 +343,10 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 templates = Jinja2Templates(directory="app/templates")
 register_template_filters(templates)
 
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
 logger = logging.getLogger(__name__)
 
 
@@ -439,7 +444,7 @@ def get_project_access(db, project_id, user):
         return project, None
 
     # System admin has full access
-    if user.get("role") == "admin":
+    if user.get("role") in {"admin", "superadmin"}:
         return project, "admin"
 
     # Creator is owner
@@ -488,7 +493,7 @@ def projects_page(request: Request, db: Session = Depends(get_db)):
         ~func.lower(Project.name).like("%test%"),
     )
 
-    if user.get("role") == "admin":
+    if user.get("role") in {"admin", "superadmin"}:
         projects = base.distinct().order_by(Project.id.desc()).all()
     else:
         projects = (
@@ -519,7 +524,7 @@ def manage_projects_page(request: Request, view: str | None = "active", db: Sess
     query = db.query(Project)
 
     # Admin can manage all projects; others manage their own.
-    if user.get("role") != "admin":
+    if user.get("role") not in {"admin", "superadmin"}:
         query = query.filter(Project.created_by == user["id"])
 
     if view == "archived":
@@ -545,7 +550,7 @@ def new_project_page(request: Request):
         return RedirectResponse("/login?next=/projects/new", status_code=302)
 
     all_users: list[User] = []
-    if user.get("role") in ["admin", "manager"]:
+    if user.get("role") in ["admin", "superadmin", "manager"]:
         db = SessionLocal()
         try:
             all_users = (
@@ -570,6 +575,58 @@ def new_project_page(request: Request):
             "classification_metadata": get_classification_metadata(),
         },
     )
+
+
+@router.post("/create-user")
+def create_user_from_project_page(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user:
+        flash(request, "Please login to continue", "warning")
+        return RedirectResponse("/login?next=/projects/new", status_code=302)
+
+    if user.get("role") not in {"admin", "superadmin"}:
+        flash(request, "Admin access required", "warning")
+        return RedirectResponse("/projects/new", status_code=302)
+
+    role = str(role or "").strip().lower()
+    allowed_roles = {"admin", "manager", "user", "viewer"}
+    if role not in allowed_roles:
+        flash(request, "Invalid role selected", "error")
+        return RedirectResponse("/projects/new", status_code=302)
+
+    uname = str(username or "").strip()
+    if not uname:
+        flash(request, "Username is required", "error")
+        return RedirectResponse("/projects/new", status_code=302)
+
+    existing = db.query(User).filter(func.lower(User.username) == uname.lower()).first()
+    if existing:
+        flash(request, "Username already exists", "error")
+        return RedirectResponse("/projects/new", status_code=302)
+
+    db.add(
+        User(
+            username=uname,
+            password_hash=hash_password(password),
+            role=role,
+            is_active=True,
+        )
+    )
+    db.commit()
+
+    flash(request, "User created successfully", "success")
+    return RedirectResponse("/projects/new", status_code=302)
+
+
+@router.get("/create-user")
+def create_user_from_project_page_get(request: Request):
+    return RedirectResponse("/projects/new", status_code=302)
 
 @router.post("/create")
 def create_project_form(
@@ -2230,7 +2287,7 @@ def create_project_form(
         team = _safe_parse_project_team(project_team_json)
         if team:
             allowed_roles = {"admin", "manager", "member", "viewer"}
-            is_system_admin = user.get("role") == "admin"
+            is_system_admin = user.get("role") in {"admin", "superadmin"}
             for item in team:
                 uid = int(item.get("user_id") or 0)
                 if uid <= 0:

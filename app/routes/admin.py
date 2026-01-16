@@ -7,6 +7,11 @@ import hashlib
 from app.db.session import get_db
 from app.models.user import User
 from app.models.user_session import UserSession
+from app.models.user_setting import UserSetting
+from app.models.project_wizard import ProjectWizardState
+from app.models.prediction_log import PredictionLog
+from app.models.procurement_log import ProcurementLog
+from app.models.daily_work_report import DailyWorkReport
 from app.utils.flash import flash
 from app.utils.template_filters import register_template_filters
 from app.utils.audit_logger import log_action, model_to_dict
@@ -27,8 +32,8 @@ register_template_filters(templates)
 
 def admin_guard(request: Request):
     user = request.session.get("user")
-    if not user or user["role"] != "admin":
-        flash(request, "Admin access required", "warning")
+    if not user or user.get("role") != "superadmin":
+        flash(request, "SuperAdmin access required", "warning")
         return None
     return user
 
@@ -135,12 +140,54 @@ def users_list(request: Request, db: Session = Depends(get_db)):
     if not admin:
         return RedirectResponse("/dashboard", status_code=302)
 
-    users = db.query(User).order_by(User.id.desc()).all()
+    superadmins = (
+        db.query(User)
+        .filter(User.role == "superadmin")
+        .order_by(User.id.desc())
+        .all()
+    )
+
+    assigned_ids = {
+        r[0]
+        for r in (
+            db.query(ProjectUser.user_id)
+            .filter(ProjectUser.user_id.isnot(None))
+            .distinct()
+            .all()
+        )
+        if r and r[0] is not None
+    }
+    assigned_ids |= {
+        r[0]
+        for r in (
+            db.query(Project.created_by)
+            .filter(Project.created_by.isnot(None))
+            .distinct()
+            .all()
+        )
+        if r and r[0] is not None
+    }
+
+    base_users = db.query(User).filter(User.role != "superadmin")
+
+    project_users = (
+        base_users.filter(User.id.in_(assigned_ids)).order_by(User.id.desc()).all()
+        if assigned_ids
+        else []
+    )
+
+    unassigned_users = (
+        base_users.filter(~User.id.in_(assigned_ids)).order_by(User.id.desc()).all()
+        if assigned_ids
+        else base_users.order_by(User.id.desc()).all()
+    )
 
     html = templates.get_template("admin/users_list.html").render(
         request=request,
         title="User Management",
-        users=users,
+        superadmins=superadmins,
+        project_users=project_users,
+        unassigned_users=unassigned_users,
         user=admin,
     )
 
@@ -373,22 +420,38 @@ def delete_user(
         return RedirectResponse("/admin/users", status_code=302)
 
     # Prevent deleting the last active admin
-    if user_obj.role == "admin":
-        active_admins = db.query(User).filter(User.role == "admin", User.is_active == True).count()
+    if user_obj.role == "superadmin":
+        active_admins = db.query(User).filter(User.role == "superadmin", User.is_active == True).count()
         if active_admins <= 1:
-            flash(request, "Cannot delete the last active admin.", "error")
+            flash(request, "Cannot delete the last active superadmin.", "error")
             return RedirectResponse("/admin/users", status_code=302)
 
-    # Delete dependent sessions first to avoid FK issues
-    db.query(UserSession).filter(UserSession.user_id == user_id).delete(synchronize_session=False)
+    # Prevent deleting users who own projects (FK: projects.created_by)
+    owned_projects = db.query(Project).filter(Project.created_by == user_id).count()
+    if owned_projects > 0:
+        flash(request, "Cannot delete a user who owns projects. Reassign projects first.", "error")
+        return RedirectResponse("/admin/users", status_code=302)
 
-    # Also delete any project-user mappings referencing this user (safe)
-    try:
-        from app.models.project_user import ProjectUser
-        db.query(ProjectUser).filter(ProjectUser.user_id == user_id).delete(synchronize_session=False)
-    except Exception:
-        # if the model isn't present for some reason, continue
-        pass
+    # Delete or nullify dependent rows first to avoid FK issues
+    db.query(UserSession).filter(UserSession.user_id == user_id).delete(synchronize_session=False)
+    db.query(UserSetting).filter(UserSetting.user_id == user_id).delete(synchronize_session=False)
+    db.query(ProjectWizardState).filter(ProjectWizardState.user_id == user_id).delete(synchronize_session=False)
+
+    db.query(ProjectUser).filter(ProjectUser.user_id == user_id).delete(synchronize_session=False)
+
+    # Preserve audit/history rows, but detach user id
+    db.query(ActivityLog).filter(ActivityLog.user_id == user_id).update(
+        {ActivityLog.user_id: None}, synchronize_session=False
+    )
+    db.query(PredictionLog).filter(PredictionLog.user_id == user_id).update(
+        {PredictionLog.user_id: None}, synchronize_session=False
+    )
+    db.query(ProcurementLog).filter(ProcurementLog.created_by_user_id == user_id).update(
+        {ProcurementLog.created_by_user_id: None}, synchronize_session=False
+    )
+    db.query(DailyWorkReport).filter(DailyWorkReport.prepared_by_user_id == user_id).update(
+        {DailyWorkReport.prepared_by_user_id: None}, synchronize_session=False
+    )
 
     # Finally delete the user
     db.delete(user_obj)

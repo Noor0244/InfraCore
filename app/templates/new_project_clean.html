@@ -63,6 +63,7 @@
     <hr>
 
     <!-- ================= ROLE BASED USER ================= -->
+    {% if user and user["role"] in ["admin", "superadmin"] %}
     <section class="form-section" id="project_team_section">
         <h3 class="section-title">Role Based User</h3>
         <div class="help-text">Assign users to this project and set their role.</div>
@@ -73,7 +74,9 @@
                 <select id="project_team_user">
                     <option value="">Select User</option>
                     {% for u in (all_users or []) %}
+                        {% if u.role != "superadmin" %}
                         <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endif %}
                     {% endfor %}
                 </select>
             </div>
@@ -81,12 +84,10 @@
             <div>
                 <label>Role in Project</label>
                 <select id="project_team_role">
+                    <option value="admin">Admin</option>
                     <option value="manager">Manager</option>
-                    <option value="member" selected>Member</option>
-                    <option value="viewer">Viewer</option>
-                    {% if user and user["role"] == "admin" %}
-                        <option value="admin">Admin</option>
-                    {% endif %}
+                    <option value="viewer" selected>Viewer</option>
+                    <option value="member">Member</option>
                 </select>
             </div>
 
@@ -96,9 +97,38 @@
         </div>
 
         <div id="project_team_list" style="margin-top:12px"></div>
+
+        <div class="card" style="margin-top:14px;padding:12px">
+            <h4 class="section-title" style="font-size:14px;margin:0 0 8px 0">Create User</h4>
+            <div class="help-text" style="margin-bottom:10px">Create a system user (Admin/Manager/User/Viewer).</div>
+            <div class="form-grid">
+                <div>
+                    <label>Username</label>
+                    <input type="text" name="username" form="createUserForm" required autocomplete="off" spellcheck="false">
+                </div>
+                <div>
+                    <label>Password</label>
+                    <input type="password" name="password" form="createUserForm" required autocomplete="new-password">
+                </div>
+                <div>
+                    <label>System Role</label>
+                    <select name="role" form="createUserForm" required autocomplete="off">
+                        <option value="admin">Admin</option>
+                        <option value="manager">Manager</option>
+                        <option value="user" selected>User</option>
+                        <option value="viewer">Viewer</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top:10px">
+                <button type="submit" class="btn-primary" form="createUserForm">Create User</button>
+            </div>
+        </div>
     </section>
 
     <hr>
+    {% endif %}
 
     <!-- ================= PROJECT TIMELINE ================= -->
     <section class="form-section">
@@ -388,7 +418,7 @@
 
     <script>
     (function(){
-        const allowAdminRole = {{ 'true' if user and user["role"] == "admin" else 'false' }};
+        const allowAdminRole = {{ 'true' if user and user["role"] in ["admin", "superadmin"] else 'false' }};
         const projectType = document.querySelector('select[name="project_type"]');
         const roadCategory = document.querySelector('select[name="road_category"]');
         const roadEngineering = document.querySelector('select[name="road_engineering_type"]');
@@ -412,6 +442,9 @@
 
         const activityDefsInput = document.querySelector('input[name="activity_preset_defs_json"]');
         const materialDefsInput = document.querySelector('input[name="material_preset_defs_json"]');
+        const createUserName = document.querySelector('input[name="username"][form="createUserForm"]');
+        const createUserPass = document.querySelector('input[name="password"][form="createUserForm"]');
+        const createUserRole = document.querySelector('select[name="role"][form="createUserForm"]');
         const teamInput = document.querySelector('input[name="project_team_json"]');
 
         const teamUserSelect = document.getElementById('project_team_user');
@@ -427,9 +460,9 @@
             const sel = String(selected || 'member').toLowerCase();
             let opts = '';
             const base = [
+                { value: 'viewer', label: 'Viewer' },
                 { value: 'manager', label: 'Manager' },
                 { value: 'member', label: 'Member' },
-                { value: 'viewer', label: 'Viewer' },
             ];
             if(allowAdminRole){
                 base.unshift({ value: 'admin', label: 'Admin' });
@@ -623,6 +656,10 @@
         }
 
         renderTeamList();
+
+        if(createUserName) createUserName.value = '';
+        if(createUserPass) createUserPass.value = '';
+        if(createUserRole) createUserRole.value = 'user';
 
         function showStretchBlock(){
             if(!stretchBlock) return;
@@ -1169,5 +1206,7 @@
     </script>
 
 </form>
+
+<form id="createUserForm" method="post" action="/projects/create-user"></form>
 
 </div>

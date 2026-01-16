@@ -55,10 +55,10 @@
     </div>
 </div>
 
-<div class="card" style="padding:0">
+<div class="card" style="padding:0;margin-bottom:18px">
 
     <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08)">
-        <h3 style="margin:0">All Users</h3>
+        <h3 style="margin:0">Super Admins</h3>
     </div>
 
     <table class="table" style="margin:0">
@@ -71,23 +71,13 @@
                 <th style="width:320px">Actions</th>
             </tr>
         </thead>
-
         <tbody>
-        {% if users and users|length > 0 %}
-        {% for u in users %}
+        {% if superadmins and superadmins|length > 0 %}
+        {% for u in superadmins %}
             <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
                 <td>{{ u.id }}</td>
-
                 <td><strong>{{ u.username }}</strong></td>
-
-                <!-- ROLE -->
-                <td>
-                    <span class="badge badge-info">
-                        {{ u.role | upper }}
-                    </span>
-                </td>
-
-                <!-- STATUS -->
+                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
                 <td>
                     {% if u.is_active %}
                         <span class="badge badge-success">ACTIVE</span>
@@ -95,98 +85,26 @@
                         <span class="badge badge-danger">DISABLED</span>
                     {% endif %}
                 </td>
-
-                <!-- ACTIONS -->
                 <td>
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
-
-                        <!-- EDIT -->
-                        <a href="/admin/users/{{ u.id }}/edit"
-                           style="
-                               background:#374151;
-                               color:#ffffff;
-                               padding:5px 10px;
-                               border-radius:5px;
-                               font-size:13px;
-                               text-decoration:none;
-                           ">
-                            ✏️ Edit
-                        </a>
-
-                        <!-- SESSIONS -->
-                        <a href="/admin/users/{{ u.id }}/sessions"
-                           style="
-                               background:#0ea5a4;
-                               color:#ffffff;
-                               padding:5px 10px;
-                               border-radius:5px;
-                               font-size:13px;
-                               text-decoration:none;
-                           ">
-                            🕒 Sessions
-                        </a>
-
-                        <!-- ENABLE / DISABLE -->
+                        <a href="/admin/users/{{ u.id }}/edit" style="background:#374151;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
+                        <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
                         {% if user["id"] != u.id %}
-                            <form
-                                method="post"
-                                action="/admin/users/{{ u.id }}/toggle"
-                                style="display:inline"
-                            >
+                            <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
                                 {% if u.is_active %}
-                                    <button type="submit"
-                                        style="
-                                            background:#dc2626;
-                                            color:#ffffff;
-                                            padding:5px 10px;
-                                            border:none;
-                                            border-radius:5px;
-                                            font-size:13px;
-                                            cursor:pointer;
-                                        ">
-                                        🚫 Disable
-                                    </button>
+                                    <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
                                 {% else %}
-                                    <button type="submit"
-                                        style="
-                                            background:#16a34a;
-                                            color:#ffffff;
-                                            padding:5px 10px;
-                                            border:none;
-                                            border-radius:5px;
-                                            font-size:13px;
-                                            cursor:pointer;
-                                        ">
-                                        ✅ Enable
-                                    </button>
+                                    <button type="submit" style="background:#16a34a;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
                                 {% endif %}
                             </form>
-                            <!-- DELETE (admin only, not self) -->
-                            {% if user["role"] == "admin" %}
-                            <form method="post"
-                                  action="/admin/users/{{ u.id }}/delete"
-                                  style="display:inline"
-                                  onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
-                                <button type="submit"
-                                    style="
-                                        background:#b91c1c;
-                                        color:#ffffff;
-                                        padding:5px 10px;
-                                        border:none;
-                                        border-radius:5px;
-                                        font-size:13px;
-                                        cursor:pointer;
-                                    ">
-                                    🗑 Delete
-                                </button>
+                            {% if user["role"] == "superadmin" %}
+                            <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
+                                <button type="submit" style="background:#b91c1c;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
                             </form>
                             {% endif %}
                         {% else %}
-                            <span class="badge badge-warning">
-                                You
-                            </span>
+                            <span class="badge badge-warning">You</span>
                         {% endif %}
-
                     </div>
                 </td>
             </tr>
@@ -194,8 +112,134 @@
         {% else %}
             <tr>
                 <td colspan="5" style="text-align:center;padding:24px">
-                    <strong>No users found.</strong>
-                    <div style="opacity:0.7;margin-top:8px">Create a user to allow team access.</div>
+                    <strong>No super admins found.</strong>
+                </td>
+            </tr>
+        {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card" style="padding:0;margin-bottom:18px">
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <h3 style="margin:0">Project Users</h3>
+    </div>
+    <table class="table" style="margin:0">
+        <thead>
+            <tr style="background:rgba(255,255,255,0.04)">
+                <th style="width:60px">ID</th>
+                <th>Username</th>
+                <th style="width:120px">Role</th>
+                <th style="width:120px">Status</th>
+                <th style="width:320px">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% if project_users and project_users|length > 0 %}
+        {% for u in project_users %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+                <td>{{ u.id }}</td>
+                <td><strong>{{ u.username }}</strong></td>
+                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
+                <td>
+                    {% if u.is_active %}
+                        <span class="badge badge-success">ACTIVE</span>
+                    {% else %}
+                        <span class="badge badge-danger">DISABLED</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <a href="/admin/users/{{ u.id }}/edit" style="background:#374151;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
+                        <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
+                        {% if user["id"] != u.id %}
+                            <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
+                                {% if u.is_active %}
+                                    <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
+                                {% else %}
+                                    <button type="submit" style="background:#16a34a;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
+                                {% endif %}
+                            </form>
+                            {% if user["role"] == "superadmin" %}
+                            <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
+                                <button type="submit" style="background:#b91c1c;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
+                            </form>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-warning">You</span>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+        {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" style="text-align:center;padding:24px">
+                    <strong>No project users found.</strong>
+                </td>
+            </tr>
+        {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card" style="padding:0">
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <h3 style="margin:0">Unassigned Users</h3>
+        <div class="help-text" style="margin-top:6px">Users not connected to any project.</div>
+    </div>
+    <table class="table" style="margin:0">
+        <thead>
+            <tr style="background:rgba(255,255,255,0.04)">
+                <th style="width:60px">ID</th>
+                <th>Username</th>
+                <th style="width:120px">Role</th>
+                <th style="width:120px">Status</th>
+                <th style="width:320px">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% if unassigned_users and unassigned_users|length > 0 %}
+        {% for u in unassigned_users %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+                <td>{{ u.id }}</td>
+                <td><strong>{{ u.username }}</strong></td>
+                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
+                <td>
+                    {% if u.is_active %}
+                        <span class="badge badge-success">ACTIVE</span>
+                    {% else %}
+                        <span class="badge badge-danger">DISABLED</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <a href="/admin/users/{{ u.id }}/edit" style="background:#374151;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
+                        <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
+                        {% if user["id"] != u.id %}
+                            <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
+                                {% if u.is_active %}
+                                    <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
+                                {% else %}
+                                    <button type="submit" style="background:#16a34a;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
+                                {% endif %}
+                            </form>
+                            {% if user["role"] == "superadmin" %}
+                            <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
+                                <button type="submit" style="background:#b91c1c;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
+                            </form>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-warning">You</span>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+        {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" style="text-align:center;padding:24px">
+                    <strong>No unassigned users.</strong>
                 </td>
             </tr>
         {% endif %}

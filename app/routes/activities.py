@@ -28,7 +28,7 @@ templates = Jinja2Templates(directory="app/templates")
 # ACCESS GUARD
 # ==================================================
 def require_project_access(db: Session, user: dict, project_id: int):
-    if user["role"] == "admin":
+    if user["role"] in {"admin", "superadmin"}:
         return True
 
     project = db.query(Project).filter(Project.id == project_id).first()

@@ -88,7 +88,7 @@ def execution_project_select(
         )
     )
 
-    if user.get("role") == "admin":
+    if user.get("role") in {"admin", "superadmin"}:
         projects = (
             base.distinct()
             .order_by(Project.created_at.desc())

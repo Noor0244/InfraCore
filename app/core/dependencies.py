@@ -14,7 +14,7 @@ def get_current_user(request: Request) -> dict:
 
 def resolve_system_role(user: dict) -> str:
 	role = str(user.get("role") or "").strip().lower()
-	if role == "admin":
+	if role in {"admin", "superadmin"}:
 		return "admin"
 	if role in {"engineer", "manager", "owner", "user"}:
 		return "engineer"

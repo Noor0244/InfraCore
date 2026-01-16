@@ -13,7 +13,7 @@
     </div>
 
     <!-- ➕ CREATE PROJECT (ADMIN + MANAGER ONLY) -->
-    {% if user["role"] in ["admin", "manager"] %}
+    {% if user["role"] in ["admin", "superadmin", "manager"] %}
     <div style="display:flex;gap:10px">
         <a href="/projects/new" class="btn-primary">
             ➕ Create New Project
@@ -67,7 +67,7 @@
                 <td style="display:flex;gap:6px;flex-wrap:wrap">
 
                     <!-- ✏️ EDIT (ADMIN + MANAGER ONLY) -->
-                    {% if user["role"] in ["admin", "manager"] %}
+                    {% if user["role"] in ["admin", "superadmin", "manager"] %}
                     <a href="/projects/{{ project.id }}/edit"
                        class="btn-secondary btn-sm">
                         ✏️ Edit
@@ -75,7 +75,7 @@
                     {% endif %}
 
                     <!-- 📦 ARCHIVE / RESTORE (ADMIN + MANAGER ONLY) -->
-                    {% if user["role"] in ["admin", "manager"] %}
+                      {% if user["role"] in ["admin", "superadmin", "manager"] %}
                     <form method="post"
                           action="/projects/{{ project.id }}/archive"
                           onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
@@ -90,7 +90,7 @@
                     {% endif %}
 
                     <!-- 🗑 DELETE (ADMIN ONLY) -->
-                    {% if user["role"] == "admin" %}
+                      {% if user["role"] in ["admin", "superadmin"] %}
                     <form method="post"
                           action="/projects/{{ project.id }}/delete"
                           onsubmit="return confirm('Delete this project permanently? This cannot be undone.')">
@@ -101,7 +101,7 @@
                     {% endif %}
 
                     <!-- 👁 VIEW ONLY -->
-                    {% if user["role"] not in ["admin", "manager"] %}
+                    {% if user["role"] not in ["admin", "superadmin", "manager"] %}
                         <span class="badge badge-info">View Only</span>
                     {% endif %}
 
@@ -119,7 +119,7 @@
             Create your first project to start planning and tracking progress.
         </p>
 
-        {% if user["role"] in ["admin", "manager"] %}
+        {% if user["role"] in ["admin", "superadmin", "manager"] %}
         <a href="/projects/new" class="btn-primary">
             ➕ Create Project
         </a>

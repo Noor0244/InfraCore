@@ -42,11 +42,11 @@ register_template_filters(templates)
 def _can_plan(user: dict | None) -> bool:
     if not user:
         return False
-    return user.get("role") in ["admin", "manager"]
+    return user.get("role") in {"admin", "superadmin", "manager"}
 
 
 def _is_admin(user: dict | None) -> bool:
-    return bool(user and user.get("role") == "admin")
+    return bool(user and user.get("role") in {"admin", "superadmin"})
 
 
 def _activity_progress_percent(db: Session, project_id: int, activity_id: int) -> int:
@@ -77,7 +77,7 @@ def _visible_projects(db: Session, user: dict) -> list[Project]:
         )
     )
 
-    if user.get("role") == "admin":
+    if user.get("role") in {"admin", "superadmin"}:
         return base.distinct().order_by(Project.created_at.desc()).all()
 
     return (

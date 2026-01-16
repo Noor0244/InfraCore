@@ -110,7 +110,7 @@
         <div class="empty">
             <h3>No projects available for execution</h3>
             <p>Create a project first, then plan activities to unlock the full DPR workflow.</p>
-            {% if user and user["role"] in ["admin","manager"] %}
+            {% if user and user["role"] in ["admin", "superadmin", "manager"] %}
                 <a href="/projects/new" class="btn-primary" style="margin-top:10px; display:inline-block">Create Project</a>
             {% endif %}
         </div>

@@ -28,7 +28,7 @@ def get_project_role(db: Session, user: dict, project_id: int):
     - role_in_project if assigned
     - None if no access
     """
-    if user["role"] == "admin":
+    if user["role"] in {"admin", "superadmin"}:
         return "admin"
 
     pu = (

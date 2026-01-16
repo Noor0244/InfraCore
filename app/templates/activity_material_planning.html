@@ -407,7 +407,7 @@
               <button class="btn-primary" type="submit" id="ampSaveBtn">Save</button>
             </div>
 
-            {% if user and user["role"] == "admin" %}
+            {% if user and user["role"] in ["admin", "superadmin"] %}
             <div id="ampAdminUnlock" style="display:none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(127,127,127,0.35);">
               <div class="amp-small amp-muted" style="margin-bottom:8px">Admin unlock (baseline change protection)</div>
               <div style="display:flex; gap: 10px; flex-wrap: wrap; align-items: center;">
