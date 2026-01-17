@@ -5,6 +5,7 @@
 from app.models.user import User
 from app.models.user_session import UserSession   # ✅ ADDED
 from app.models.user_setting import UserSetting
+from app.models.password_reset_otp import PasswordResetOTP
 
 # -------- CORE PROJECT (PLANNED CONTAINER) --------
 from app.models.project import Project

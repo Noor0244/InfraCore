@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-import hashlib
+import bcrypt
 
 from app.db.session import get_db
 from app.models.user import User
@@ -39,7 +39,8 @@ def admin_guard(request: Request):
 
 
 def hash_password(p: str):
-    return hashlib.sha256(p.encode()).hexdigest()
+    pw = (p or "").encode("utf-8")[:72]
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
 
 
 # ================= ADMIN: AUDIT LOGS =================
@@ -219,6 +220,7 @@ def create_user(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    email: str | None = Form(None),
     role: str = Form(...),
     db: Session = Depends(get_db),
 ):
@@ -235,6 +237,7 @@ def create_user(
     user = User(
         username=username,
         password_hash=hash_password(password),
+        email=(email or None),
         role=role,
         is_active=True
     )
@@ -294,6 +297,7 @@ def update_user(
     request: Request,
     role: str = Form(...),
     password: str | None = Form(None),
+    email: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
 
@@ -306,6 +310,7 @@ def update_user(
         return RedirectResponse("/admin/users", status_code=302)
 
     user_obj.role = role
+    user_obj.email = (email or None)
 
     if password:
         user_obj.password_hash = hash_password(password)

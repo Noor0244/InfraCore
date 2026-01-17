@@ -51,6 +51,11 @@
         </div>
 
         <div>
+            <label>Email</label>
+            <input type="email" name="email" value="{{ user_data.email if user_data else '' }}" class="input-dark" autocomplete="off">
+        </div>
+
+        <div>
             <label>Password {% if user_data %}(leave blank to keep same){% endif %}</label>
             {% if user_data %}
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">

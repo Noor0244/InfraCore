@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-import hashlib
+import bcrypt
 import logging
 import json
 
@@ -345,7 +345,8 @@ register_template_filters(templates)
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    pw = (password or "").encode("utf-8")[:72]
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
 
 logger = logging.getLogger(__name__)
 
@@ -582,6 +583,7 @@ def create_user_from_project_page(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    email: str | None = Form(None),
     role: str = Form(...),
     db: Session = Depends(get_db),
 ):
@@ -614,6 +616,7 @@ def create_user_from_project_page(
         User(
             username=uname,
             password_hash=hash_password(password),
+            email=(email or None),
             role=role,
             is_active=True,
         )

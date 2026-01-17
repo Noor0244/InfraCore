@@ -107,6 +107,10 @@
                     <input type="text" name="username" form="createUserForm" required autocomplete="off" spellcheck="false">
                 </div>
                 <div>
+                    <label>Email</label>
+                    <input type="email" name="email" form="createUserForm" autocomplete="off">
+                </div>
+                <div>
                     <label>Password</label>
                     <input type="password" name="password" form="createUserForm" required autocomplete="new-password">
                 </div>
@@ -444,6 +448,7 @@
         const materialDefsInput = document.querySelector('input[name="material_preset_defs_json"]');
         const createUserName = document.querySelector('input[name="username"][form="createUserForm"]');
         const createUserPass = document.querySelector('input[name="password"][form="createUserForm"]');
+        const createUserEmail = document.querySelector('input[name="email"][form="createUserForm"]');
         const createUserRole = document.querySelector('select[name="role"][form="createUserForm"]');
         const teamInput = document.querySelector('input[name="project_team_json"]');
 
@@ -659,6 +664,7 @@
 
         if(createUserName) createUserName.value = '';
         if(createUserPass) createUserPass.value = '';
+        if(createUserEmail) createUserEmail.value = '';
         if(createUserRole) createUserRole.value = 'user';
 
         function showStretchBlock(){

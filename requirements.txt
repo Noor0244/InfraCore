@@ -4,6 +4,7 @@ sqlalchemy
 jinja2
 python-dotenv
 passlib[bcrypt]
+bcrypt
 python-multipart
 itsdangerous
 openpyxl

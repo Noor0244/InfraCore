@@ -1,3 +1,23 @@
+# ======================================================
+# TEST EMAIL ROUTE (for SMTP debugging)
+# ======================================================
+
+
+
+
+
+
+
+# Ensure .env is loaded before anything else
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, environment variables must be set manually
+
+# Ensure logging is configured to show warnings/errors
+import logging
+logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 from fastapi import FastAPI, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
@@ -7,7 +27,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 import hashlib
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
+import secrets
+from email.message import EmailMessage
+
+# Centralized email utility
+from app.utils.email import send_email, EmailSendError
+import bcrypt
 
 from app.db.session import engine, get_db
 from app.db.base import Base
@@ -16,6 +43,7 @@ from app.db.seed_road_presets import seed_road_presets
 
 from app.models.user import User
 from app.models.user_session import UserSession
+from app.models.password_reset_otp import PasswordResetOTP
 from app.models.material_vendor import MaterialVendor
 from app.models.material import Material
 from app.models.activity import Activity
@@ -191,8 +219,47 @@ app.include_router(prediction_router)
 # ======================================================
 # HELPERS
 # ======================================================
-def hash_password(password: str) -> str:
+def _sha256(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def hash_password(password: str) -> str:
+    pw = (password or "").encode("utf-8")[:72]
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    if not password_hash:
+        return False
+    if password_hash.startswith("$2"):
+        try:
+            pw = (password or "").encode("utf-8")[:72]
+            return bcrypt.checkpw(pw, password_hash.encode("utf-8"))
+        except Exception:
+            return False
+    return _sha256(password) == password_hash
+
+
+def _generate_otp() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
+
+
+def _send_otp_email(to_email: str, otp: str) -> None:
+    subject = "InfraCore Password Reset OTP"
+    body = (
+        f"Your InfraCore OTP is: {otp}\n\n"
+        "This OTP is valid for 10 minutes and can be used only once."
+    )
+    import logging
+    try:
+        send_email(
+            to_email=to_email,
+            subject=subject,
+            body=body
+        )
+    except EmailSendError as e:
+        logging.error(f"OTP email send failed: {e}")
+        pass
 
 # ======================================================
 # STARTUP
@@ -217,6 +284,7 @@ def startup_tasks():
     if not superadmin_exists:
         if admin_user:
             admin_user.role = "superadmin"
+            admin_user.password_hash = hash_password("admin123")
             db.add(admin_user)
             db.commit()
         else:
@@ -259,6 +327,11 @@ def startup_tasks():
     try:
         with engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE road_presets ADD COLUMN is_deleted BOOLEAN DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        with engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN email VARCHAR(255)")
     except Exception:
         pass
     try:
@@ -613,7 +686,7 @@ def login_action(
 ):
     user = db.query(User).filter(func.lower(User.username) == username.lower()).first()
 
-    if not user or user.password_hash != hash_password(password):
+    if not user or not verify_password(password, user.password_hash):
         flash(request, "Invalid username or password", "error")
         return templates.TemplateResponse(
             "login.html",
@@ -660,6 +733,166 @@ def login_action(
         if n.startswith("/") and ("://" not in n) and ("\\" not in n):
             return RedirectResponse(n, status_code=302)
     return RedirectResponse("/dashboard", status_code=302)
+
+
+@app.get("/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(request: Request):
+    if request.session.get("user"):
+        return RedirectResponse("/dashboard", status_code=302)
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {"request": request, "user": None},
+    )
+
+@app.post("/forgot-password/send-otp")
+def send_forgot_password_otp(
+    request: Request,
+    email: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    print("OTP ROUTE TRIGGERED")
+    if request.session.get("user"):
+        return RedirectResponse("/dashboard", status_code=302)
+
+    email_clean = str(email or "").strip()
+    import re
+    # Basic email format validation
+    email_regex = r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+    if not re.match(email_regex, email_clean):
+        return {"error": "Please enter a valid email address."}
+
+    now = datetime.utcnow()
+
+    user = None
+    if email_clean:
+        user = db.query(User).filter(func.lower(User.username) == email_clean.lower()).first()
+
+    import logging
+    if user:
+        db.query(PasswordResetOTP).filter(
+            PasswordResetOTP.email == email_clean,
+            PasswordResetOTP.used_at.is_(None),
+            PasswordResetOTP.expires_at > now,
+        ).update({PasswordResetOTP.used_at: now}, synchronize_session=False)
+
+        otp = _generate_otp()
+        otp_hash = bcrypt.hashpw(otp.encode("utf-8")[:72], bcrypt.gensalt()).decode("utf-8")
+        expires_at = now + timedelta(minutes=10)
+
+        db.add(
+            PasswordResetOTP(
+                email=email_clean,
+                otp_hash=otp_hash,
+                expires_at=expires_at,
+                attempts=0,
+                verified_at=None,
+                used_at=None,
+            )
+        )
+        db.commit()
+
+        try:
+            _send_otp_email(email_clean, otp)
+        except Exception as e:
+            logging.error(f"OTP email send failed: {e}")
+            return {"error": "Failed to send OTP email. Please try again later or contact support."}
+
+        return {"message": "If the account exists, an OTP has been sent."}
+    else:
+        # Do not reveal if user exists, but always return success for non-existent users
+        return {"message": "If the account exists, an OTP has been sent."}
+
+
+@app.post("/forgot-password/verify-otp")
+def verify_forgot_password_otp(
+    request: Request,
+    email: str = Form(...),
+    otp: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    if request.session.get("user"):
+        return RedirectResponse("/dashboard", status_code=302)
+
+    email_clean = str(email or "").strip()
+    otp_clean = str(otp or "").strip()
+    now = datetime.utcnow()
+
+    row = (
+        db.query(PasswordResetOTP)
+        .filter(
+            PasswordResetOTP.email == email_clean,
+            PasswordResetOTP.used_at.is_(None),
+            PasswordResetOTP.expires_at > now,
+        )
+        .order_by(PasswordResetOTP.id.desc())
+        .first()
+    )
+
+    if not row:
+        return {"message": "Invalid or expired OTP."}
+
+    if row.verified_at is not None:
+        return {"message": "OTP already verified."}
+
+    if row.attempts >= 5:
+        return {"message": "OTP attempts exceeded."}
+
+    try:
+        otp_ok = bcrypt.checkpw(otp_clean.encode("utf-8")[:72], row.otp_hash.encode("utf-8"))
+    except Exception:
+        otp_ok = False
+
+    if not otp_ok:
+        row.attempts = int(row.attempts or 0) + 1
+        db.add(row)
+        db.commit()
+        return {"message": "Invalid or expired OTP."}
+
+    row.verified_at = now
+    db.add(row)
+    db.commit()
+    return {"message": "OTP verified."}
+
+
+@app.post("/forgot-password/reset")
+def reset_password_with_otp(
+    request: Request,
+    email: str = Form(...),
+    new_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    if request.session.get("user"):
+        return RedirectResponse("/dashboard", status_code=302)
+
+    email_clean = str(email or "").strip()
+    now = datetime.utcnow()
+
+    row = (
+        db.query(PasswordResetOTP)
+        .filter(
+            PasswordResetOTP.email == email_clean,
+            PasswordResetOTP.used_at.is_(None),
+            PasswordResetOTP.expires_at > now,
+            PasswordResetOTP.verified_at.isnot(None),
+        )
+        .order_by(PasswordResetOTP.id.desc())
+        .first()
+    )
+
+    if not row:
+        return {"message": "OTP verification required or expired."}
+
+    user = db.query(User).filter(func.lower(User.username) == email_clean.lower()).first()
+    if not user:
+        return {"message": "OTP verification required or expired."}
+
+    user.password_hash = hash_password(new_password)
+    row.used_at = now
+    db.add(user)
+    db.add(row)
+    db.commit()
+
+    return {"message": "Password reset successful."}
 
 @app.get("/logout")
 def logout(request: Request, db: Session = Depends(get_db)):
