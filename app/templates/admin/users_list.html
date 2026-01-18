@@ -124,63 +124,134 @@
     <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08)">
         <h3 style="margin:0">Project Users</h3>
     </div>
-    <table class="table" style="margin:0">
-        <thead>
-            <tr style="background:rgba(255,255,255,0.04)">
-                <th style="width:60px">ID</th>
-                <th>Username</th>
-                <th style="width:120px">Role</th>
-                <th style="width:120px">Status</th>
-                <th style="width:320px">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% if project_users and project_users|length > 0 %}
-        {% for u in project_users %}
-            <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
-                <td>{{ u.id }}</td>
-                <td><strong>{{ u.username }}</strong></td>
-                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
-                <td>
-                    {% if u.is_active %}
-                        <span class="badge badge-success">ACTIVE</span>
-                    {% else %}
-                        <span class="badge badge-danger">DISABLED</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <a href="/admin/users/{{ u.id }}/edit" style="background:#374151;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
-                        <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
-                        {% if user["id"] != u.id %}
-                            <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
-                                {% if u.is_active %}
-                                    <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
-                                {% else %}
-                                    <button type="submit" style="background:#16a34a;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
-                                {% endif %}
-                            </form>
-                            {% if user["role"] == "superadmin" %}
-                            <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
-                                <button type="submit" style="background:#b91c1c;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
-                            </form>
+    {% if user["role"] == "superadmin" %}
+        <script>
+        function toggleProjectUsers(pid) {
+            var tbl = document.getElementById('project-users-' + pid);
+            var btn = document.getElementById('toggle-btn-' + pid);
+            if (!tbl || !btn) return;
+            if (tbl.style.display === 'none' || tbl.classList.contains('hidden')) {
+                tbl.style.display = '';
+                tbl.classList.remove('hidden');
+                btn.innerText = 'Hide';
+            } else {
+                tbl.style.display = 'none';
+                tbl.classList.add('hidden');
+                btn.innerText = 'Show';
+            }
+        }
+        window.addEventListener('DOMContentLoaded', function() {
+            {% for project in projects %}
+            var tbl = document.getElementById('project-users-{{ project.id }}');
+            var btn = document.getElementById('toggle-btn-{{ project.id }}');
+            if (tbl && btn) {
+                tbl.style.display = 'none';
+                btn.innerText = 'Show';
+            }
+            {% endfor %}
+        });
+        </script>
+        {% for project in projects %}
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;background:rgba(31,111,235,0.08);margin-bottom:4px;border-radius:6px">
+                <span style="font-weight:600;color:#1f6feb;flex:1">{{ project.name }}</span>
+                <button id="toggle-btn-{{ project.id }}" type="button" onclick="toggleProjectUsers({{ project.id }})" style="background:#1f6feb;color:#fff;border:none;padding:4px 16px;border-radius:5px;cursor:pointer;font-weight:500;">Show</button>
+            </div>
+            <table id="project-users-{{ project.id }}" class="table hidden" style="margin:0 0 18px 0">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.04)">
+                        <th style="width:60px">ID</th>
+                        <th>Username</th>
+                        <th style="width:120px">Role</th>
+                        <th style="width:120px">Status</th>
+                        <th style="width:320px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in project.users %}
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+                        <td>{{ u.id }}</td>
+                        <td><strong>{{ u.username }}</strong></td>
+                        <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
+                        <td>
+                            {% if u.is_active %}
+                                <span class="badge badge-success">ACTIVE</span>
+                            {% else %}
+                                <span class="badge badge-danger">DISABLED</span>
                             {% endif %}
-                        {% else %}
-                            <span class="badge badge-warning">You</span>
-                        {% endif %}
-                    </div>
-                </td>
-            </tr>
+                        </td>
+                        <td>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                                <a href="/admin/users/{{ u.id }}/edit" style="background:#374151;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
+                                <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
+                                {% if user["id"] != u.id %}
+                                    <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
+                                        {% if u.is_active %}
+                                            <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
+                                        {% else %}
+                                            <button type="submit" style="background:#16a34a;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
+                                        {% endif %}
+                                    </form>
+                                    <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
+                                        <button type="submit" style="background:#b91c1c;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
+                                    </form>
+                                {% else %}
+                                    <span class="badge badge-warning">You</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
         {% endfor %}
-        {% else %}
-            <tr>
-                <td colspan="5" style="text-align:center;padding:24px">
-                    <strong>No project users found.</strong>
-                </td>
-            </tr>
-        {% endif %}
-        </tbody>
-    </table>
+    {% else %}
+        <table class="table" style="margin:0">
+            <thead>
+                <tr style="background:rgba(255,255,255,0.04)">
+                    <th style="width:60px">ID</th>
+                    <th>Username</th>
+                    <th>Project Name</th>
+                    <th style="width:120px">Role</th>
+                    <th style="width:120px">Status</th>
+                    <th style="width:320px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in project_users %}
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+                    <td>{{ u.id }}</td>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.project_name }}</td>
+                    <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
+                    <td>
+                        {% if u.is_active %}
+                            <span class="badge badge-success">ACTIVE</span>
+                        {% else %}
+                            <span class="badge badge-danger">DISABLED</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap">
+                            <a href="/admin/users/{{ u.id }}/edit" style="background:#374151;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
+                            <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
+                            {% if user["id"] != u.id %}
+                                <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
+                                    {% if u.is_active %}
+                                        <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
+                                    {% else %}
+                                        <button type="submit" style="background:#16a34a;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
+                                    {% endif %}
+                                </form>
+                            {% else %}
+                                <span class="badge badge-warning">You</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
 </div>
 
 <div class="card" style="padding:0">

@@ -88,31 +88,35 @@
                 {% else %}
                     {{ user["role"] | upper }}
                 {% endif %}
-                {% if project_role and user["role"] != "superadmin" %}· {{ project_role | upper }}{% endif %}
             </span>
         </div>
         <nav class="sidebar-nav">
-            <!-- ================= DASHBOARD ================= -->
-            <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}"><span class="icon">📊</span>Dashboard</a>
-
-            <!-- ================= PROJECTS ================= -->
-            <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}"><span class="icon">🏗️</span>Projects</a>
-
-            <!-- ================= REPORTS ================= -->
-            <a href="/reports" class="{% if request.url.path.startswith('/reports') %}active{% endif %}"><span class="icon">📄</span>Reports</a>
-
-            <!-- ================= SETTINGS ================= -->
-            <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}"><span class="icon">⚙️</span>Settings</a>
-
-            <!-- ================= PROCUREMENT ================= -->
-            <a href="/procurement" class="{% if request.url.path.startswith('/procurement') %}active{% endif %}"><span class="icon">📦</span>Procurement</a>
-
-            <!-- ================= ADMIN CONSOLE ================= -->
             {% if user["role"] == "superadmin" %}
-            <a href="/admin/users" class="{% if request.url.path.startswith('/admin') %}active{% endif %}"><span class="icon">🛠️</span>Admin Console</a>
+                <!-- ================= ADMIN CONSOLE ================= -->
+                <a href="/admin/users" class="{% if request.url.path.startswith('/admin') %}active{% endif %}"><span class="icon">🛠️</span>Admin Console</a>
+                <!-- ================= DASHBOARD ================= -->
+                <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}"><span class="icon">📊</span>Dashboard</a>
+                <!-- ================= PROJECTS ================= -->
+                <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}"><span class="icon">🏗️</span>Projects</a>
+                <!-- ================= PROCUREMENT ================= -->
+                <a href="/procurement" class="{% if request.url.path.startswith('/procurement') %}active{% endif %}"><span class="icon">📦</span>Procurement</a>
+                <!-- ================= REPORTS ================= -->
+                <a href="/reports" class="{% if request.url.path.startswith('/reports') %}active{% endif %}"><span class="icon">📄</span>Reports</a>
+                <!-- ================= SETTINGS ================= -->
+                <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}"><span class="icon">⚙️</span>Settings</a>
+            {% elif user["role"] == "admin" %}
+                <!-- ================= DASHBOARD ================= -->
+                <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}"><span class="icon">📊</span>Dashboard</a>
+                <!-- ================= PROJECTS ================= -->
+                <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}"><span class="icon">🏗️</span>Projects</a>
+                <!-- ================= PROCUREMENT ================= -->
+                <a href="/procurement" class="{% if request.url.path.startswith('/procurement') %}active{% endif %}"><span class="icon">📦</span>Procurement</a>
+                <!-- ================= REPORTS ================= -->
+                <a href="/reports" class="{% if request.url.path.startswith('/reports') %}active{% endif %}"><span class="icon">📄</span>Reports</a>
+            {% else %}
+                <!-- ================= DASHBOARD ================= -->
+                <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}"><span class="icon">📊</span>Dashboard</a>
             {% endif %}
-
-                <!-- ================= LOGOUT REMOVED FROM SIDEBAR ================= -->
         </nav>
         <div class="sidebar-footer"></div>
         {% endif %}

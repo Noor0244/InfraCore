@@ -183,14 +183,45 @@ def users_list(request: Request, db: Session = Depends(get_db)):
         else base_users.order_by(User.id.desc()).all()
     )
 
-    html = templates.get_template("admin/users_list.html").render(
-        request=request,
-        title="User Management",
-        superadmins=superadmins,
-        project_users=project_users,
-        unassigned_users=unassigned_users,
-        user=admin,
-    )
+    # For superadmin: group project users by project
+    projects = []
+    if admin["role"] == "superadmin":
+        all_projects = db.query(Project).order_by(Project.name.asc()).all()
+        print("[DEBUG] All projects:", [(p.id, p.name) for p in all_projects])
+        for project in all_projects:
+            project_user_links = db.query(ProjectUser).filter(ProjectUser.project_id == project.id).all()
+            users = []
+            for pu in project_user_links:
+                user_obj = db.query(User).filter(User.id == pu.user_id).first()
+                if user_obj:
+                    users.append(user_obj)
+            print(f"[DEBUG] Project {project.id} ({project.name}) users:", [u.username for u in users])
+            projects.append({"id": project.id, "name": project.name, "users": users})
+
+        html = templates.get_template("admin/users_list.html").render(
+            request=request,
+            title="User Management",
+            superadmins=superadmins,
+            projects=projects,
+            unassigned_users=unassigned_users,
+            user=admin,
+        )
+    else:
+        # For admin: add project_name to each user
+        project_users_with_name = []
+        for u in project_users:
+            pu = db.query(ProjectUser).filter(ProjectUser.user_id == u.id).first()
+            pname = db.query(Project.name).filter(Project.id == pu.project_id).scalar() if pu else ""
+            u.project_name = pname
+            project_users_with_name.append(u)
+        html = templates.get_template("admin/users_list.html").render(
+            request=request,
+            title="User Management",
+            superadmins=superadmins,
+            project_users=project_users_with_name,
+            unassigned_users=unassigned_users,
+            user=admin,
+        )
 
     return HTMLResponse(content=html)
 
