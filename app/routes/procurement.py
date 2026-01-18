@@ -15,6 +15,7 @@ from app.models.material_vendor import MaterialVendor
 from app.models.procurement_log import ProcurementLog
 from app.models.project import Project
 from app.models.project_user import ProjectUser
+from app.models.project_material_vendor import ProjectMaterialVendor
 from app.utils.flash import flash
 from app.utils.template_filters import register_template_filters
 from app.utils.dates import parse_date_ddmmyyyy_or_iso
@@ -134,6 +135,18 @@ def procurement_page(project_id: int, request: Request, db: Session = Depends(ge
         .all()
     )
 
+    # Get all project-material-vendor assignments for this project
+    assignments = db.query(ProjectMaterialVendor).filter(ProjectMaterialVendor.project_id == int(project_id)).all()
+    assignments_json = [
+        {
+            'id': a.id,
+            'project_id': a.project_id,
+            'material_id': a.material_id,
+            'vendor_id': a.vendor_id,
+            'lead_time_days': a.lead_time_days
+        } for a in assignments
+    ]
+
     return templates.TemplateResponse(
         "procurement.html",
         {
@@ -146,6 +159,8 @@ def procurement_page(project_id: int, request: Request, db: Session = Depends(ge
             "vendors_by_material_json": vendors_by_material,
             "logs": logs,
             "today": date.today(),
+            "vendors": vendors,
+            "project_material_vendor_assignments_json": assignments_json,
         },
     )
 

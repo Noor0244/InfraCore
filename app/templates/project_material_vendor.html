@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="page-title">Assign Vendor to Project & Material</h1>
+<form method="post" action="/project-material-vendor/assign" class="form-grid">
+  <div>
+    <label>Project</label>
+    <select name="project_id" required>
+      {% for p in projects %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Material</label>
+    <select name="material_id" required>
+      {% for m in materials %}
+        <option value="{{ m.id }}">{{ m.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Vendor</label>
+    <select name="vendor_id" required>
+      {% for v in vendors %}
+        <option value="{{ v.id }}">{{ v.vendor_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Lead Time (days)</label>
+    <input type="number" name="lead_time_days" min="0" required />
+  </div>
+  <div style="margin-top:16px">
+    <button class="btn-primary" type="submit">Assign Vendor</button>
+  </div>
+</form>
+
+<h2 style="margin-top:32px">Current Assignments</h2>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Project</th>
+      <th>Material</th>
+      <th>Vendor</th>
+      <th>Lead Time (days)</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in assignments %}
+    <tr>
+      <td>{{ a.project.name }}</td>
+      <td>{{ a.material.name }}</td>
+      <td>{{ a.vendor.vendor_name }}</td>
+      <td>{{ a.lead_time_days }}</td>
+      <td>
+        <form method="post" action="/project-material-vendor/delete" style="display:inline">
+          <input type="hidden" name="assignment_id" value="{{ a.id }}" />
+          <button type="submit" class="btn">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
