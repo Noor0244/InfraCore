@@ -1,3 +1,76 @@
+/* Sidebar header row alignment */
+.sidebar-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 10px 18px;
+  gap: 10px;
+}
+.sidebar-title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+.sidebar-toggle-btn {
+  background: var(--card);
+  color: var(--text-muted);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sidebar-toggle-btn:hover,
+.sidebar-toggle-btn:focus {
+  background: var(--bg);
+  color: var(--accent-color);
+}
+
+/* Sidebar user block improvements */
+.sidebar-user {
+  padding: 0 0 18px 28px;
+  margin-bottom: 8px;
+}
+.sidebar-username {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  display: block;
+  margin-bottom: 2px;
+}
+.sidebar-role {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+}
+
+/* Sidebar nav menu item alignment */
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 10px 32px;
+  font-size: 1rem;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 0 18px 18px 0;
+  transition: background 0.15s, color 0.15s;
+}
+.sidebar-nav a .icon {
+  min-width: 22px;
+  text-align: center;
+  font-size: 1.15em;
+}
+.sidebar-nav a.danger {
+  color: #dc2626;
+  font-weight: 600;
+}
 /* InfraCore UI v2 (override layer)
    Loaded after style.css to modernize spacing, cards, forms, tables.
 */

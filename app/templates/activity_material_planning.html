@@ -304,55 +304,12 @@
                 <div class="amp-grid-2">
                   <div>
                     <label>Start Date</label>
-                    <div style="position:relative;display:flex;align-items:center;gap:4px;">
-                      <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
-                      <input type="text" name="start_date" id="ampStartDate" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" placeholder="DD/MM/YYYY" maxlength="10" style="flex:1;">
-                      <input type="date" id="ampStartDateCal" style="position:absolute;right:0;opacity:0;width:32px;cursor:pointer;" tabindex="-1">
-                      <span onclick="document.getElementById('ampStartDateCal').focus();" style="cursor:pointer;margin-left:-28px;z-index:2;">📅</span>
-                    </div>
+                    <input type="text" name="start_date" id="ampStartDate" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}">
                     <div class="help-text">Format: DD/MM/YYYY</div>
                   </div>
                   <div>
                     <label>End Date</label>
-                    <div style="position:relative;display:flex;align-items:center;gap:4px;">
-                      <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
-                      <input type="text" name="end_date" id="ampEndDate" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" placeholder="DD/MM/YYYY" maxlength="10" style="flex:1;">
-                      <input type="date" id="ampEndDateCal" style="position:absolute;right:0;opacity:0;width:32px;cursor:pointer;" tabindex="-1">
-                      <span onclick="document.getElementById('ampEndDateCal').focus();" style="cursor:pointer;margin-left:-28px;z-index:2;">📅</span>
-                    </div>
-                    <script>
-                    function formatDateInput(input, calendar) {
-                      input.addEventListener('input', function(e) {
-                        let value = input.value.replace(/\D/g, '').slice(0, 8); // Only digits, max 8 (DDMMYYYY)
-                        let formatted = '';
-                        if (value.length > 0) {
-                          formatted += value.substring(0, 2);
-                        }
-                        if (value.length > 2) {
-                          formatted += '/' + value.substring(2, 4);
-                        }
-                        if (value.length > 4) {
-                          formatted += '/' + value.substring(4, 8);
-                        }
-                        input.value = formatted;
-                        // Sync to calendar
-                        if (value.length === 8) {
-                          let yyyy = value.substring(4, 8);
-                          let mm = value.substring(2, 4);
-                          let dd = value.substring(0, 2);
-                          calendar.value = `${yyyy}-${mm}-${dd}`;
-                        }
-                      });
-                      calendar.addEventListener('change', function() {
-                        if (calendar.value) {
-                          let [yyyy, mm, dd] = calendar.value.split('-');
-                          input.value = `${dd}/${mm}/${yyyy}`;
-                        }
-                      });
-                    }
-                    formatDateInput(document.getElementById('ampStartDate'), document.getElementById('ampStartDateCal'));
-                    formatDateInput(document.getElementById('ampEndDate'), document.getElementById('ampEndDateCal'));
-                    </script>
+                    <input type="text" name="end_date" id="ampEndDate" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}">
                     <div class="help-text">Format: DD/MM/YYYY</div>
                   </div>
                 </div>

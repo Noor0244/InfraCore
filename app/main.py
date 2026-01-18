@@ -140,6 +140,7 @@ except Exception:
     pass
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 # ---------------- SESSION ----------------
 app.add_middleware(
     SessionMiddleware,
@@ -147,6 +148,47 @@ app.add_middleware(
     same_site="lax",
     https_only=False,
 )
+
+# ---------------- SESSION EXPIRY MIDDLEWARE ----------------
+@app.middleware("http")
+async def session_expiry_middleware(request: Request, call_next):
+    if "session" in request.scope:
+        session = request.session
+        now = datetime.utcnow()
+        max_age = 30 * 60  # 30 minutes in seconds
+        last_active = session.get('last_active')
+        if last_active:
+            try:
+                last_active_dt = datetime.strptime(last_active, "%Y-%m-%dT%H:%M:%S.%f")
+            except Exception:
+                last_active_dt = now
+            if (now - last_active_dt).total_seconds() > max_age:
+                session.clear()
+                return RedirectResponse("/logout")
+        session['last_active'] = now.isoformat()
+    response = await call_next(request)
+    return response
+
+
+# ---------------- SESSION EXPIRY MIDDLEWARE ----------------
+@app.middleware("http")
+async def session_expiry_middleware(request: Request, call_next):
+    if "session" in request.scope:
+        session = request.session
+        now = datetime.utcnow()
+        max_age = 30 * 60  # 30 minutes in seconds
+        last_active = session.get('last_active')
+        if last_active:
+            try:
+                last_active_dt = datetime.strptime(last_active, "%Y-%m-%dT%H:%M:%S.%f")
+            except Exception:
+                last_active_dt = now
+            if (now - last_active_dt).total_seconds() > max_age:
+                session.clear()
+                return RedirectResponse("/logout")
+        session['last_active'] = now.isoformat()
+    response = await call_next(request)
+    return response
 
 # ---------------- FLASH MIDDLEWARE ----------------
 @app.middleware("http")

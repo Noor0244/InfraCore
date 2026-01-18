@@ -68,62 +68,56 @@
 
 
 <div class="layout">
-    <!-- Mobile menu toggle -->
-    <button id="sidebarToggle" style="display:none;position:fixed;top:16px;left:16px;z-index:2000;background:#2563eb;color:#fff;border:none;padding:10px 14px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);font-size:20px;" aria-label="Open menu">☰</button>
+    <!-- Sidebar show/hide buttons (right side) -->
+    <!-- Sidebar show button (left, at InfraCore logo position) -->
+    <button id="sidebarShowBtn" style="display:none;position:fixed;top:32px;left:0;z-index:2000;background:yellow;color:#2563eb;border:2px solid red;padding:10px 14px 10px 6px;border-radius:0 8px 8px 0;box-shadow:0 2px 8px rgba(0,0,0,0.12);font-size:20px;" aria-label="Show sidebar">⫶</button>
     <!-- ================= SIDEBAR ================= -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2>InfraCore</h2>
+            <div class="sidebar-header-row">
+                <h2 class="sidebar-title">InfraCore</h2>
+                <button id="sidebarHideBtn" class="sidebar-toggle-btn" aria-label="Hide sidebar">←</button>
+            </div>
         </div>
         {% if user is defined and user is not none %}
         <div class="sidebar-user">
-            <strong>{{ user["username"] }}</strong>
-            <span class="role">
-                {{ user["role"] | upper }}
-                {% if project_role %}· {{ project_role | upper }}{% endif %}
+            <strong class="sidebar-username">{{ user["username"] }}</strong>
+            <span class="sidebar-role">
+                {% if user["role"] == "superadmin" %}
+                    SUPERADMIN
+                {% else %}
+                    {{ user["role"] | upper }}
+                {% endif %}
+                {% if project_role and user["role"] != "superadmin" %}· {{ project_role | upper }}{% endif %}
             </span>
         </div>
         <nav class="sidebar-nav">
             <!-- ================= DASHBOARD ================= -->
-            <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}">
-                📊 Dashboard
-            </a>
+            <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}"><span class="icon">📊</span>Dashboard</a>
 
             <!-- ================= PROJECTS ================= -->
-            <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}">
-                🏗️ Projects
-            </a>
+            <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}"><span class="icon">🏗️</span>Projects</a>
 
             <!-- ================= REPORTS ================= -->
-            <a href="/reports" class="{% if request.url.path.startswith('/reports') %}active{% endif %}">
-                📄 Reports
-            </a>
+            <a href="/reports" class="{% if request.url.path.startswith('/reports') %}active{% endif %}"><span class="icon">📄</span>Reports</a>
 
             <!-- ================= SETTINGS ================= -->
-            <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">
-                ⚙️ Settings
-            </a>
+            <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}"><span class="icon">⚙️</span>Settings</a>
 
             <!-- ================= PROCUREMENT ================= -->
-            <a href="/procurement" class="{% if request.url.path.startswith('/procurement') %}active{% endif %}">
-                📦 Procurement
-            </a>
+            <a href="/procurement" class="{% if request.url.path.startswith('/procurement') %}active{% endif %}"><span class="icon">📦</span>Procurement</a>
 
             <!-- ================= ADMIN CONSOLE ================= -->
             {% if user["role"] == "superadmin" %}
-            <a href="/admin/users" class="{% if request.url.path.startswith('/admin') %}active{% endif %}">
-                🛠️ Admin Console
-            </a>
+            <a href="/admin/users" class="{% if request.url.path.startswith('/admin') %}active{% endif %}"><span class="icon">🛠️</span>Admin Console</a>
             {% endif %}
 
-            <!-- ================= LOGOUT ================= -->
-            <a href="/logout" class="danger">
-                🚪 Logout
-            </a>
+                <!-- ================= LOGOUT REMOVED FROM SIDEBAR ================= -->
         </nav>
         <div class="sidebar-footer"></div>
         {% endif %}
     </aside>
+        <a href="/logout" class="logout-top-btn" style="position:fixed;top:16px;right:24px;z-index:4000;">Logout</a>
     <!-- ================= MAIN ================= -->
     <main class="main">
         <!-- ================= FLASH MESSAGES ================= -->
@@ -142,36 +136,62 @@
     </main>
 </div>
 
-<!-- Mobile sidebar toggle script -->
+<!-- Sidebar show/hide script -->
 <script>
-    function checkSidebar() {
+    function updateSidebarButtons() {
         var sidebar = document.getElementById('sidebar');
-        var toggle = document.getElementById('sidebarToggle');
-        if (window.innerWidth <= 768) {
-            sidebar.style.display = 'none';
-            toggle.style.display = 'block';
+        var showBtn = document.getElementById('sidebarShowBtn');
+        var hideBtn = document.getElementById('sidebarHideBtn');
+        if (!sidebar || !showBtn || !hideBtn) return;
+        // Find the vertical position of the InfraCore logo
+        var header = document.querySelector('.sidebar-header');
+        if (header) {
+            var rect = header.getBoundingClientRect();
+            showBtn.style.top = rect.top + window.scrollY + 'px';
+        }
+        if (sidebar.style.display === 'none' || window.getComputedStyle(sidebar).display === 'none') {
+            showBtn.style.display = 'block';
+            hideBtn.style.display = 'none';
         } else {
-            sidebar.style.display = '';
-            toggle.style.display = 'none';
+            showBtn.style.display = 'none';
+            hideBtn.style.display = 'block';
         }
     }
-    window.addEventListener('resize', checkSidebar);
-    window.addEventListener('DOMContentLoaded', checkSidebar);
-    document.getElementById('sidebarToggle').onclick = function() {
+    function showSidebar() {
         var sidebar = document.getElementById('sidebar');
-        if (sidebar.style.display === 'block') {
-            sidebar.style.display = 'none';
-        } else {
-            sidebar.style.display = 'block';
-            sidebar.style.position = 'fixed';
-            sidebar.style.top = '0';
-            sidebar.style.left = '0';
-            sidebar.style.height = '100vh';
-            sidebar.style.zIndex = '3000';
-            sidebar.style.background = '#fff';
-            sidebar.style.boxShadow = '2px 0 16px rgba(0,0,0,0.12)';
+        var showBtn = document.getElementById('sidebarShowBtn');
+        var hideBtn = document.getElementById('sidebarHideBtn');
+        sidebar.style.display = 'block';
+        showBtn.style.display = 'none';
+        hideBtn.style.display = 'block';
+        sidebar.style.position = '';
+        sidebar.style.top = '';
+        sidebar.style.left = '';
+        sidebar.style.height = '';
+        sidebar.style.zIndex = '';
+        sidebar.style.background = '';
+        sidebar.style.boxShadow = '';
+    }
+    function hideSidebar() {
+        var sidebar = document.getElementById('sidebar');
+        var showBtn = document.getElementById('sidebarShowBtn');
+        var hideBtn = document.getElementById('sidebarHideBtn');
+        sidebar.style.display = 'none';
+        showBtn.style.display = 'block';
+        hideBtn.style.display = 'none';
+        // Move showBtn to the same vertical position as the InfraCore logo
+        var header = document.querySelector('.sidebar-header');
+        if (header) {
+            var rect = header.getBoundingClientRect();
+            showBtn.style.top = rect.top + window.scrollY + 'px';
         }
-    };
+    }
+    window.addEventListener('resize', updateSidebarButtons);
+    window.addEventListener('DOMContentLoaded', function() {
+        updateSidebarButtons();
+        document.getElementById('sidebarShowBtn').onclick = showSidebar;
+        document.getElementById('sidebarHideBtn').onclick = hideSidebar;
+    });
 </script>
 
 
@@ -180,6 +200,23 @@
 
 <!-- Global DD/MM/YYYY date input formatter -->
 <script src="/static/js/date_input_format.js"></script>
+
+<!-- Auto-logout after 30 minutes of inactivity -->
+<script>
+    let logoutTimer;
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        // 30 minutes = 30 * 60 * 1000 ms
+        logoutTimer = setTimeout(function() {
+            window.location.href = "/logout";
+        }, 30 * 60 * 1000);
+    }
+    // Reset timer on any user activity
+    ["click", "mousemove", "keydown", "scroll", "touchstart"].forEach(function(event) {
+        document.addEventListener(event, resetLogoutTimer, true);
+    });
+    resetLogoutTimer();
+</script>
 
 {% block scripts %}{% endblock %}
 
