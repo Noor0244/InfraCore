@@ -653,7 +653,6 @@ def create_project_form(
     road_engineering_type: str | None = Form(None),
     # Backward compatibility (older forms)
     road_type: str | None = Form(None),
-    lanes: int | None = Form(None),
     road_width: float | None = Form(None),
     carriageway_width: float | None = Form(None),
     shoulder_type: str | None = Form(None),
@@ -734,15 +733,31 @@ def create_project_form(
     def add_warning(msg: str) -> None:
         warnings.append(msg)
 
-    # Derive numeric lanes from lane_configuration if needed (2L/4L/6L)
-    derived_lanes = lanes
-    if derived_lanes is None and lane_configuration:
-        lc = (lane_configuration or "").strip().upper()
-        if lc.endswith("L") and lc[:-1].isdigit():
-            try:
-                derived_lanes = int(lc[:-1])
-            except Exception:
-                derived_lanes = lanes
+
+    # Robust lane count parsing from lane_configuration
+    def parse_lane_count(lc: str | None) -> int | None:
+        if not lc:
+            return None
+        lc = lc.strip().upper().replace(' ', '')
+        # Handle formats like 2L, 4L, 2X2, 3X3, 2X2L, 4L DIVIDED
+        import re
+        # Remove words like 'DIVIDED', 'MEDIAN', etc.
+        lc = re.sub(r'(DIVIDED|MEDIAN|WITH.*)', '', lc)
+        # 2L, 4L, 6L
+        m = re.match(r'^(\d+)L$', lc)
+        if m:
+            return int(m.group(1))
+        # 2x2, 3x3, 2X2L, 3X3L
+        m = re.match(r'^(\d+)X(\d+)(L)?$', lc)
+        if m:
+            return int(m.group(1)) * int(m.group(2))
+        # Just a number
+        m = re.match(r'^(\d+)$', lc)
+        if m:
+            return int(m.group(1))
+        return None
+
+    derived_lanes = parse_lane_count(lane_configuration)
 
     # Validate conditional requirements
     if project_type == 'Road':
@@ -1024,7 +1039,7 @@ def create_project_form(
         road_category=(road_category or safe_road_type) or None,
         road_engineering_type=(road_engineering_type or None),
         road_extras_json=road_extras_json or None,
-        lanes=safe_lanes,
+        lanes=derived_lanes or 0,
         road_width=safe_road_width,
         carriageway_width=carriageway_width or None,
         shoulder_type=shoulder_type or None,

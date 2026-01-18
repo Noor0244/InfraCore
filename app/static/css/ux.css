@@ -1,3 +1,34 @@
+/* Stronger fix for calendar icon visibility in dark mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(2) contrast(2);
+    opacity: 1;
+    background-color: #fff;
+    border-radius: 50%;
+}
+input[type="date"]::-webkit-input-placeholder { color: #fff; }
+input[type="date"]::-moz-placeholder { color: #fff; }
+input[type="date"]:-ms-input-placeholder { color: #fff; }
+input[type="date"]::placeholder { color: #fff; }
+input[type="date"]::-ms-expand { color: #fff; background: transparent; }
+input[type="date"]::-ms-clear { display: none; }
+input[type="date"]::-o-calendar-picker-indicator { filter: invert(1); }
+/* Fix calendar icon visibility for input[type=date] in dark mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.5) contrast(1.2);
+    opacity: 1;
+}
+input[type="date"]::-ms-input-placeholder {
+    color: #fff;
+}
+input[type="date"]::-moz-placeholder {
+    color: #fff;
+}
+input[type="date"]::-webkit-input-placeholder {
+    color: #fff;
+}
+input[type="date"]::placeholder {
+    color: #fff;
+}
 /* Minimal UX improvements for InfraCore - non-intrusive overrides */
 :root{
     /* Core palette (dark theme friendly) */

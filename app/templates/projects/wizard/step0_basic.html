@@ -52,11 +52,13 @@
 
       <div>
         <label>Start Date <span class="required">*</span></label>
+        <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
         <input type="text" name="planned_start_date" value="{{ data.get('planned_start_date','') }}" placeholder="DD/MM/YYYY" required>
       </div>
 
       <div>
         <label>End Date <span class="required">*</span></label>
+        <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
         <input type="text" name="planned_end_date" value="{{ data.get('planned_end_date','') }}" placeholder="DD/MM/YYYY" required>
       </div>
     </div>

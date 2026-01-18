@@ -63,6 +63,7 @@
             <div>
                 <label>Project Start Date <span class="required">*</span></label>
                 <div class="date-dual">
+                    <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
                     <input type="text" name="planned_start_date" id="planned_start_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_start_date.strftime('%d/%m/%Y') if project.planned_start_date else '' }}" placeholder="DD/MM/YYYY">
                     <input type="date" id="planned_start_date_picker">
                 </div>
@@ -71,6 +72,7 @@
             <div>
                 <label>Project End Date <span class="required">*</span></label>
                 <div class="date-dual">
+                    <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
                     <input type="text" name="planned_end_date" id="planned_end_date_text" required inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" value="{{ project.planned_end_date.strftime('%d/%m/%Y') if project.planned_end_date else '' }}" placeholder="DD/MM/YYYY">
                     <input type="date" id="planned_end_date_picker">
                 </div>

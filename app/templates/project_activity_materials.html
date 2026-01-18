@@ -135,6 +135,7 @@
                         </option>
                       {% endfor %}
                     </select>
+                    <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
                     <input name="order_date" type="text" value="{{ (r.order_date|ddmmyyyy) if r.order_date else (today|ddmmyyyy) }}" placeholder="DD/MM/YYYY" inputmode="numeric" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" style="max-width:170px" title="Order Date (Expected delivery = order date + lead time)" />
                     <input class="leadtime-override" name="lead_time_days_override" type="number" step="1" min="0" value="{{ r.lead_time_override if r.lead_time_override is not none else '' }}" placeholder="Override LT" style="max-width:150px" title="Optional lead time override (admin/manager only)" />
                     <span class="help-text leadtime-hint" style="margin:0">—</span>
