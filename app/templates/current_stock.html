@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="page-title">Current Stock</h1>
+<form method="get" action="/stock/current" style="margin-bottom:18px;max-width:400px">
+  <label for="project_id">Select Project:</label>
+  <select name="project_id" id="project_id" onchange="this.form.submit()" style="margin-left:8px">
+    <option value="">-- All Projects --</option>
+    {% for p in projects %}
+      <option value="{{ p.id }}" {% if project_id and (p.id == project_id or p.id == project_id|int) %}selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+</form>
+<div class="card" style="margin-top:14px">
+  <h3>Material Stock</h3>
+  <button type="button" class="btn" style="float:right;margin-top:-36px;margin-right:4px" onclick="document.getElementById('addStockModal').style.display='block'">+ Add Stock</button>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Material</th>
+        <th>Quantity</th>
+        <th>Unit</th>
+        <th>Last Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="stockTableBody">
+      {% for s in stocks %}
+      <tr>
+        <td>{{ s.material_name }}</td>
+        <td>{{ s.quantity }}</td>
+        <td>{{ s.unit }}</td>
+        <td>{{ s.updated_at.strftime('%d-%m-%Y %H:%M') }}</td>
+        <td>
+          <button class="btn btn-danger" onclick="removeStock('{{ s.id }}')">Remove</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<!-- Add Stock Modal -->
+<div id="addStockModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#181f2a;padding:32px 24px 24px 24px;border-radius:12px;max-width:420px;margin:60px auto;position:relative;">
+    <button onclick="document.getElementById('addStockModal').style.display='none'" style="position:absolute;top:10px;right:14px;font-size:20px;background:none;border:none;color:#fff;cursor:pointer">&times;</button>
+    <h3 style="margin-top:0">Add New Stock</h3>
+    <form method="post" action="/stock/add" id="addStockForm">
+      <input type="hidden" name="project_id" value="{{ project_id }}" />
+      <div style="margin-bottom:10px">
+        <label>Material</label>
+        <select name="material_id" required>
+          {% for m in materials %}
+            <option value="{{ m.id }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="margin-bottom:10px">
+        <label>Quantity</label>
+        <input name="quantity" type="number" step="0.01" min="0" required style="width:100%" />
+      </div>
+      <div style="margin-bottom:10px">
+        <label>Unit</label>
+        <input name="unit" type="text" required style="width:100%" />
+      </div>
+      <div style="text-align:right">
+        <button type="submit" class="btn-primary">Add Stock</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function removeStock(stockId) {
+  if (confirm('Are you sure you want to remove this stock entry?')) {
+    fetch(`/stock/remove/${stockId}`, { method: 'POST' })
+      .then(() => window.location.reload());
+  }
+}
+</script>
+{% endblock %}

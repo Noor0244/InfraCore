@@ -29,3 +29,14 @@ class ProjectUser(Base):
     # Relationships
     project = relationship("Project", backref="project_users")
     user = relationship("User", backref="project_users")
+
+    # Add a unique constraint to prevent duplicate user-project pairs
+    __table_args__ = (
+        {
+            'sqlite_autoincrement': True,
+        },
+    )
+
+    # Optionally, add a __repr__ for better debugging
+    def __repr__(self):
+        return f"<ProjectUser id={self.id} project_id={self.project_id} user_id={self.user_id} role_in_project='{self.role_in_project}'>"

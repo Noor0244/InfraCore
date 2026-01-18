@@ -1,4 +1,7 @@
+
 from __future__ import annotations
+from fastapi import APIRouter, Depends, Request, Query
+from fastapi.responses import JSONResponse
 
 from datetime import date
 
@@ -16,13 +19,23 @@ from app.models.procurement_log import ProcurementLog
 from app.models.project import Project
 from app.models.project_user import ProjectUser
 from app.models.project_material_vendor import ProjectMaterialVendor
+from app.models.road_stretch import RoadStretch
 from app.utils.flash import flash
 from app.utils.template_filters import register_template_filters
 from app.utils.dates import parse_date_ddmmyyyy_or_iso
 
+
 router = APIRouter(prefix="/procurement", tags=["Procurement"])
 templates = Jinja2Templates(directory="app/templates")
 register_template_filters(templates)
+
+# --- API endpoint for AJAX vendor refresh ---
+@router.get("/api/vendors")
+def get_vendors(material_id: int = Query(...), db: Session = Depends(get_db)):
+    vendors = db.query(MaterialVendor).filter(MaterialVendor.material_id == material_id).order_by(MaterialVendor.vendor_name.asc()).all()
+    return JSONResponse([
+        {"id": v.id, "vendor_name": v.vendor_name, "material_id": v.material_id} for v in vendors
+    ])
 
 
 def _can_procure(user: dict | None) -> bool:
@@ -147,6 +160,8 @@ def procurement_page(project_id: int, request: Request, db: Session = Depends(ge
         } for a in assignments
     ]
 
+    stretches = db.query(RoadStretch).filter(RoadStretch.project_id == int(project_id), RoadStretch.is_active == True).order_by(RoadStretch.sequence_no.asc()).all()
+
     return templates.TemplateResponse(
         "procurement.html",
         {
@@ -161,6 +176,7 @@ def procurement_page(project_id: int, request: Request, db: Session = Depends(ge
             "today": date.today(),
             "vendors": vendors,
             "project_material_vendor_assignments_json": assignments_json,
+            "stretches": stretches,
         },
     )
 
@@ -208,6 +224,7 @@ async def procurement_create(request: Request, db: Session = Depends(get_db)):
     material_id = _i("material_id") or 0
     vendor_id = _i("vendor_id")
     activity_id = _i("activity_id")
+    stretch_id = _i("stretch_id")
 
     order_date = _d("order_date")
     promised_delivery_date = _d("promised_delivery_date")
@@ -229,6 +246,7 @@ async def procurement_create(request: Request, db: Session = Depends(get_db)):
         material_id=int(material_id),
         vendor_id=int(vendor_id) if vendor_id else None,
         activity_id=int(activity_id) if activity_id else None,
+        stretch_id=int(stretch_id) if stretch_id else None,
         order_date=order_date,
         promised_delivery_date=promised_delivery_date,
         delivered_date=delivered_date,

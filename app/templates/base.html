@@ -111,6 +111,8 @@
                 <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}"><span class="icon">🏗️</span>Projects</a>
                 <!-- ================= PROCUREMENT ================= -->
                 <a href="/procurement" class="{% if request.url.path.startswith('/procurement') %}active{% endif %}"><span class="icon">📦</span>Procurement</a>
+                <!-- ================= CURRENT STOCK ================= -->
+                <a href="/stock/current" class="{% if request.url.path.startswith('/stock/current') %}active{% endif %}"><span class="icon">📦</span>Current Stock</a>
                 <!-- ================= REPORTS ================= -->
                 <a href="/reports" class="{% if request.url.path.startswith('/reports') %}active{% endif %}"><span class="icon">📄</span>Reports</a>
             {% else %}

@@ -583,3 +583,44 @@ async def material_vendor_toggle(vendor_id: int, request: Request, db: Session =
 
     flash(request, "Vendor status updated", "success")
     return RedirectResponse(f"/material-master/materials/{int(v.material_id)}/vendors", status_code=302)
+
+
+
+# --- AJAX endpoint for adding vendor from procurement (returns JSON) ---
+from fastapi.responses import JSONResponse
+
+@router.post("/materials/add-vendor-from-procurement")
+async def add_vendor_from_procurement(request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user or user.get("role") not in ["admin", "manager", "superadmin"]:
+        return JSONResponse({"error": "Admin/Manager access required"}, status_code=403)
+
+    form = await request.form()
+    material_id = int(form.get("material_id") or 0)
+    vendor_name = str(form.get("vendor_name") or "").strip()[:200]
+    lead_time_days = int(form.get("lead_time_days") or 0)
+    contact_person = str(form.get("contact_person") or "").strip()[:150] or None
+    phone = str(form.get("phone") or "").strip()[:50] or None
+    email = str(form.get("email") or "").strip()[:200] or None
+    min_order_qty = form.get("min_order_qty")
+    min_order_qty = float(min_order_qty) if min_order_qty else None
+
+    if not material_id or not vendor_name:
+        return JSONResponse({"error": "Material and Vendor Name are required"}, status_code=400)
+
+    v = MaterialVendor(
+        material_id=material_id,
+        vendor_name=vendor_name,
+        contact_person=contact_person,
+        phone=phone,
+        email=email,
+        lead_time_days=lead_time_days,
+        min_order_qty=min_order_qty,
+        is_active=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+    return JSONResponse({"success": True, "vendor_id": v.id})

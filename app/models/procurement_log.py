@@ -16,6 +16,7 @@ class ProcurementLog(Base):
     material_id = Column(Integer, ForeignKey("materials.id"), nullable=False, index=True)
     vendor_id = Column(Integer, ForeignKey("material_vendors.id"), nullable=True, index=True)
     activity_id = Column(Integer, ForeignKey("activities.id"), nullable=True, index=True)
+    stretch_id = Column(Integer, ForeignKey("road_stretches.id"), nullable=True, index=True)
 
     order_date = Column(Date, nullable=False)
     promised_delivery_date = Column(Date, nullable=True)
