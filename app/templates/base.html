@@ -84,8 +84,42 @@
             </span>
         </div>
         <nav class="sidebar-nav">
-            <!-- ...existing code... -->
-            <!-- ...sidebar links unchanged... -->
+            <!-- ================= DASHBOARD ================= -->
+            <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}">
+                📊 Dashboard
+            </a>
+
+            <!-- ================= PROJECTS ================= -->
+            <a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}">
+                🏗️ Projects
+            </a>
+
+            <!-- ================= REPORTS ================= -->
+            <a href="/reports" class="{% if request.url.path.startswith('/reports') %}active{% endif %}">
+                📄 Reports
+            </a>
+
+            <!-- ================= SETTINGS ================= -->
+            <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">
+                ⚙️ Settings
+            </a>
+
+            <!-- ================= PROCUREMENT ================= -->
+            <a href="/procurement" class="{% if request.url.path.startswith('/procurement') %}active{% endif %}">
+                📦 Procurement
+            </a>
+
+            <!-- ================= ADMIN CONSOLE ================= -->
+            {% if user["role"] == "superadmin" %}
+            <a href="/admin/users" class="{% if request.url.path.startswith('/admin') %}active{% endif %}">
+                🛠️ Admin Console
+            </a>
+            {% endif %}
+
+            <!-- ================= LOGOUT ================= -->
+            <a href="/logout" class="danger">
+                🚪 Logout
+            </a>
         </nav>
         <div class="sidebar-footer"></div>
         {% endif %}
