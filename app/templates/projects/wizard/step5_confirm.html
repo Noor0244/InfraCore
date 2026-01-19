@@ -2,7 +2,7 @@
 {% block content %}
 
 <h1 class="page-title">Confirm & Generate (Step {{ step_no }} of {{ step_total }})</h1>
-<div class="help-text" style="margin-top:-8px">This will create the project and copy activities/materials into project data.</div>
+<div class="help-text" style="margin-top:-8px">This will create the project and copy activities into project data.</div>
 
 <div class="card card--page">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -53,7 +53,7 @@
 
       <!-- Selected preset payloads -->
       <input type="hidden" name="activity_preset_defs_json" value='{{ data.get("activity_preset_defs_json") or "[]" }}'>
-      <input type="hidden" name="material_preset_defs_json" value='{{ data.get("material_preset_defs_json") or "[]" }}'>
+      <!-- material_preset_defs_json removed as per request -->
     {% endif %}
 
     <div style="display:flex;gap:10px">

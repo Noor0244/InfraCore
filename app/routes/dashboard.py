@@ -15,7 +15,9 @@ from app.services.stretch_dashboard_service import StretchDashboardConfig, compu
 from app.services.settings_service import get_int_setting
 from app.utils.flash import flash
 from app.utils.template_filters import register_template_filters
+
 from app.models.road_stretch import RoadStretch
+from app.models.material import Material
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -35,6 +37,13 @@ async def dashboard(
     material_id: int | None = None,
     db: Session = Depends(get_db)
 ):
+    # Ensure all dashboard context variables are always defined
+    alerts = None
+    dash_view = "project"
+    has_stretches = False
+    stretch_intel = None
+    stretch_choices = []
+    stretch_choices = []
     # =====================================================
     # AUTH CHECK
     # =====================================================
@@ -91,6 +100,98 @@ async def dashboard(
             project = base_query.order_by(Project.id.desc()).first()
 
     # =====================================================
+    # PROJECT ROLE RESOLUTION
+    # =====================================================
+    project_role = "viewer"
+
+    if user["role"] in {"admin", "superadmin"}:
+        project_role = "admin"
+    elif project:
+        pu = (
+            db.query(ProjectUser)
+            .filter(
+                ProjectUser.project_id == project.id,
+                ProjectUser.user_id == user_id
+            )
+            .first()
+        )
+        if pu:
+            project_role = pu.role_in_project
+
+    # =====================================================
+    # SUMMARY (SAFE WHEN NO PROJECT)
+    # =====================================================
+    summary = (
+        get_summary(project_id=project.id)
+        if project else
+        {
+            "total_reports": 0,
+            "reports_today": 0,
+        }
+    )
+
+    # === NEW: Inventory Prediction & Procurement Planning ===
+    inventory_prediction_data = None
+    procurement_schedule = None
+    inventory_status = None
+    buffer_alerts = None
+    if project:
+        from app.services.inventory_prediction import InventoryPredictionService
+        from app.services.procurement_planner import ProcurementPlannerService
+        inv_service = InventoryPredictionService(db)
+        proc_service = ProcurementPlannerService(db)
+        # Example: For first stretch (or selected stretch)
+        stretch_id_eff = stretch_id if stretch_id else (stretch_choices[0].id if stretch_choices else None)
+        if stretch_id_eff:
+            inventory_prediction_data = inv_service.predict_material_requirements(project.id, stretch_id_eff)
+            procurement_schedule = proc_service.plan_procurement(project.id, stretch_id_eff)
+        # Real-time inventory for all materials in project
+        inventory_status = {
+            m.id: inv_service.get_live_inventory(project.id, m.id)
+            for m in db.query(Material).filter(Material.is_active == True).all()
+        }
+        # Buffer/alert simulation for all materials
+        buffer_alerts = {
+            m.id: inv_service.simulate_buffer_alerts(project.id, m.id)
+            for m in db.query(Material).filter(Material.is_active == True).all()
+        }
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "title": "Dashboard",
+
+            # USER CONTEXT
+            "user": user,
+            "is_admin": user["role"] in {"admin", "superadmin"},
+
+            # PROJECT CONTEXT
+            "projects": projects,
+            "project": project,
+            "project_id": project.id if project else None,
+            "has_projects": has_projects,
+            "project_role": project_role,
+
+            # KPI / SUMMARY
+            "summary": summary,
+
+            # ALERTS / UPDATES
+            "alerts": alerts,
+
+            # DASHBOARD MODE
+            "dash_view": dash_view,
+            "has_stretches": has_stretches,
+            "stretch_choices": stretch_choices,
+            "stretch_intel": stretch_intel,
+
+            # === NEW DASHBOARD DATA ===
+            "inventory_prediction_data": inventory_prediction_data,
+            "procurement_schedule": procurement_schedule,
+            "inventory_status": inventory_status,
+            "buffer_alerts": buffer_alerts,
+        }
+    )
     # PROJECT ROLE RESOLUTION
     # =====================================================
     project_role = "viewer"

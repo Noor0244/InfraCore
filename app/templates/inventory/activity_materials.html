@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Activity–Material Linking</h1>
+<form id="activity-material-form">
+  <div>
+    <label>Project:</label>
+    <select id="project-select" name="project_id" required>
+      <option value="">Select Project</option>
+      {% for p in projects %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Stretch:</label>
+    <select id="stretch-select" name="stretch_id" disabled required></select>
+  </div>
+  <div>
+    <label>Activity:</label>
+    <select id="activity-select" name="activity_id" disabled required></select>
+  </div>
+  <div id="materials-section" style="display:none">
+    <h3>Materials</h3>
+    <div id="materials-list"></div>
+    <button type="submit">Save Mapping</button>
+    <button type="button" id="reset-btn">Reset</button>
+  </div>
+</form>
+<script>
+const stretchSelect = document.getElementById('stretch-select');
+const activitySelect = document.getElementById('activity-select');
+const projectSelect = document.getElementById('project-select');
+const materialsSection = document.getElementById('materials-section');
+const materialsList = document.getElementById('materials-list');
+let finalizedMaterials = [];
+let mappedMaterialIds = [];
+
+projectSelect.addEventListener('change', async function() {
+  const pid = this.value;
+  stretchSelect.innerHTML = '';
+  activitySelect.innerHTML = '';
+  materialsList.innerHTML = '';
+  materialsSection.style.display = 'none';
+  stretchSelect.disabled = true;
+  activitySelect.disabled = true;
+  if (!pid) return;
+  const res = await fetch(`/api/projects/${pid}/stretches`);
+  const stretches = await res.json();
+  stretchSelect.innerHTML = '<option value="">Select Stretch</option>' + stretches.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  stretchSelect.disabled = false;
+});
+
+stretchSelect.addEventListener('change', async function() {
+  const sid = this.value;
+  activitySelect.innerHTML = '';
+  materialsList.innerHTML = '';
+  materialsSection.style.display = 'none';
+  activitySelect.disabled = true;
+  if (!sid) return;
+  const res = await fetch(`/api/stretches/${sid}/activities`);
+  const acts = await res.json();
+  activitySelect.innerHTML = '<option value="">Select Activity</option>' + acts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  activitySelect.disabled = false;
+});
+
+activitySelect.addEventListener('change', async function() {
+  const aid = this.value;
+  if (!aid) {
+    materialsSection.style.display = 'none';
+    return;
+  }
+  // Load finalized project materials
+  const pid = projectSelect.value;
+  const res = await fetch(`/inventory/materials?project_id=${pid}`);
+  finalizedMaterials = (await res.json()).filter(m => m.is_finalized && m.is_active);
+  // Load mapped materials
+  const res2 = await fetch(`/api/activity/${aid}/materials`);
+  mappedMaterialIds = (await res2.json()).map(m => m.id);
+  // Render checkboxes
+  materialsList.innerHTML = finalizedMaterials.map(m => `
+    <label><input type="checkbox" name="material_ids" value="${m.id}" ${mappedMaterialIds.includes(m.id) ? 'checked' : ''}>
+      ${m.material_name} (${m.material_code}) [${m.unit.symbol}]
+    </label><br>
+  `).join('');
+  materialsSection.style.display = '';
+});
+
+document.getElementById('activity-material-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const pid = projectSelect.value;
+  const sid = stretchSelect.value;
+  const aid = activitySelect.value;
+  const material_ids = Array.from(document.querySelectorAll('input[name="material_ids"]:checked')).map(cb => parseInt(cb.value));
+  await fetch('/inventory/activity-materials/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_id: pid, stretch_id: sid, activity_id: aid, material_ids })
+  });
+  alert('Mapping saved!');
+});
+
+document.getElementById('reset-btn').addEventListener('click', function() {
+  projectSelect.value = '';
+  stretchSelect.innerHTML = '';
+  activitySelect.innerHTML = '';
+  materialsList.innerHTML = '';
+  materialsSection.style.display = 'none';
+  stretchSelect.disabled = true;
+  activitySelect.disabled = true;
+});
+</script>
+{% endblock %}

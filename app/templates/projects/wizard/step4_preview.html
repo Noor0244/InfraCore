@@ -30,22 +30,7 @@
                     <div style="font-weight:600">{{ a.sequence_no }}. {{ a.activity_name }}</div>
                     <div class="help-text">Code: {{ a.activity_code }}{% if not a.is_optional %} • <b>CRITICAL</b>{% endif %}</div>
 
-                    <details style="margin-top:8px">
-                      <summary style="cursor:pointer">Materials for this activity</summary>
-                      <div class="help-text" style="margin-top:6px">Unchecking a material removes it from this activity’s mapping.</div>
-                      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
-                        {% set mapped_codes = mapping_by_activity_code.get(a.activity_code) or [] %}
-                        {% for m in materials %}
-                          <label style="display:flex;gap:8px;align-items:center">
-                            <input type="checkbox" name="selected_mappings" value="{{ a.activity_code }}|{{ m.material_code }}"
-                              {% if m.material_code in mapped_codes %}checked{% endif %}
-                            >
-                            <span>{{ m.material_name }}</span>
-                            <span class="help-text">({{ m.material_code }})</span>
-                          </label>
-                        {% endfor %}
-                      </div>
-                    </details>
+                    <!-- Material mapping for activity removed as per request -->
                   </div>
                 </label>
               {% endfor %}
@@ -59,23 +44,7 @@
         </div>
       </div>
 
-      <div class="preset-card" style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div style="font-weight:700">Materials</div>
-          <div class="help-text">Quantities come later.</div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-          {% for m in materials %}
-            <div style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.12)">
-              <div style="font-weight:600">{{ m.material_name }}</div>
-              <div class="help-text">Code: {{ m.material_code }} • Unit: {{ m.unit or 'unit' }}{% if m.default_spec %} • Spec: {{ m.default_spec }}{% endif %}</div>
-            </div>
-          {% endfor %}
-        </div>
-
-        <div class="help-text" style="margin-top:10px">Material specs can be expanded after project generation.</div>
-      </div>
+      <!-- Material preset card removed as per request -->
     </div>
 
     <div style="display:flex;gap:10px;margin-top:14px">

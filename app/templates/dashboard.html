@@ -313,41 +313,107 @@
 
 <!-- ================= PROJECT KPI ================= -->
 {% if project %}
-<div class="kpi-grid">
-    <div class="kpi-card kpi-primary">
-        <div class="kpi-content">
-            <div class="kpi-value" id="totalActivities">–</div>
-            <div class="kpi-label">Total Activities</div>
-        </div>
-    </div>
 
-    <div class="kpi-card kpi-warning">
-        <div class="kpi-content">
-            <div class="kpi-value" id="inProgressActivities">–</div>
-            <div class="kpi-label">In Progress</div>
-        </div>
-    </div>
+<!-- ================= INVENTORY PREDICTION & MONITORING ================= -->
+<h2 class="section-title">Inventory Prediction & Monitoring</h2>
+<div class="card" style="margin-bottom:20px">
+    <h3>Material Forecasts (Stretch & Activity-wise)</h3>
+    {% if inventory_prediction_data %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Stretch</th>
+                    <th>Activity</th>
+                    <th>Material</th>
+                    <th>Predicted Qty</th>
+                    <th>Unit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in inventory_prediction_data %}
+                <tr>
+                    <td>{{ row.stretch_name }}</td>
+                    <td>{{ row.activity_name }}</td>
+                    <td>{{ row.material_name }}</td>
+                    <td>{{ row.predicted_qty }}</td>
+                    <td>{{ row.unit }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="meta">No prediction data available.</div>
+    {% endif %}
 
-    <div class="kpi-card kpi-success">
-        <div class="kpi-content">
-            <div class="kpi-value" id="completedActivities">–</div>
-            <div class="kpi-label">Completed</div>
-        </div>
-    </div>
+    <hr style="margin:14px 0; opacity:0.45">
+    <h3>Procurement Schedule (Order By Dates)</h3>
+    {% if procurement_schedule %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Activity</th>
+                    <th>Required By</th>
+                    <th>Order By</th>
+                    <th>Lead Time (days)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in procurement_schedule %}
+                <tr>
+                    <td>{{ row.material_name }}</td>
+                    <td>{{ row.activity_name }}</td>
+                    <td>{{ row.required_by }}</td>
+                    <td>{{ row.order_by }}</td>
+                    <td>{{ row.lead_time_days }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="meta">No procurement schedule available.</div>
+    {% endif %}
 
-    <div class="kpi-card kpi-danger">
-        <div class="kpi-content">
-            <div class="kpi-value" id="delayedActivities">–</div>
-            <div class="kpi-label">Delayed</div>
-        </div>
-    </div>
+    <hr style="margin:14px 0; opacity:0.45">
+    <h3>Real-time Inventory Status</h3>
+    {% if inventory_status %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Current Stock</th>
+                    <th>Minimum Buffer</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mid, inv in inventory_status.items() %}
+                <tr>
+                    <td>{{ inv.material_name }}</td>
+                    <td>{{ inv.current_stock }}</td>
+                    <td>{{ inv.minimum_stock }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="meta">No inventory status available.</div>
+    {% endif %}
 
-    <div class="kpi-card kpi-warning">
-        <div class="kpi-content">
-            <div class="kpi-value" id="materialRiskActivities">–</div>
-            <div class="kpi-label">Material Risk</div>
+    <hr style="margin:14px 0; opacity:0.45">
+    <h3>Alerts & Warnings (Buffer/Risk)</h3>
+    {% if buffer_alerts %}
+        <div class="stretch-grid">
+            {% for mid, alert in buffer_alerts.items() %}
+                {% if alert %}
+                <div class="stretch-alert warning">
+                    <strong>{{ alert.material_name }}</strong>: {{ alert.alert_type|capitalize }} predicted on {{ alert.predicted_date }} (Stock: {{ alert.predicted_stock }})
+                </div>
+                {% endif %}
+            {% endfor %}
         </div>
-    </div>
+    {% else %}
+        <div class="meta">No buffer alerts.</div>
+    {% endif %}
 </div>
 
 <div class="card">

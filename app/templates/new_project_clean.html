@@ -64,41 +64,12 @@
 
     <!-- ================= ROLE BASED USER ================= -->
     {% if user and user["role"] in ["admin", "superadmin"] %}
+
     <section class="form-section" id="project_team_section">
         <h3 class="section-title">Role Based User</h3>
         <div class="help-text">Assign users to this project and set their role.</div>
 
-        <div class="form-grid">
-            <div>
-                <label>User</label>
-                <select id="project_team_user">
-                    <option value="">Select User</option>
-                    {% for u in (all_users or []) %}
-                        {% if u.role != "superadmin" %}
-                        <option value="{{ u.id }}">{{ u.username }}</option>
-                        {% endif %}
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div>
-                <label>Role in Project</label>
-                <select id="project_team_role">
-                    <option value="admin">Admin</option>
-                    <option value="manager">Manager</option>
-                    <option value="viewer" selected>Viewer</option>
-                    <option value="member">Member</option>
-                </select>
-            </div>
-
-            <div style="display:flex;align-items:flex-end">
-                <button type="button" class="btn-secondary" id="add_project_team">Add User</button>
-            </div>
-        </div>
-
-        <div id="project_team_list" style="margin-top:12px"></div>
-
-        <div class="card" style="margin-top:14px;padding:12px">
+        <div class="card" style="margin-bottom:14px;padding:12px">
             <h4 class="section-title" style="font-size:14px;margin:0 0 8px 0">Create User</h4>
             <div class="help-text" style="margin-bottom:10px">Create a system user (Admin/Manager/User/Viewer).</div>
             <div class="form-grid">
@@ -129,6 +100,36 @@
                 <button type="submit" class="btn-primary" form="createUserForm">Create User</button>
             </div>
         </div>
+
+        <div class="form-grid">
+            <div>
+                <label>User</label>
+                <select id="project_team_user">
+                    <option value="">Select User</option>
+                    {% for u in (all_users or []) %}
+                        {% if u.role != "superadmin" %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>Role in Project</label>
+                <select id="project_team_role">
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="viewer" selected>Viewer</option>
+                    <option value="member">Member</option>
+                </select>
+            </div>
+
+            <div style="display:flex;align-items:flex-end">
+                <button type="button" class="btn-secondary" id="add_project_team">Add User</button>
+            </div>
+        </div>
+
+        <div id="project_team_list" style="margin-top:12px"></div>
     </section>
 
     <hr>
@@ -179,7 +180,7 @@
 
     <!-- ================= ROAD SETUP ================= -->
     <section class="form-section">
-        <h3 class="section-title">Project Classification & Road Details</h3>
+        <h3 class="section-title">Project Classification</h3>
 
         <div class="form-grid">
             <div style="min-width:260px">
@@ -898,7 +899,6 @@
                     _manual_end: false,
                     _showDetails: false,
                     activities: baseActivities(),
-                    materials: baseMaterials(),
                 });
                 cursor = end;
             }
@@ -924,11 +924,7 @@
                     end_time: a.end_time || null,
                     planned_duration_hours: a.planned_duration_hours,
                 })),
-                materials: (seg.materials || []).map(m => ({
-                    name: m.name,
-                    include: !!m.include,
-                    quantity: m.quantity,
-                })),
+                // materials removed as per request
             }));
             segmentsJson.value = JSON.stringify(payload);
         }
@@ -1056,14 +1052,7 @@
                                 </div>
                                 <div data-kind="act-list" data-idx="${idx}"></div>
                             </div>
-                            <div>
-                                <div style="font-weight:600">Materials</div>
-                                <div class="help-text">Quantity is required (max 5 decimals).</div>
-                                <div style="margin:6px 0">
-                                    <button type="button" class="btn-secondary btn-small" data-kind="mat-add" data-idx="${idx}">+ Add Material</button>
-                                </div>
-                                <div data-kind="mat-list" data-idx="${idx}"></div>
-                            </div>
+                            <!-- Material section removed as per request -->
                         </div>
                     </div>
                 `;
@@ -1073,83 +1062,59 @@
                 if(!showDetails){
                     return;
                 }
-                // --- Apply Time to All Activities UI ---
-                const applyTimeDiv = document.createElement('div');
-                applyTimeDiv.style.display = 'flex';
-                applyTimeDiv.style.alignItems = 'center';
-                applyTimeDiv.style.gap = '8px';
-                applyTimeDiv.style.margin = '8px 0 0 0';
-                applyTimeDiv.innerHTML = `
-                    <input type="time" style="width:120px" placeholder="Start time" data-kind="apply-all-time-input" data-idx="${idx}">
-                    <input type="time" style="width:120px" placeholder="End time" data-kind="apply-all-end-time-input" data-idx="${idx}">
-                    <button type="button" class="btn-secondary btn-small" data-kind="apply-all-time-btn" data-idx="${idx}">Apply time to all activities</button>
-                `;
-                actList.appendChild(applyTimeDiv);
-                actList.addEventListener('click', function(e) {
-                    const btn = e.target;
-                    if (btn && btn.getAttribute('data-kind') === 'apply-all-time-btn' && btn.getAttribute('data-idx') == idx) {
-                        const startInput = actList.querySelector('[data-kind="apply-all-time-input"][data-idx="'+idx+'"]');
-                        const endInput = actList.querySelector('[data-kind="apply-all-end-time-input"][data-idx="'+idx+'"]');
-                        if ((startInput && startInput.value) || (endInput && endInput.value)) {
-                            (seg.activities || []).forEach((a, aidx) => {
-                                if (startInput && startInput.value) a.start_time = startInput.value;
-                                if (endInput && endInput.value) a.end_time = endInput.value;
-                            });
-                            // Update all rendered start and end time inputs for this stretch
-                            const startInputs = actList.querySelectorAll('input[data-kind="act-start-time"][data-idx="'+idx+'"]');
-                            const endInputs = actList.querySelectorAll('input[data-kind="act-end-time"][data-idx="'+idx+'"]');
-                            if (startInput && startInput.value) startInputs.forEach(inp => { inp.value = startInput.value; });
-                            if (endInput && endInput.value) endInputs.forEach(inp => { inp.value = endInput.value; });
-                            serializeSegments();
-                            // Auto-update hours (duration) for all activities in this stretch
-                            (seg.activities || []).forEach((a, aidx) => {
-                                const hours = computeHours(a);
-                                a.planned_duration_hours = hours;
-                                // Find the corresponding hours input and update it
-                                const hoursInput = actList.querySelectorAll('input[data-kind="act-hours"]')[aidx];
-                                if (hoursInput) hoursInput.value = (hours === null ? '' : hours);
-                            });
-                        }
-                    }
-                });
-                // --- End Apply Time to All Activities UI ---
+                // Apply time to all activities UI removed as per request
+                // Auto-assign activity dates based on stretch start/end and number of activities
+                const sStart = seg.planned_start_date;
+                const sEnd = seg.planned_end_date;
+                let actCount = (seg.activities || []).length;
+                let startDate = ddmmyyyyToDate(sStart);
+                let endDate = ddmmyyyyToDate(sEnd);
+                if (startDate && endDate && actCount > 0) {
+                    let totalDays = Math.max(1, Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1);
+                    let daysPerAct = Math.floor(totalDays / actCount);
+                    let remainder = totalDays % actCount;
+                    let current = new Date(startDate);
+                    (seg.activities || []).forEach((a, aidx) => {
+                        let actDays = daysPerAct + (aidx < remainder ? 1 : 0);
+                        let actStart = new Date(current);
+                        let actEnd = new Date(current);
+                        actEnd.setDate(actEnd.getDate() + actDays - 1);
+                        a.planned_start_date = dateToDdmmyyyy(actStart);
+                        a.planned_end_date = dateToDdmmyyyy(actEnd);
+                        current.setDate(current.getDate() + actDays);
+                    });
+                }
                 (seg.activities || []).forEach((a, aidx) => {
-                    const hours = computeHours(a);
-                    a.planned_duration_hours = hours;
                     const row = document.createElement('div');
                     row.style.display = 'grid';
-                    row.style.gridTemplateColumns = 'minmax(180px,1fr) 130px 130px 90px 90px 90px 70px';
+                    row.style.gridTemplateColumns = 'minmax(180px,1fr) 130px 130px 70px';
                     row.style.gap = '8px';
                     row.style.marginTop = '8px';
                     row.innerHTML = `
                         <input type="text" value="${a.name}" data-kind="act-name" data-idx="${idx}" data-aidx="${aidx}">
-                        <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" data-kind="act-start-date" data-idx="${idx}" data-aidx="${aidx}">
-                        <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" data-kind="act-end-date" data-idx="${idx}" data-aidx="${aidx}">
-                        <input type="time" value="${a.start_time || ''}" data-kind="act-start-time" data-idx="${idx}" data-aidx="${aidx}">
-                        <input type="time" value="${a.end_time || ''}" data-kind="act-end-time" data-idx="${idx}" data-aidx="${aidx}">
-                        <input type="text" value="${hours === null ? '' : hours}" readonly data-kind="act-hours">
+                        <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{2}/\\d{2}/\\d{4}" data-kind="act-start-date" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{2}/\\d{2}/\\d{4}" data-kind="act-end-date" data-idx="${idx}" data-aidx="${aidx}">
                         <button type="button" class="btn-secondary btn-small" data-kind="act-remove" data-idx="${idx}" data-aidx="${aidx}">Remove</button>
                     `;
                     actList.appendChild(row);
                 });
 
-                const matList = detail.querySelector('[data-kind="mat-list"]');
-                (seg.materials || []).forEach((m, midx) => {
-                    const row = document.createElement('div');
-                    row.style.display = 'grid';
-                    row.style.gridTemplateColumns = 'minmax(120px,1fr) 60px 80px 120px 120px 70px 70px';
-                    row.style.gap = '8px';
-                    row.style.marginTop = '8px';
-                    row.innerHTML = `
-                        <input type="text" value="${m.name || ''}" placeholder="Material name" data-kind="mat-name" data-idx="${idx}" data-midx="${midx}">
-                        <input type="text" value="${m.unit || ''}" placeholder="Unit" data-kind="mat-unit" data-idx="${idx}" data-midx="${midx}" style="width:100%">
-                        <input type="number" step="0.00001" min="0" placeholder="Qty" value="${m.quantity || ''}" data-kind="mat-qty" data-idx="${idx}" data-midx="${midx}">
-                        <input type="text" value="${m.vendor || ''}" placeholder="Vendor details" data-kind="mat-vendor" data-idx="${idx}" data-midx="${midx}">
-                        <input type="number" min="0" placeholder="Lead Time (days)" value="${m.lead_time || ''}" data-kind="mat-lead-time" data-idx="${idx}" data-midx="${midx}">
-                        <button type="button" class="btn-secondary btn-small" data-kind="mat-remove" data-idx="${idx}" data-midx="${midx}">Remove</button>
-                    `;
-                    matList.appendChild(row);
-                });
+                // Utility functions for date conversion
+                function ddmmyyyyToDate(str) {
+                    if (!str) return null;
+                    const parts = str.split('/');
+                    if (parts.length !== 3) return null;
+                    return new Date(parts[2], parts[1] - 1, parts[0]);
+                }
+                function dateToDdmmyyyy(date) {
+                    if (!date) return '';
+                    const d = date.getDate().toString().padStart(2, '0');
+                    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const y = date.getFullYear();
+                    return `${d}/${m}/${y}`;
+                }
+
+                // Material list rendering removed as per request
             });
 
             serializeSegments();
@@ -1276,12 +1241,7 @@
             }
 
             const midx = parseInt(t.getAttribute('data-midx') || '-1', 10);
-            if(midx >= 0 && segments[idx].materials && segments[idx].materials[midx]){
-                const m = segments[idx].materials[midx];
-                if(kind === 'mat-name') m.name = String(t.value || '').trim();
-                if(kind === 'mat-unit') m.unit = String(t.value || '').trim();
-                if(kind === 'mat-qty') m.quantity = String(t.value || '').trim();
-            }
+            // Material input handling removed as per request
 
             serializeSegments();
         }
@@ -1323,25 +1283,7 @@
                 return;
             }
 
-            if(kind === 'mat-add'){
-                if(!segments[idx].materials) segments[idx].materials = [];
-                segments[idx].materials.push({
-                    name: '',
-                    unit: '',
-                    include: true,
-                    quantity: '',
-                });
-                renderSegments();
-                return;
-            }
-
-            if(kind === 'mat-remove'){
-                const midx = parseInt(t.getAttribute('data-midx') || '-1', 10);
-                if(midx >= 0 && segments[idx].materials && segments[idx].materials[midx]){
-                    segments[idx].materials.splice(midx, 1);
-                    renderSegments();
-                }
-            }
+            // Material add/remove handling removed as per request
         }
 
         if(btnGenerate){
