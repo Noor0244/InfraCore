@@ -143,14 +143,14 @@
             <div>
                 <label>Project Start Date <span class="required">*</span></label>
                 <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
-                <input type="text" name="planned_start_date" id="planned_start_date" required placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}">
+                <input type="text" name="planned_start_date" id="planned_start_date" required placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{4}">
                 <div class="help-text">Pick from calendar. Format: <b>DD/MM/YYYY</b></div>
             </div>
 
             <div>
                 <label>Project End Date <span class="required">*</span></label>
                 <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
-                <input type="text" name="planned_end_date" id="planned_end_date" required placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}">
+                <input type="text" name="planned_end_date" id="planned_end_date" required placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{4}">
                 <script>
                 function formatDateInput(input) {
                     input.addEventListener('input', function(e) {
@@ -970,12 +970,12 @@
                     <td><input type="number" min="1" step="1" value="${seg.length_m}" data-kind="stretch-length" data-idx="${idx}" style="width:100%"></td>
                     <td>
                         <div class="date-dual">
-                            <input type="text" value="${startVal}" maxlength="10" inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" data-kind="stretch-start" data-idx="${idx}">
+                            <input type="text" value="${startVal}" maxlength="10" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{4}" data-kind="stretch-start" data-idx="${idx}">
                         </div>
                     </td>
                     <td>
                         <div class="date-dual">
-                            <input type="text" value="${endVal}" maxlength="10" inputmode="numeric" pattern="\d{2}/\d{2}/\d{4}" data-kind="stretch-end" data-idx="${idx}">
+                            <input type="text" value="${endVal}" maxlength="10" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{4}" data-kind="stretch-end" data-idx="${idx}">
                         </div>
                     </td>
                 `;
@@ -1092,8 +1092,8 @@
                     row.style.marginTop = '8px';
                     row.innerHTML = `
                         <input type="text" value="${a.name}" data-kind="act-name" data-idx="${idx}" data-aidx="${aidx}">
-                        <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{2}/\\d{2}/\\d{4}" data-kind="act-start-date" data-idx="${idx}" data-aidx="${aidx}">
-                        <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{2}/\\d{2}/\\d{4}" data-kind="act-end-date" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{1,2}/\\d{1,2}/\\d{4}" data-kind="act-start-date" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{1,2}/\\d{1,2}/\\d{4}" data-kind="act-end-date" data-idx="${idx}" data-aidx="${aidx}">
                         <button type="button" class="btn-secondary btn-small" data-kind="act-remove" data-idx="${idx}" data-aidx="${aidx}">Remove</button>
                     `;
                     actList.appendChild(row);
