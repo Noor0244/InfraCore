@@ -48,9 +48,7 @@
     <td style="display:flex;gap:8px;flex-wrap:wrap">
 
         <!-- 👁 VIEW PROJECT OVERVIEW (ALL USERS) -->
-        <a href="/projects/{{ p.id }}" class="btn-primary">
-            👁 View
-        </a>
+            <!-- Project Overview direct access removed -->
 
         <!-- ✏️ EDIT -->
         {% if user["role"] in ["admin", "superadmin", "manager"] %}

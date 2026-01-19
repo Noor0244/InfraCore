@@ -74,6 +74,11 @@
                     </a>
                     {% endif %}
 
+                        <!-- 📄 PROJECT DETAILS (ALL USERS) -->
+                        <a href="/projects/{{ project.id }}" class="btn-info btn-sm">
+                            📄 Project Details
+                        </a>
+
                     <!-- 📦 ARCHIVE / RESTORE (ADMIN + MANAGER ONLY) -->
                       {% if user["role"] in ["admin", "superadmin", "manager"] %}
                     <form method="post"

@@ -2,71 +2,46 @@
 
 {% block content %}
 
-<h1 class="page-title">
-    Project Overview — {{ project.name }}
-</h1>
-
-<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
-    <h3>Basic Information</h3>
-
-    <table class="table">
-        <tr>
-            <th>Project Name</th>
-            <td>{{ project.name }}</td>
-        </tr>
-        <tr>
-            <th>Project Code</th>
-            <td>{{ project.project_code or "-" }}</td>
-        </tr>
-        <tr>
-            <th>Client / Authority</th>
-            <td>{{ project.client_authority or "-" }}</td>
-        </tr>
-        <tr>
-            <th>Contractor</th>
-            <td>{{ project.contractor or "-" }}</td>
-        </tr>
-        <tr>
-            <th>Consultant / PMC</th>
-            <td>{{ project.consultant_pmc or "-" }}</td>
-        </tr>
-    </table>
+<div class="page-title" style="font-size:2.2rem;font-weight:700;margin-bottom:18px;letter-spacing:0.5px;display:flex;align-items:center;gap:18px;">
+    <span style="color:#4fc3f7;">&#9679;</span>
+    <span>Project Overview</span>
+    <span style="font-size:1.2rem;font-weight:400;color:#aaa;">— {{ project.name }}</span>
 </div>
 
-<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
-    <h3>Road & Location Details</h3>
+<div class="card" style="max-width: 1100px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07); margin-bottom: 24px;">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Project Modules</h3>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px;">
+        <a href="/projects/{{ project.id }}/design-data" class="btn btn-primary">Design Data</a>
+        <a href="/projects/{{ project.id }}/activities" class="btn btn-primary">Activities</a>
+        <a href="/projects/{{ project.id }}/materials" class="btn btn-primary">Materials</a>
+        <a href="/projects/{{ project.id }}/activity-materials" class="btn btn-primary">Activity → Material Map</a>
+        <a href="/projects/{{ project.id }}/documents" class="btn btn-primary">Documents</a>
+    </div>
+    <p style="margin-top: 10px; color: #888; font-size:0.98rem;">
+        Complete project information step-by-step using the modules above.
+    </p>
+</div>
 
-    <table class="table">
-        <tr>
-            <th>Road Type</th>
-            <td>{{ project.road_type }}</td>
-        </tr>
-        <tr>
-            <th>Lanes</th>
-            <td>{{ project.lanes }}</td>
-        </tr>
-        <tr>
-            <th>Road Length (km)</th>
-            <td>{{ project.road_length_km }}</td>
-        </tr>
-        <tr>
-            <th>Chainage</th>
-            <td>
-                {{ project.chainage_start or "N/A" }}
-                —
-                {{ project.chainage_end or "N/A" }}
-            </td>
-        </tr>
-        <tr>
-            <th>Location</th>
-            <td>
-                {{ project.city }}
-                {% if project.district %}, {{ project.district }}{% endif %}
-                {% if project.state %}, {{ project.state }}{% endif %}
-                , {{ project.country }}
-            </td>
-        </tr>
-    </table>
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Basic Information</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px;">
+        <div><b>Project Name:</b> <span style="color:#fff">{{ project.name }}</span></div>
+        <div><b>Project Code:</b> <span style="color:#fff">{{ project.project_code or "-" }}</span></div>
+        <div><b>Client / Authority:</b> <span style="color:#fff">{{ project.client_authority or "-" }}</span></div>
+        <div><b>Contractor:</b> <span style="color:#fff">{{ project.contractor or "-" }}</span></div>
+        <div><b>Consultant / PMC:</b> <span style="color:#fff">{{ project.consultant_pmc or "-" }}</span></div>
+    </div>
+</div>
+
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Road & Location Details</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px;">
+        <div><b>Road Type:</b> <span style="color:#fff">{{ project.road_type }}</span></div>
+        <div><b>Lanes:</b> <span style="color:#fff">{{ project.lanes }}</span></div>
+        <div><b>Road Length (km):</b> <span style="color:#fff">{{ project.road_length_km }}</span></div>
+        <div><b>Chainage:</b> <span style="color:#fff">{{ project.chainage_start or "N/A" }} — {{ project.chainage_end or "N/A" }}</span></div>
+        <div style="grid-column:1/-1"><b>Location:</b> <span style="color:#fff">{{ project.city }}{% if project.district %}, {{ project.district }}{% endif %}{% if project.state %}, {{ project.state }}{% endif %}, {{ project.country }}</span></div>
+    </div>
 </div>
 
 {% if project.project_type|lower == "road" %}
@@ -163,53 +138,15 @@
 </div>
 {% endif %}
 
-<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
-    <h3>Planned Timeline</h3>
-
-    <table class="table">
-        <tr>
-            <th>Planned Start Date</th>
-            <td>{{ project.planned_start_date|ddmmyyyy }}</td>
-        </tr>
-        <tr>
-            <th>Planned End Date</th>
-            <td>{{ project.planned_end_date|ddmmyyyy }}</td>
-        </tr>
-        <tr>
-            <th>Status</th>
-            <td>{{ project.status|capitalize }}</td>
-        </tr>
-    </table>
-</div>
-
-<div class="card" style="max-width: 1100px;">
-    <h3>Project Modules</h3>
-
-    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <a href="/projects/{{ project.id }}/design-data" class="btn">
-            Design Data
-        </a>
-
-        <a href="/projects/{{ project.id }}/activities" class="btn">
-            Activities
-        </a>
-
-        <a href="/projects/{{ project.id }}/materials" class="btn">
-            Materials
-        </a>
-
-        <a href="/projects/{{ project.id }}/activity-materials" class="btn">
-            Activity → Material Map
-        </a>
-
-        <a href="/projects/{{ project.id }}/documents" class="btn">
-            Documents
-        </a>
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Planned Timeline</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 32px;">
+        <div><b>Planned Start Date:</b> <span style="color:#fff">{{ project.planned_start_date|ddmmyyyy }}</span></div>
+        <div><b>Planned End Date:</b> <span style="color:#fff">{{ project.planned_end_date|ddmmyyyy }}</span></div>
+        <div><b>Status:</b> <span style="color:#fff">{{ project.status|capitalize }}</span></div>
     </div>
-
-    <p style="margin-top: 10px; color: #666;">
-        Complete project information step-by-step using the modules above.
-    </p>
 </div>
+
+
 
 {% endblock %}
