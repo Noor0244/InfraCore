@@ -228,3 +228,18 @@
 
 </body>
 </html>
+
+<!-- Real-Time Date & Time Widget -->
+<div style="width:100%;background:#232946;color:#fff;text-align:center;padding:6px 0 4px 0;font-size:15px;letter-spacing:0.5px;z-index:2001;position:relative;">
+    <span id="realtime-clock"></span>
+    <a href="https://time.is/" target="_blank" style="color:#4f8cff;text-decoration:underline;margin-left:12px;font-size:13px;">(More at time.is)</a>
+</div>
+<script>
+function updateClock() {
+    const now = new Date();
+    const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    document.getElementById('realtime-clock').textContent = now.toLocaleString('en-US', options);
+}
+setInterval(updateClock, 1000);
+updateClock();
+</script>

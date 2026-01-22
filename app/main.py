@@ -258,6 +258,10 @@ app.include_router(project_dashboard_router)
 # Prediction
 app.include_router(prediction_router)
 
+# Material & Vendor Management
+from app.routes.material_vendor import router as material_vendor_router
+app.include_router(material_vendor_router)
+
 # ======================================================
 # HELPERS
 # ======================================================

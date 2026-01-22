@@ -90,7 +90,7 @@
             {% if logs and logs|length > 0 %}
                 {% for l in logs %}
                     <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
-                        <td style="white-space:nowrap">{{ l.created_at|ddmmyyyy_dt }}</td>
+                        <td style="white-space:nowrap">{{ l.created_at|local_dt('Asia/Kolkata') }}</td>
                         <td><strong>{{ l.username }}</strong></td>
                         <td>{{ l.role or "" }}</td>
                         <td>

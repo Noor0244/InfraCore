@@ -2479,7 +2479,7 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
 
     if not project or role not in ["owner", "admin", "manager"]:
         flash(request, "You do not have permission to edit this project.", "error")
-        return RedirectResponse("/projects/manage", status_code=302)
+        return RedirectResponse("/projects", status_code=302)
 
     _ensure_project_road_presets(db, project)
 
@@ -2608,13 +2608,17 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
             }
         )
 
+    classification_metadata = get_classification_metadata()
     return templates.TemplateResponse(
         "edit_project.html",
         {
             "request": request,
             "project": project,
             "user": user,
-            "classification_metadata": get_classification_metadata(),
+            "classification_metadata": classification_metadata,
+            "project_types": classification_metadata.get("project_types", []),
+            "legacy_project_types": classification_metadata.get("legacy_project_types", []),
+            "road_categories": classification_metadata.get("road_categories", []),
             "stretches_json": json.dumps(stretch_payload),
         }
     )
@@ -2627,7 +2631,7 @@ def edit_project_stretches_page(project_id: int, request: Request, db: Session =
 
     if not project or role not in ["owner", "admin", "manager"]:
         flash(request, "You do not have permission to edit stretches.", "error")
-        return RedirectResponse("/projects/manage", status_code=302)
+        return RedirectResponse("/projects", status_code=302)
 
     _ensure_project_road_presets(db, project)
 
@@ -2779,7 +2783,7 @@ def update_project_stretches(
 
     if not project or role not in ["owner", "admin", "manager"]:
         flash(request, "You do not have permission to edit stretches.", "error")
-        return RedirectResponse("/projects/manage", status_code=302)
+        return RedirectResponse("/projects", status_code=302)
 
     try:
         segments = json.loads(stretch_segments_json or "[]")
@@ -2963,7 +2967,7 @@ def update_project_form(
 
     if not project or role not in ["owner", "admin", "manager"]:
         flash(request, "You do not have permission to update this project.", "error")
-        return RedirectResponse("/projects/manage", status_code=302)
+        return RedirectResponse("/projects", status_code=302)
 
     try:
         planned_start_date = parse_date_ddmmyyyy_or_iso(planned_start_date)
@@ -3023,7 +3027,7 @@ def update_project_form(
         new_value=model_to_dict(project),
     )
     flash(request, "Project updated successfully", "success")
-    return RedirectResponse("/projects/manage", status_code=302)
+    return RedirectResponse("/projects", status_code=302)
 
 
 # =================================================

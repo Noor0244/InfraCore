@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Request, Form, Depends
+from fastapi import Query
+from typing import Optional
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -50,12 +52,20 @@ def audit_logs_page(
     page: int = 1,
     action: str | None = None,
     entity_type: str | None = None,
-    user_id: int | None = None,
+    user_id: Optional[str] = Query(None),
     username: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
     db: Session = Depends(get_db),
 ):
+    # Convert empty string to None, and valid int string to int
+    if user_id in (None, ""): 
+        user_id_int = None
+    else:
+        try:
+            user_id_int = int(user_id)
+        except Exception:
+            user_id_int = None
     admin = admin_guard(request)
     if not admin:
         return RedirectResponse("/dashboard", status_code=302)
@@ -69,8 +79,8 @@ def audit_logs_page(
         q = q.filter(ActivityLog.action == action)
     if entity_type:
         q = q.filter(ActivityLog.entity_type == entity_type)
-    if user_id is not None:
-        q = q.filter(ActivityLog.user_id == user_id)
+    if user_id_int is not None:
+        q = q.filter(ActivityLog.user_id == user_id_int)
     if username:
         q = q.filter(ActivityLog.username.ilike(f"%{username.strip()}%"))
 

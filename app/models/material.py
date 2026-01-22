@@ -55,6 +55,20 @@ class Material(Base):
         cascade="all, delete-orphan",
     )
 
+    # Many-to-many: Material <-> Activity
+    activities_link = relationship(
+        "MaterialActivity",
+        back_populates="material",
+        cascade="all, delete-orphan",
+    )
+
+    # Many-to-many: Material <-> RoadStretch
+    stretches_link = relationship(
+        "MaterialStretch",
+        back_populates="material",
+        cascade="all, delete-orphan",
+    )
+
     # ---------------- Helpers ----------------
     def parsed_allowed_units(self) -> list[str]:
         raw = (self.allowed_units or "").strip()

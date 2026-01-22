@@ -140,16 +140,17 @@
                 btn.innerText = 'Show';
             }
         }
-        window.addEventListener('DOMContentLoaded', function() {
-            {% for project in projects %}
-            var tbl = document.getElementById('project-users-{{ project.id }}');
-            var btn = document.getElementById('toggle-btn-{{ project.id }}');
-            if (tbl && btn) {
-                tbl.style.display = 'none';
-                btn.innerText = 'Show';
-            }
-            {% endfor %}
-        });
+                const projectIds = JSON.parse('{{ projects | map(attribute="id") | list | tojson }}');
+                window.addEventListener('DOMContentLoaded', function() {
+                    projectIds.forEach(function(pid) {
+                        var tbl = document.getElementById('project-users-' + pid);
+                        var btn = document.getElementById('toggle-btn-' + pid);
+                        if (tbl && btn) {
+                            tbl.style.display = 'none';
+                            btn.innerText = 'Show';
+                        }
+                    });
+                });
         </script>
         {% for project in projects %}
             <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;background:rgba(31,111,235,0.08);margin-bottom:4px;border-radius:6px">

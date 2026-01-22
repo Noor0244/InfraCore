@@ -125,7 +125,7 @@
             </div>
 
             <div style="display:flex;align-items:flex-end">
-                <button type="button" class="btn-secondary" id="add_project_team">Add User</button>
+                <button type="button" class="btn-primary" id="add_project_team">Add User</button>
             </div>
         </div>
 
@@ -239,7 +239,7 @@
                 <input type="number" id="stretch_number_of_stretches" min="1" step="1" value="">
             </div>
             <div style="display:flex;align-items:flex-end">
-                <button type="button" class="btn-secondary" id="btnGenerateStretches">Generate stretches</button>
+                <button type="button" class="btn-primary" id="btnGenerateStretches">Generate stretches</button>
             </div>
         </div>
 
@@ -257,6 +257,8 @@
                             <th style="width:140px">Start Chainage</th>
                             <th style="width:140px">End Chainage</th>
                             <th style="width:120px">Length (m)</th>
+                            <th style="width:100px">Width (m)</th>
+                            <th style="width:100px">Depth (m)</th>
                             <th style="width:170px">Start Date</th>
                             <th style="width:170px">End Date</th>
                         </tr>
@@ -438,7 +440,7 @@
 
     <script>
     (function(){
-        const allowAdminRole = {{ 'true' if user and user["role"] in ["admin", "superadmin"] else 'false' }};
+        const allowAdminRole = JSON.parse('{{ (user and user["role"] in ["admin", "superadmin"]) | tojson }}');
         const projectType = document.querySelector('select[name="project_type"]');
         const roadCategory = document.querySelector('select[name="road_category"]');
         const roadEngineering = document.querySelector('select[name="road_engineering_type"]');
@@ -893,6 +895,8 @@
                     start_m: cursor,
                     end_m: end,
                     length_m: Math.max(end - cursor, 1),
+                    width_m: null,
+                    depth_m: null,
                     planned_start_date: '', // Always empty for generated stretches
                     planned_end_date: '',   // Always empty for generated stretches
                     _manual_start: false,
@@ -913,6 +917,8 @@
                 start_m: seg.start_m,
                 end_m: seg.end_m,
                 length_m: seg.length_m,
+                width_m: seg.width_m || null,
+                depth_m: seg.depth_m || null,
                 planned_start_date: seg.planned_start_date,
                 planned_end_date: seg.planned_end_date,
                 activities: (seg.activities || []).map(a => ({
@@ -968,6 +974,8 @@
                     <td><span data-kind="chainage-start" data-idx="${idx}">${chainageFromMeters(seg.start_m)}</span></td>
                     <td><span data-kind="chainage-end" data-idx="${idx}">${chainageFromMeters(seg.end_m)}</span></td>
                     <td><input type="number" min="1" step="1" value="${seg.length_m}" data-kind="stretch-length" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="number" min="0" step="0.01" value="${seg.width_m || ''}" data-kind="stretch-width" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="number" min="0" step="0.01" value="${seg.depth_m || ''}" data-kind="stretch-depth" data-idx="${idx}" style="width:100%"></td>
                     <td>
                         <div class="date-dual">
                             <input type="text" value="${startVal}" maxlength="10" inputmode="numeric" data-kind="stretch-start" data-idx="${idx}">
@@ -1047,8 +1055,9 @@
                             <div>
                                 <div style="font-weight:600">Activities</div>
                                 <div class="help-text">Start/End dates must be within stretch dates.</div>
-                                <div style="margin:6px 0">
+                                <div style="margin:6px 0; display: flex; gap: 8px; align-items: center;">
                                     <button type="button" class="btn-secondary btn-small" data-kind="act-add" data-idx="${idx}">+ Add Activity</button>
+                                    <button type="button" class="btn-secondary btn-small" data-kind="update-days" data-idx="${idx}">Update Days</button>
                                 </div>
                                 <div data-kind="act-list" data-idx="${idx}"></div>
                             </div>
@@ -1075,25 +1084,61 @@
                     let remainder = totalDays % actCount;
                     let current = new Date(startDate);
                     (seg.activities || []).forEach((a, aidx) => {
-                        let actDays = daysPerAct + (aidx < remainder ? 1 : 0);
-                        let actStart = new Date(current);
-                        let actEnd = new Date(current);
-                        actEnd.setDate(actEnd.getDate() + actDays - 1);
-                        a.planned_start_date = dateToDdmmyyyy(actStart);
-                        a.planned_end_date = dateToDdmmyyyy(actEnd);
-                        current.setDate(current.getDate() + actDays);
+                        // Robustly sanitize all system-generated activities
+                        let s = ddmmyyyyToDate(a.planned_start_date);
+                        let e = ddmmyyyyToDate(a.planned_end_date);
+                        // If not manually edited, or if value is invalid, always auto-correct
+                        if (!a._manual_dates || !s || !e) {
+                            let actDays = daysPerAct + (aidx < remainder ? 1 : 0);
+                            let actStart = new Date(current);
+                            let actEnd = new Date(current);
+                            actEnd.setDate(actEnd.getDate() + actDays - 1);
+                            // Clamp to stretch range
+                            if (actStart < startDate) actStart = new Date(startDate);
+                            if (actEnd > endDate) actEnd = new Date(endDate);
+                            a.planned_start_date = dateToDdmmyyyy(actStart);
+                            a.planned_end_date = dateToDdmmyyyy(actEnd);
+                            current.setDate(current.getDate() + actDays);
+                            a._manual_dates = false;
+                        } else {
+                            // For user-edited, still clamp to stretch range if out of bounds or invalid
+                            if (!s || s < startDate) a.planned_start_date = dateToDdmmyyyy(startDate);
+                            if (!e || e > endDate) a.planned_end_date = dateToDdmmyyyy(endDate);
+                        }
                     });
                 }
                 (seg.activities || []).forEach((a, aidx) => {
+                    // Robustly sanitize activity start/end dates: if not valid, forcibly set to stretch start/end
+                    function isValidDdmmyyyy(str) {
+                        return /^\d{2}\/\d{2}\/\d{4}$/.test(str) && ddmmyyyyToDate(str) instanceof Date && !isNaN(ddmmyyyyToDate(str));
+                    }
+                    // If start date is invalid, set to stretch start
+                    if (!isValidDdmmyyyy(a.planned_start_date)) {
+                        a.planned_start_date = dateToDdmmyyyy(startDate);
+                        a._manual_dates = false;
+                    }
+                    // If end date is invalid, set to stretch end
+                    if (!isValidDdmmyyyy(a.planned_end_date)) {
+                        a.planned_end_date = dateToDdmmyyyy(endDate);
+                        a._manual_dates = false;
+                    }
                     const row = document.createElement('div');
                     row.style.display = 'grid';
-                    row.style.gridTemplateColumns = 'minmax(180px,1fr) 130px 130px 70px';
+                    row.style.gridTemplateColumns = 'minmax(180px,1fr) 130px 130px 80px 70px';
                     row.style.gap = '8px';
                     row.style.marginTop = '8px';
+                    // Calculate days (inclusive)
+                    let days = '';
+                    let d1 = ddmmyyyyToDate(a.planned_start_date);
+                    let d2 = ddmmyyyyToDate(a.planned_end_date);
+                    if (d1 && d2) {
+                        days = Math.max(1, Math.floor((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+                    }
                     row.innerHTML = `
                         <input type="text" value="${a.name}" data-kind="act-name" data-idx="${idx}" data-aidx="${aidx}">
                         <input type="text" value="${a.planned_start_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{1,2}/\\d{1,2}/\\d{4}" data-kind="act-start-date" data-idx="${idx}" data-aidx="${aidx}">
                         <input type="text" value="${a.planned_end_date || ''}" placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\\d{1,2}/\\d{1,2}/\\d{4}" data-kind="act-end-date" data-idx="${idx}" data-aidx="${aidx}">
+                        <input type="text" value="${days}" readonly tabindex="-1" style="background:#222;color:#fff;opacity:0.8;width:48px;text-align:center;font-weight:600;border:1px solid #444;border-radius:6px;" title="Total days (auto-calculated)" data-kind="act-days" data-idx="${idx}" data-aidx="${aidx}">
                         <button type="button" class="btn-secondary btn-small" data-kind="act-remove" data-idx="${idx}" data-aidx="${aidx}">Remove</button>
                     `;
                     actList.appendChild(row);
@@ -1118,6 +1163,8 @@
             });
 
             serializeSegments();
+            // Ensure days box updates after manual change
+            updateActivityDays && updateActivityDays();
         }
         // After rendering, directly attach the formatter to each date input and force placeholder
         function attachDateFormatter(input) {
@@ -1125,9 +1172,15 @@
             input.addEventListener('input', function(e) {
                 let value = input.value.replace(/\D/g, '').slice(0, 8);
                 let formatted = '';
-                if (value.length > 0) formatted += value.substring(0, 2);
-                if (value.length > 2) formatted += '/' + value.substring(2, 4);
-                if (value.length > 4) formatted += '/' + value.substring(4, 8);
+                if (value.length > 0) {
+                    formatted += value.substring(0, 2);
+                }
+                if (value.length > 2) {
+                    formatted += '/' + value.substring(2, 4);
+                }
+                if (value.length > 4) {
+                    formatted += '/' + value.substring(4, 8);
+                }
                 input.value = formatted;
             });
             input.setAttribute('maxlength', '10');
@@ -1139,6 +1192,94 @@
         var dateInputs = stretchList.querySelectorAll('input[data-kind="stretch-start"], input[data-kind="stretch-end"]');
         dateInputs.forEach(attachDateFormatter);
         var actDateInputs = stretchDetails.querySelectorAll('input[data-kind="act-start-date"], input[data-kind="act-end-date"]');
+        // Update days fields when dates change (inclusive, always at least 1 if valid)
+        function updateActivityDays() {
+            var rows = stretchDetails.querySelectorAll('div[data-kind="act-list"] > div');
+            rows.forEach(function(row) {
+                var startInput = row.querySelector('input[data-kind="act-start-date"]');
+                var endInput = row.querySelector('input[data-kind="act-end-date"]');
+                var daysInput = row.querySelector('input[data-kind="act-days"]');
+                if (startInput && endInput && daysInput) {
+                    let d1 = ddmmyyyyToDate(startInput.value);
+                    let d2 = ddmmyyyyToDate(endInput.value);
+                    let days = '';
+                    if (d1 && d2) {
+                        // Always inclusive, and only if end >= start
+                        let diff = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+                        days = (diff >= 0) ? (diff + 1) : '';
+                    }
+                    daysInput.value = days;
+                }
+            });
+        }
+        function checkAndWarnAllActivityDates() {
+            var allActDateInputs = stretchDetails.querySelectorAll('input[data-kind="act-start-date"], input[data-kind="act-end-date"]');
+            allActDateInputs.forEach(function(input) {
+                const idx = input.getAttribute('data-idx');
+                const aidx = input.getAttribute('data-aidx');
+                let warn = false;
+                let warnMsg = '';
+                let val = (input.value || '').trim();
+                // Check for valid DD/MM/YYYY
+                let validDate = /^\d{2}\/\d{2}\/\d{4}$/.test(val);
+                let d = validDate ? ddmmyyyyToDate(val) : null;
+                if (!validDate || !d) {
+                    warn = true;
+                    warnMsg = 'Invalid date format (DD/MM/YYYY required)';
+                } else if (idx !== null && aidx !== null && segments[idx]) {
+                    const seg = segments[idx];
+                    const stretchStart = ddmmyyyyToDate(seg.planned_start_date);
+                    const stretchEnd = ddmmyyyyToDate(seg.planned_end_date);
+                    if (stretchStart && d < stretchStart) {
+                        warn = true;
+                        warnMsg = 'Date is before stretch start date (' + dateToDdmmyyyy(stretchStart) + ')';
+                    }
+                    if (stretchEnd && d > stretchEnd) {
+                        warn = true;
+                        warnMsg = 'Date is after stretch end date (' + dateToDdmmyyyy(stretchEnd) + ')';
+                    }
+                }
+                if (warn) {
+                    input.style.borderColor = '#d44545';
+                    input.style.background = 'rgba(214,69,69,0.18)';
+                    input.title = warnMsg;
+                } else {
+                    input.style.borderColor = '';
+                    input.style.background = '';
+                    input.title = '';
+                }
+            });
+        }
+        actDateInputs.forEach(function(input) {
+            input.addEventListener('input', function(e) {
+                checkAndWarnAllActivityDates();
+                updateActivityDays();
+            });
+            input.addEventListener('blur', function(e) {
+                // Clamp activity date to stretch range if possible
+                const idx = input.getAttribute('data-idx');
+                const aidx = input.getAttribute('data-aidx');
+                if (idx !== null && aidx !== null && segments[idx]) {
+                    const seg = segments[idx];
+                    const stretchStart = ddmmyyyyToDate(seg.planned_start_date);
+                    const stretchEnd = ddmmyyyyToDate(seg.planned_end_date);
+                    let val = input.value;
+                    let d = ddmmyyyyToDate(val);
+                    if (d && stretchStart && d < stretchStart) {
+                        input.value = dateToDdmmyyyy(stretchStart);
+                    }
+                    if (d && stretchEnd && d > stretchEnd) {
+                        input.value = dateToDdmmyyyy(stretchEnd);
+                    }
+                }
+                checkAndWarnAllActivityDates();
+                updateActivityDays();
+            });
+        });
+        // Initial warning state (after render)
+        checkAndWarnAllActivityDates();
+        // Initial update
+        updateActivityDays();
         // Only for activity date fields: force auto-formatting and caret at end
         const addDateFormatter = (input) => {
             if (!input || input._dateFormatHandler) return;
@@ -1230,12 +1371,31 @@
                 return;
             }
 
+            if(kind === 'stretch-width'){
+                const val = parseFloat(String(t.value || '0')) || 0;
+                segments[idx].width_m = val;
+                serializeSegments();
+                return;
+            }
+            if(kind === 'stretch-depth'){
+                const val = parseFloat(String(t.value || '0')) || 0;
+                segments[idx].depth_m = val;
+                serializeSegments();
+                return;
+            }
+
             const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
             if(aidx >= 0 && segments[idx].activities && segments[idx].activities[aidx]){
                 const a = segments[idx].activities[aidx];
                 if(kind === 'act-name') a.name = String(t.value || '').trim();
-                if(kind === 'act-start-date') a.planned_start_date = String(t.value || '').trim();
-                if(kind === 'act-end-date') a.planned_end_date = String(t.value || '').trim();
+                if(kind === 'act-start-date') {
+                    a.planned_start_date = String(t.value || '').trim();
+                    a._manual_dates = true;
+                }
+                if(kind === 'act-end-date') {
+                    a.planned_end_date = String(t.value || '').trim();
+                    a._manual_dates = true;
+                }
                 if(kind === 'act-start-time') a.start_time = String(t.value || '').trim();
                 if(kind === 'act-end-time') a.end_time = String(t.value || '').trim();
             }
@@ -1274,6 +1434,33 @@
                 return;
             }
 
+            if(kind === 'update-days'){
+                // Update only the days fields for this stretch (idx)
+                var detail = document.querySelector('div[data-kind="details-body"][data-idx="' + idx + '"]');
+                if (detail) {
+                    var actList = detail.querySelector('div[data-kind="act-list"]');
+                    if (actList) {
+                        var rows = actList.querySelectorAll('div');
+                        rows.forEach(function(row) {
+                            var startInput = row.querySelector('input[data-kind="act-start-date"]');
+                            var endInput = row.querySelector('input[data-kind="act-end-date"]');
+                            var daysInput = row.querySelector('input[data-kind="act-days"]');
+                            if (startInput && endInput && daysInput) {
+                                let d1 = ddmmyyyyToDate(startInput.value);
+                                let d2 = ddmmyyyyToDate(endInput.value);
+                                let days = '';
+                                if (d1 && d2) {
+                                    let diff = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+                                    days = (diff >= 0) ? (diff + 1) : '';
+                                }
+                                daysInput.value = days;
+                            }
+                        });
+                    }
+                }
+                return;
+            }
+
             if(kind === 'act-remove'){
                 const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
                 if(aidx >= 0 && segments[idx].activities && segments[idx].activities[aidx]){
@@ -1296,7 +1483,10 @@
 
         if(stretchBlock){
             stretchBlock.addEventListener('input', handleInput);
-            stretchBlock.addEventListener('click', handleClick);
+            // Use event delegation for click events so dynamically added buttons work
+            stretchBlock.addEventListener('click', function(e) {
+                handleClick(e);
+            });
         }
 
         if(projectType){

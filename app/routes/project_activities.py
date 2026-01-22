@@ -55,39 +55,7 @@ def require_project_access(db, user, project_id):
 # ==================================================
 # VIEW PROJECT ACTIVITIES
 # ==================================================
-@router.get("/{project_id}/activities", response_class=HTMLResponse)
-def view_project_activities(
-    project_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    user = request.session.get("user")
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-
-    role = require_project_access(db, user, project_id)
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        return RedirectResponse("/projects/manage", status_code=302)
-
-    activities = (
-        db.query(Activity)
-        .filter(Activity.project_id == project_id)
-        .order_by(Activity.id)
-        .all()
-    )
-
-    return templates.TemplateResponse(
-        "project_activities.html",
-        {
-            "request": request,
-            "user": user,
-            "project": project,
-            "activities": activities,
-            "project_role": role,
-        }
-    )
+## Project Activities page disabled by request
 
 
 # ==================================================

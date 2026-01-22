@@ -11,11 +11,10 @@ from datetime import datetime
 
 from app.db.session import SessionLocal
 from app.models.activity_material import ActivityMaterial
-from app.models.activity_materials import ActivityMaterial as NewActivityMaterial
 from app.models.activity import Activity
 from app.models.material import Material
-from app.models.project_materials import ProjectMaterial
-from app.models.stretch import Stretch
+from app.models.project_material_vendor import ProjectMaterialVendor
+from app.models.road_stretch import RoadStretch as Stretch
 from app.models.project import Project
 from app.models.ssr import SSRUnit
 from app.utils.audit_logger import log_action, model_to_dict
@@ -148,7 +147,7 @@ def get_stretch_activities(stretch_id: int, db: Session = Depends(get_db)):
 
 @router.get("/api/activity/{activity_id}/materials")
 def get_activity_materials(activity_id: int, db: Session = Depends(get_db)):
-    ams = db.query(NewActivityMaterial).filter(NewActivityMaterial.activity_id == activity_id, NewActivityMaterial.is_active == True).all()
+    ams = db.query(ActivityMaterial).filter(ActivityMaterial.activity_id == activity_id, ActivityMaterial.is_active == True).all()
     return [ {"id": am.project_material_id} for am in ams ]
 
 @router.post("/inventory/activity-materials/save")
@@ -159,10 +158,10 @@ async def save_activity_materials(request: Request, db: Session = Depends(get_db
     activity_id = data["activity_id"]
     selected_material_ids = set(data["material_ids"])
     # Deactivate all existing mappings not in selected_material_ids
-    existing = db.query(NewActivityMaterial).filter(
-        NewActivityMaterial.project_id == project_id,
-        NewActivityMaterial.stretch_id == stretch_id,
-        NewActivityMaterial.activity_id == activity_id
+    existing = db.query(ActivityMaterial).filter(
+        ActivityMaterial.project_id == project_id,
+        ActivityMaterial.stretch_id == stretch_id,
+        ActivityMaterial.activity_id == activity_id
     ).all()
     for am in existing:
         if am.project_material_id not in selected_material_ids and am.is_active:
@@ -171,7 +170,7 @@ async def save_activity_materials(request: Request, db: Session = Depends(get_db
     existing_ids = {am.project_material_id for am in existing if am.is_active}
     for mid in selected_material_ids:
         if mid not in existing_ids:
-            db.add(NewActivityMaterial(
+            db.add(ActivityMaterial(
                 project_id=project_id,
                 stretch_id=stretch_id,
                 activity_id=activity_id,

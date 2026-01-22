@@ -145,18 +145,15 @@
       </div>
     <script>
     // --- Vendor highlight/auto-select logic ---
-    const allVendors = [
-      {% for v in vendors %}
-        {id: {{v.id}}, name: "{{v.vendor_name}}", material_id: {{v.material_id}}, lead_time_days: {{v.lead_time_days|default(0)}}, is_active: {{'true' if v.is_active else 'false'}}},
-      {% endfor %}
-    ];
-    const assignments = {{ project_material_vendor_assignments_json|tojson|safe }};
+    const allVendors = JSON.parse('{{ vendors|tojson }}');
+    const assignments = JSON.parse('{{ project_material_vendor_assignments_json|tojson }}');
+    const projectId = JSON.parse('{{ project.id|tojson }}');
 
     function updateVendors() {
       const matId = document.getElementById('pl_material').value;
       const vendorSelect = document.getElementById('pl_vendor');
       const leadTimeDisplay = document.getElementById('leadTimeDisplay');
-      const projectId = {{ project.id }};
+      // projectId is now defined at the top
       // Clear all except first
       while (vendorSelect.options.length > 1) vendorSelect.remove(1);
       let highlighted = null;
@@ -181,7 +178,7 @@
     function updateLeadTime() {
       const matId = document.getElementById('pl_material').value;
       const vendorId = document.getElementById('pl_vendor').value;
-      const projectId = {{ project.id }};
+      // projectId is now defined at the top
       const found = assignments.find(a => a.project_id === projectId && a.material_id === Number(matId) && a.vendor_id === Number(vendorId));
       const leadTimeDisplay = document.getElementById('leadTimeDisplay');
       if (found && found.lead_time_days != null) {

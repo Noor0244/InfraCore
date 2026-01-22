@@ -69,3 +69,10 @@ class RoadStretch(Base):
         back_populates="stretch",
         cascade="all, delete-orphan",
     )
+
+    # Many-to-many: RoadStretch <-> Material
+    materials_link = relationship(
+        "MaterialStretch",
+        back_populates="stretch",
+        cascade="all, delete-orphan",
+    )

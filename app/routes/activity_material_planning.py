@@ -119,65 +119,10 @@ def _order_status(order_date: date | None, today: date) -> dict[str, object]:
     return {"kind": "UPCOMING", "label": f"⏳ Order on {format_date_ddmmyyyy(order_date)}"}
 
 
-@router.get("/", response_class=HTMLResponse)
-def amp_project_select(request: Request, db: Session = Depends(get_db)):
-    user = request.session.get("user")
-    if not user:
-        flash(request, "Please login to continue", "warning")
-        return RedirectResponse("/login", status_code=302)
-
-    if not _can_plan(user):
-        return RedirectResponse("/dashboard", status_code=302)
-
-    projects = _visible_projects(db, user)
-    return templates.TemplateResponse(
-        "activity_material_planning_select.html",
-        {
-            "request": request,
-            "user": user,
-            "projects": projects,
-        },
-    )
+## Activity Planning & Material Management page disabled by request
 
 
-@router.get("/{project_id}", response_class=HTMLResponse)
-def amp_page(project_id: int, request: Request, db: Session = Depends(get_db)):
-    user = request.session.get("user")
-    if not user:
-        flash(request, "Please login to continue", "warning")
-        return RedirectResponse("/login", status_code=302)
-
-    if not _can_plan(user):
-        return RedirectResponse("/dashboard", status_code=302)
-
-    project_ids = {int(p.id) for p in _visible_projects(db, user)}
-    if int(project_id) not in project_ids:
-        flash(request, "Project not found or access denied", "error")
-        return RedirectResponse("/dashboard", status_code=302)
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        return RedirectResponse("/dashboard", status_code=302)
-
-    activities = (
-        db.query(Activity)
-        .filter(
-            Activity.project_id == project_id,
-            Activity.is_active == True,  # noqa: E712
-        )
-        .order_by(Activity.id)
-        .all()
-    )
-
-    pa_rows = db.query(ProjectActivity).filter(ProjectActivity.project_id == project_id).all()
-    planned_map = {int(pa.activity_id): pa for pa in pa_rows}
-
-    progress_rows = (
-        db.query(ActivityProgress)
-        .filter(ActivityProgress.project_id == int(project_id))
-        .all()
-    )
-    progress_by_activity_id = {int(p.activity_id): int(p.progress_percent or 0) for p in progress_rows}
+## Activity Planning & Material Management page disabled by request
 
     materials_active = (
         db.query(Material)

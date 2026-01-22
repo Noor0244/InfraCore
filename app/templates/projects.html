@@ -23,10 +23,75 @@
 </div>
 
 <!-- ================= PROJECT LIST ================= -->
-<div class="card">
+
+<style>
+    .projects-card {
+        background: rgba(30,34,54,0.98);
+        border-radius: 18px;
+        box-shadow: 0 2px 16px 0 rgba(0,0,0,0.10);
+        padding: 0 0 18px 0;
+        margin-bottom: 32px;
+        overflow-x: auto;
+    }
+    .projects-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 15px;
+        background: none;
+    }
+    .projects-table th, .projects-table td {
+        padding: 14px 16px;
+        text-align: left;
+    }
+    .projects-table th {
+        background: rgba(255,255,255,0.03);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: #b8c1ec;
+        border-bottom: 2px solid #23263a;
+    }
+    .projects-table tr {
+        transition: background 0.18s;
+    }
+    .projects-table tbody tr:hover {
+        background: rgba(80,120,255,0.07);
+    }
+    .projects-table tbody tr:nth-child(even) {
+        background: rgba(255,255,255,0.01);
+    }
+    .badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        vertical-align: middle;
+    }
+    .badge-success { background: #2ecc40; color: #fff; }
+    .badge-danger { background: #d44545; color: #fff; }
+    .badge-info { background: #3b82f6; color: #fff; }
+    .btn-sm { font-size: 13px; padding: 6px 12px; border-radius: 7px; }
+    .btn-primary { background: #4f8cff; color: #fff; border: none; }
+    .btn-secondary { background: #23263a; color: #b8c1ec; border: none; }
+    .btn-info { background: #3b82f6; color: #fff; border: none; }
+    .btn-warning { background: #fbbf24; color: #23263a; border: none; }
+    .btn-danger { background: #d44545; color: #fff; border: none; }
+    .btn-sm:hover, .btn-primary:hover, .btn-secondary:hover, .btn-info:hover, .btn-warning:hover, .btn-danger:hover {
+        filter: brightness(1.08);
+        box-shadow: 0 2px 8px 0 rgba(80,120,255,0.08);
+    }
+    @media (max-width: 900px) {
+        .projects-table th, .projects-table td { padding: 10px 8px; }
+        .projects-card { padding: 0 0 8px 0; }
+    }
+</style>
+
+<div class="projects-card">
 
     {% if projects %}
-    <table class="table">
+    <table class="projects-table">
         <thead>
             <tr>
                 <th>ID</th>
@@ -37,7 +102,7 @@
                 <th>Start</th>
                 <th>End</th>
                 <th>Status</th>
-                <th style="width:240px">Actions</th>
+                <th style="min-width:220px">Actions</th>
             </tr>
         </thead>
 
@@ -45,71 +110,45 @@
         {% for project in projects %}
             <tr>
                 <td>{{ project.id }}</td>
-
-                <td>
-                    <strong>{{ project.name }}</strong>
-                </td>
-
+                <td><strong>{{ project.name }}</strong></td>
                 <td>{{ project.road_type }}</td>
                 <td>{{ project.city }}</td>
                 <td>{{ project.country }}</td>
                 <td>{{ project.planned_start_date|ddmmyyyy }}</td>
                 <td>{{ project.planned_end_date|ddmmyyyy }}</td>
-
                 <td>
                     {% if project.is_active %}
-                        <span class="badge badge-success">Active</span>
+                        <span class="badge badge-success" title="Active">● Active</span>
                     {% else %}
-                        <span class="badge badge-danger">Archived</span>
+                        <span class="badge badge-danger" title="Archived">⏸ Archived</span>
                     {% endif %}
                 </td>
-
-                <td style="display:flex;gap:6px;flex-wrap:wrap">
-
-                    <!-- ✏️ EDIT (ADMIN + MANAGER ONLY) -->
+                <td style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                     {% if user["role"] in ["admin", "superadmin", "manager"] %}
-                    <a href="/projects/{{ project.id }}/edit"
-                       class="btn-secondary btn-sm">
-                        ✏️ Edit
+                    <a href="/projects/{{ project.id }}/edit" class="btn-secondary btn-sm" title="Edit Project">
+                        <span style="font-size:15px">✏️</span>
                     </a>
                     {% endif %}
-
-                        <!-- 📄 PROJECT DETAILS (ALL USERS) -->
-                        <a href="/projects/{{ project.id }}" class="btn-info btn-sm">
-                            📄 Project Details
-                        </a>
-
-                    <!-- 📦 ARCHIVE / RESTORE (ADMIN + MANAGER ONLY) -->
-                      {% if user["role"] in ["admin", "superadmin", "manager"] %}
-                    <form method="post"
-                          action="/projects/{{ project.id }}/archive"
-                          onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
-                        <button class="btn-warning btn-sm" type="submit">
-                            {% if project.is_active %}
-                                📦 Archive
-                            {% else %}
-                                ♻ Restore
-                            {% endif %}
+                    <a href="/projects/{{ project.id }}" class="btn-info btn-sm" title="Project Details">
+                        <span style="font-size:15px">📄</span>
+                    </a>
+                    {% if user["role"] in ["admin", "superadmin", "manager"] %}
+                    <form method="post" action="/projects/{{ project.id }}/archive" style="display:inline" onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
+                        <button class="btn-warning btn-sm" type="submit" title="Archive or Restore">
+                            {% if project.is_active %}📦{% else %}♻{% endif %}
                         </button>
                     </form>
                     {% endif %}
-
-                    <!-- 🗑 DELETE (ADMIN ONLY) -->
-                      {% if user["role"] in ["admin", "superadmin"] %}
-                    <form method="post"
-                          action="/projects/{{ project.id }}/delete"
-                          onsubmit="return confirm('Delete this project permanently? This cannot be undone.')">
-                        <button class="btn-danger btn-sm" type="submit">
-                            🗑 Delete
+                    {% if user["role"] in ["admin", "superadmin"] %}
+                    <form method="post" action="/projects/{{ project.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this project permanently? This cannot be undone.')">
+                        <button class="btn-danger btn-sm" type="submit" title="Delete Project">
+                            🗑
                         </button>
                     </form>
                     {% endif %}
-
-                    <!-- 👁 VIEW ONLY -->
                     {% if user["role"] not in ["admin", "superadmin", "manager"] %}
-                        <span class="badge badge-info">View Only</span>
+                        <span class="badge badge-info" title="View Only">👁 View Only</span>
                     {% endif %}
-
                 </td>
             </tr>
         {% endfor %}

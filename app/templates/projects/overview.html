@@ -12,10 +12,10 @@
     <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Project Modules</h3>
     <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px;">
         <a href="/projects/{{ project.id }}/design-data" class="btn btn-primary">Design Data</a>
-        <a href="/projects/{{ project.id }}/activities" class="btn btn-primary">Activities</a>
-        <a href="/projects/{{ project.id }}/materials" class="btn btn-primary">Materials</a>
-        <a href="/projects/{{ project.id }}/activity-materials" class="btn btn-primary">Activity → Material Map</a>
-        <a href="/projects/{{ project.id }}/documents" class="btn btn-primary">Documents</a>
+        <!-- Activities button removed as requested -->
+        <!-- Materials and Activity → Material Map buttons removed as requested -->
+        <a href="/project/{{ project.id }}/materials" class="btn btn-primary">Material & Vendor</a>
+        <!-- Documents button removed as requested -->
     </div>
     <p style="margin-top: 10px; color: #888; font-size:0.98rem;">
         Complete project information step-by-step using the modules above.

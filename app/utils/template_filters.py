@@ -14,3 +14,10 @@ def register_template_filters(templates: Jinja2Templates) -> None:
     # Idempotent: safe to call multiple times.
     templates.env.filters.setdefault("ddmmyyyy", format_date_ddmmyyyy)
     templates.env.filters.setdefault("ddmmyyyy_dt", format_datetime_ddmmyyyy_hhmm)
+
+    # Register local_dt filter for timezone conversion
+    try:
+        from app.utils.filters import local_dt
+        templates.env.filters.setdefault("local_dt", local_dt)
+    except ImportError:
+        pass

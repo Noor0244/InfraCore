@@ -53,37 +53,7 @@ def require_project_access(db: Session, user: dict, project_id: int):
 # ==================================================
 # LIST ACTIVITIES (PER PROJECT)
 # ==================================================
-@router.get("/{project_id}/activities", response_class=HTMLResponse)
-def list_project_activities(
-    project_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    user = request.session.get("user")
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-
-    if not require_project_access(db, user, project_id):
-        return RedirectResponse("/dashboard", status_code=302)
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    activities = (
-        db.query(Activity)
-        .filter(Activity.project_id == project_id)
-        .order_by(Activity.id)
-        .all()
-    )
-
-    return templates.TemplateResponse(
-        "project_activities_list.html",
-        {
-            "request": request,
-            "project": project,
-            "activities": activities,
-            "user": user,
-        }
-    )
+## Project Activities page disabled by request
 
 
 # ==================================================

@@ -60,3 +60,10 @@ class Activity(Base):
         back_populates="activity",
         cascade="all, delete-orphan"
     )
+
+    # Many-to-many: Activity <-> Material
+    materials_link = relationship(
+        "MaterialActivity",
+        back_populates="activity",
+        cascade="all, delete-orphan"
+    )
