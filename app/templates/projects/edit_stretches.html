@@ -35,6 +35,10 @@
         </div>
     </div>
 
+
+    <div style="margin-top:20px;">
+        <button id="btnAlignStretches" type="button" class="btn-primary">Align All Remaining Stretches</button>
+    </div>
     <div id="stretchContainer"></div>
 
     <div style="display:flex;gap:12px;margin-top:20px">
@@ -270,6 +274,25 @@
         });
     }
 
+    // Align All Remaining Stretches button logic
+    const btnAlignStretches = document.getElementById('btnAlignStretches');
+    if(btnAlignStretches){
+        btnAlignStretches.addEventListener('click', function(){
+            // Use first stretch as reference
+            if(!stretches.length){
+                alert('No stretches found!');
+                return;
+            }
+            const projectId = {{ project.id }};
+            const referenceStretchId = stretches[0].id || 1;
+            fetch(`/stretches/auto-align/${projectId}/${referenceStretchId}`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message || 'All stretches aligned!');
+                    window.location.reload();
+                });
+        });
+    }
     render();
     if(container){
         container.addEventListener('input', handleInput);

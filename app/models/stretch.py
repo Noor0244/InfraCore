@@ -1,20 +1,19 @@
-
 from sqlalchemy import Column, Integer, String, Date, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
-class StretchActivity(Base):
-    __tablename__ = "stretch_activities"
+class Stretch(Base):
+    __tablename__ = "stretches"
 
     id = Column(Integer, primary_key=True, index=True)
-    stretch_id = Column(Integer, ForeignKey("stretches.id"), nullable=False, index=True)
-    name = Column(String(255), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    sequence_no = Column(Integer, nullable=False)
+    name = Column(String(255), nullable=True)
+    code = Column(String(50), nullable=True)
+    length_m = Column(Integer, nullable=False)
     planned_start_date = Column(Date, nullable=True)
     planned_end_date = Column(Date, nullable=True)
-    planned_duration_days = Column(Integer, nullable=True)
     manual_override = Column(Boolean, default=False, nullable=False)
 
     # Relationship will be set after both classes are defined to avoid circular import issues
 
-    # Add stretch_materials relationship for back_populates
-    stretch_materials = relationship("StretchMaterial", back_populates="stretch_activity", cascade="all, delete-orphan")

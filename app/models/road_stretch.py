@@ -64,11 +64,6 @@ class RoadStretch(Base):
         uselist=False,
     )
 
-    stretch_activities = relationship(
-        "StretchActivity",
-        back_populates="stretch",
-        cascade="all, delete-orphan",
-    )
 
     # Many-to-many: RoadStretch <-> Material
     materials_link = relationship(

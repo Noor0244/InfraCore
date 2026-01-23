@@ -1,3 +1,7 @@
+try:
+	from app.models.stretch_relationship_patch import *
+except ImportError:
+	pass
 from app.models.user import User
 from app.models.project import Project
 from app.models.project_alignment import ProjectAlignmentPoint

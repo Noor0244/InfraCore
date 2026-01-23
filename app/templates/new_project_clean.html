@@ -17,10 +17,162 @@
 <div class="card card--page">
 
 <style>
-    .form-errors{display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)}
+    /* Card and Section Styling */
+    .card--page {
+        background: #181c24;
+        border-radius: 18px;
+        box-shadow: 0 4px 32px 0 rgba(0,0,0,0.18), 0 1.5px 6px 0 rgba(0,0,0,0.10);
+        padding: 32px 32px 24px 32px;
+        margin: 0 auto 32px auto;
+        max-width: 1100px;
+    }
+    .form-section {
+        margin-bottom: 32px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 12px;
+        letter-spacing: 0.01em;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 18px 24px;
+        margin-bottom: 8px;
+    }
+    /* Inputs */
+    input[type="text"], input[type="number"], input[type="email"], input[type="password"], select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1.5px solid #2a2e38;
+        background: #232733;
+        color: #fff;
+        font-size: 1rem;
+        margin-top: 4px;
+        transition: border-color 0.18s, box-shadow 0.18s;
+        box-shadow: 0 1.5px 4px 0 rgba(0,0,0,0.07);
+    }
+    input[type="text"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="password"]:focus, select:focus {
+        border-color: #3498db;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(52,152,219,0.18);
+    }
+    label {
+        font-weight: 600;
+        color: #e0e6f0;
+        margin-bottom: 2px;
+        display: block;
+    }
+    .help-text {
+        color: #b0b8c9;
+        font-size: 0.97em;
+        margin-top: 2px;
+    }
+    /* Buttons */
+    button, .btn-primary, .btn-secondary, .btn-danger, .btn-small {
+        position: relative;
+        overflow: hidden;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 22px;
+        font-size: 1rem;
+        font-weight: 600;
+        background: linear-gradient(90deg, #3498db 60%, #217dbb 100%);
+        color: #fff;
+        cursor: pointer;
+        box-shadow: 0 2px 8px 0 rgba(52,152,219,0.10);
+        transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
+        margin-right: 8px;
+    }
+    button:hover, .btn-primary:hover, .btn-secondary:hover, .btn-danger:hover, .btn-small:hover {
+        background: linear-gradient(90deg, #217dbb 60%, #3498db 100%);
+        box-shadow: 0 4px 16px 0 rgba(52,152,219,0.18);
+        transform: translateY(-2px) scale(1.03);
+    }
+    .btn-secondary {
+        background: linear-gradient(90deg, #444950 60%, #232733 100%);
+        color: #fff;
+    }
+    .btn-secondary:hover {
+        background: linear-gradient(90deg, #232733 60%, #444950 100%);
+    }
+    .btn-danger {
+        background: linear-gradient(90deg, #d44545 60%, #a12a2a 100%);
+        color: #fff;
+    }
+    .btn-danger:hover {
+        background: linear-gradient(90deg, #a12a2a 60%, #d44545 100%);
+    }
+    .btn-small {
+        font-size: 0.95em;
+        padding: 7px 14px;
+    }
+    .required {
+        color: #ffb347;
+        font-size: 1.1em;
+        margin-left: 2px;
+    }
+    .form-errors{
+        display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)
+    }
     .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
     .date-dual{display:flex;gap:8px;align-items:center}
     .date-dual input[type="date"]{max-width:170px}
+    /* Ripple effect for all buttons */
+    button, .btn-primary, .btn-secondary, .btn-danger, .btn-small {
+        position: relative;
+        overflow: hidden;
+    }
+    .ripple {
+        position: absolute;
+        border-radius: 50%;
+        transform: scale(0);
+        animation: ripple-animate 0.5s linear;
+        background-color: rgba(255,255,255,0.4);
+        pointer-events: none;
+        z-index: 2;
+    }
+    @keyframes ripple-animate {
+        to {
+            transform: scale(2.5);
+            opacity: 0;
+        }
+    }
+    /* Table improvements */
+    table.table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #20232b;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+    table.table th, table.table td {
+        padding: 10px 8px;
+        text-align: left;
+        color: #e0e6f0;
+        border-bottom: 1px solid #232733;
+    }
+    table.table th {
+        background: #232733;
+        font-weight: 700;
+        font-size: 1.05em;
+        letter-spacing: 0.01em;
+    }
+    table.table tr:last-child td {
+        border-bottom: none;
+    }
+    /* Responsive tweaks */
+    @media (max-width: 900px) {
+        .card--page { padding: 18px 4vw 12px 4vw; }
+        .form-grid { grid-template-columns: 1fr; }
+    }
 </style>
 
 <form id="createProjectForm" method="post" action="/projects/create">
@@ -152,24 +304,82 @@
                 <!-- DD/MM/YYYY: Slashes auto-inserted, 4-digit year only -->
                 <input type="text" name="planned_end_date" id="planned_end_date" required placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{4}">
                 <script>
-                function formatDateInput(input) {
-                    input.addEventListener('input', function(e) {
-                        let value = input.value.replace(/\D/g, '').slice(0, 8); // Only digits, max 8 (DDMMYYYY)
+                // Unified date formatter and validator for all date fields
+                function attachDateFormatter(input, getMin, getMax) {
+                    if (!input || input._dateFormatHandler) return;
+                    function formatDate(val) {
+                        let value = String(val || '').replace(/\D/g, '').slice(0, 8);
                         let formatted = '';
-                        if (value.length > 0) {
-                            formatted += value.substring(0, 2);
-                        }
-                        if (value.length > 2) {
-                            formatted += '/' + value.substring(2, 4);
-                        }
-                        if (value.length > 4) {
-                            formatted += '/' + value.substring(4, 8);
-                        }
+                        if (value.length > 0) formatted += value.substring(0, 2);
+                        if (value.length > 2) formatted += '/' + value.substring(2, 4);
+                        if (value.length > 4) formatted += '/' + value.substring(4, 8);
+                        return formatted;
+                    }
+                    function isValidDdmmyyyy(str) {
+                        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return false;
+                        const [d, m, y] = str.split('/').map(Number);
+                        if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+                        const dt = new Date(y, m - 1, d);
+                        return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+                    }
+                    function enforceFormat(e) {
+                        let formatted = formatDate(input.value);
                         input.value = formatted;
+                        let warn = false, msg = '';
+                        if (formatted.length === 10) {
+                            if (!isValidDdmmyyyy(formatted)) {
+                                warn = true;
+                                msg = 'Invalid date format (DD/MM/YYYY required)';
+                            } else {
+                                let min = getMin && getMin();
+                                let max = getMax && getMax();
+                                let d = formatted.split('/');
+                                let dt = new Date(+d[2], +d[1] - 1, +d[0]);
+                                if (min && dt < min) {
+                                    warn = true;
+                                    msg = 'Date is before allowed minimum (' + min.toLocaleDateString('en-GB') + ')';
+                                }
+                                if (max && dt > max) {
+                                    warn = true;
+                                    msg = 'Date is after allowed maximum (' + max.toLocaleDateString('en-GB') + ')';
+                                }
+                            }
+                        }
+                        if (warn) {
+                            input.style.borderColor = '#d44545';
+                            input.style.background = 'rgba(214,69,69,0.18)';
+                            input.title = msg;
+                        } else {
+                            input.style.borderColor = '';
+                            input.style.background = '';
+                            input.title = '';
+                        }
+                    }
+                    input.addEventListener('input', enforceFormat);
+                    input.addEventListener('blur', enforceFormat);
+                    input.addEventListener('paste', function(e) {
+                        e.preventDefault();
+                        let paste = (e.clipboardData || window.clipboardData).getData('text');
+                        input.value = formatDate(paste);
+                        enforceFormat();
                     });
+                    input.setAttribute('maxlength', '10');
+                    input.setAttribute('pattern', '\\d{2}/\\d{2}/\\d{4}');
+                    input.setAttribute('inputmode', 'numeric');
+                    input.setAttribute('placeholder', 'DD/MM/YYYY');
+                    input._dateFormatHandler = true;
                 }
-                formatDateInput(document.getElementById('planned_start_date'));
-                formatDateInput(document.getElementById('planned_end_date'));
+                // Attach to project start/end date fields
+                attachDateFormatter(document.getElementById('planned_start_date'));
+                attachDateFormatter(document.getElementById('planned_end_date'), function() {
+                    // End date min = start date
+                    let v = document.getElementById('planned_start_date').value;
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
+                        let d = v.split('/');
+                        return new Date(+d[2], +d[1] - 1, +d[0]);
+                    }
+                    return null;
+                });
                 </script>
                 <div class="help-text">End date must be after start date. Format: <b>DD/MM/YYYY</b></div>
             </div>
@@ -238,8 +448,9 @@
                 <label>Total Number of Stretches <span class="required">*</span></label>
                 <input type="number" id="stretch_number_of_stretches" min="1" step="1" value="">
             </div>
-            <div style="display:flex;align-items:flex-end">
+            <div style="display:flex;align-items:flex-end;gap:8px">
                 <button type="button" class="btn-primary" id="btnGenerateStretches">Generate stretches</button>
+                <button type="button" class="btn-secondary" id="btnAlignStretches" style="display:none">Align All Remaining Stretches</button>
             </div>
         </div>
 
@@ -439,6 +650,29 @@
     </div>
 
     <script>
+    // Material-style ripple effect for all buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        document.body.addEventListener('click', function(e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            // Remove any old ripple
+            let oldRipple = btn.querySelector('.ripple');
+            if (oldRipple) oldRipple.remove();
+            // Create ripple
+            const ripple = document.createElement('span');
+            ripple.className = 'ripple';
+            const rect = btn.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size/2) + 'px';
+            ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
+            btn.appendChild(ripple);
+            ripple.addEventListener('animationend', function() {
+                ripple.remove();
+            });
+        }, false);
+    });
+
     (function(){
         const allowAdminRole = JSON.parse('{{ (user and user["role"] in ["admin", "superadmin"]) | tojson }}');
         const projectType = document.querySelector('select[name="project_type"]');
@@ -451,6 +685,7 @@
         const totalLenKm = document.getElementById('stretch_total_length_km');
         const stretchCount = document.getElementById('stretch_number_of_stretches');
         const btnGenerate = document.getElementById('btnGenerateStretches');
+        const btnAlign = document.getElementById('btnAlignStretches');
         const stretchEditor = document.getElementById('stretch_editor');
         const stretchList = document.getElementById('stretchSegmentList');
         const stretchDetails = document.getElementById('stretchDetailsList');
@@ -942,9 +1177,13 @@
             if(!segments.length){
                 stretchEditor.style.display = 'none';
                 serializeSegments();
+                if(btnAlign) btnAlign.style.display = 'none';
                 return;
             }
             stretchEditor.style.display = '';
+
+            // Show align button if more than 1 stretch
+            if(btnAlign) btnAlign.style.display = segments.length > 1 ? '' : 'none';
 
 
             segments.forEach((seg, idx) => {
@@ -971,8 +1210,8 @@
                 tr.innerHTML = `
                     <td><strong>${seg.sequence_no}</strong></td>
                     <td><input type="text" value="${seg.stretch_name}" data-kind="stretch-name" data-idx="${idx}" style="width:100%"></td>
-                    <td><span data-kind="chainage-start" data-idx="${idx}">${chainageFromMeters(seg.start_m)}</span></td>
-                    <td><span data-kind="chainage-end" data-idx="${idx}">${chainageFromMeters(seg.end_m)}</span></td>
+                    <td><input type="text" value="${chainageFromMeters(seg.start_m)}" data-kind="chainage-start" data-idx="${idx}" style="width:100%" pattern="\\d+\\+\\d{3}" title="Format: km+mmm (e.g. 5+000)"></td>
+                    <td><input type="text" value="${chainageFromMeters(seg.end_m)}" data-kind="chainage-end" data-idx="${idx}" style="width:100%" pattern="\\d+\\+\\d{3}" title="Format: km+mmm (e.g. 5+000)"></td>
                     <td><input type="number" min="1" step="1" value="${seg.length_m}" data-kind="stretch-length" data-idx="${idx}" style="width:100%"></td>
                     <td><input type="number" min="0" step="0.01" value="${seg.width_m || ''}" data-kind="stretch-width" data-idx="${idx}" style="width:100%"></td>
                     <td><input type="number" min="0" step="0.01" value="${seg.depth_m || ''}" data-kind="stretch-depth" data-idx="${idx}" style="width:100%"></td>
@@ -989,50 +1228,81 @@
                 `;
                 // Force placeholder after element creation
                 setTimeout(() => {
-                    const startInput = tr.querySelector('input[data-kind="stretch-start"]');
-                    const endInput = tr.querySelector('input[data-kind="stretch-end"]');
-                    const fixPlaceholder = (input) => {
-                        if (!input) return;
-                        input.setAttribute('placeholder', 'DD/MM/YYYY');
-                        input.placeholder = 'DD/MM/YYYY';
-                        // Remove any value that looks like a placeholder (dd-mm-yyyy, dd/mm/yyyy, etc.)
-                        const v = (input.value || '').toLowerCase().replace(/\s/g, '');
-                        if (
-                            v === 'dd-mm-yyyy' ||
-                            v === 'dd/mm/yyyy' ||
-                            v === 'd-m-yyyy' ||
-                            v === 'd/m/yyyy' ||
-                            v === 'ddmmyyyy' ||
-                            v === 'dmyyyy' ||
-                            /^d{1,2}[-\/]?m{1,2}[-\/]?y{2,4}$/.test(v)
-                        ) {
-                            input.value = '';
-                        }
-                    };
-                    fixPlaceholder(startInput);
-                    fixPlaceholder(endInput);
-                    // Add auto-formatting and 10-digit limit for date inputs
-                    const addDateFormatter = (input) => {
+                    // Unified robust date formatter/validator for stretch dates
+                    function attachDateFormatter(input, getMin, getMax) {
                         if (!input || input._dateFormatHandler) return;
-                        input.addEventListener('input', function(e) {
-                            let value = input.value.replace(/\D/g, '').slice(0, 8); // Only digits, max 8 (DDMMYYYY)
+                        function formatDate(val) {
+                            let value = String(val || '').replace(/\D/g, '').slice(0, 8);
                             let formatted = '';
-                            if (value.length > 0) {
-                                formatted += value.substring(0, 2);
-                            }
-                            if (value.length > 2) {
-                                formatted += '/' + value.substring(2, 4);
-                            }
-                            if (value.length > 4) {
-                                formatted += '/' + value.substring(4, 8);
-                            }
+                            if (value.length > 0) formatted += value.substring(0, 2);
+                            if (value.length > 2) formatted += '/' + value.substring(2, 4);
+                            if (value.length > 4) formatted += '/' + value.substring(4, 8);
+                            return formatted;
+                        }
+                        function isValidDdmmyyyy(str) {
+                            if (!/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return false;
+                            const [d, m, y] = str.split('/').map(Number);
+                            if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+                            const dt = new Date(y, m - 1, d);
+                            return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+                        }
+                        function enforceFormat(e) {
+                            let formatted = formatDate(input.value);
                             input.value = formatted;
+                            let warn = false, msg = '';
+                            if (formatted.length === 10) {
+                                if (!isValidDdmmyyyy(formatted)) {
+                                    warn = true;
+                                    msg = 'Invalid date format (DD/MM/YYYY required)';
+                                } else {
+                                    let min = getMin && getMin();
+                                    let max = getMax && getMax();
+                                    let d = formatted.split('/');
+                                    let dt = new Date(+d[2], +d[1] - 1, +d[0]);
+                                    if (min && dt < min) {
+                                        warn = true;
+                                        msg = 'Date is before allowed minimum (' + min.toLocaleDateString('en-GB') + ')';
+                                    }
+                                    if (max && dt > max) {
+                                        warn = true;
+                                        msg = 'Date is after allowed maximum (' + max.toLocaleDateString('en-GB') + ')';
+                                    }
+                                }
+                            }
+                            if (warn) {
+                                input.style.borderColor = '#d44545';
+                                input.style.background = 'rgba(214,69,69,0.18)';
+                                input.title = msg;
+                            } else {
+                                input.style.borderColor = '';
+                                input.style.background = '';
+                                input.title = '';
+                            }
+                        }
+                        input.addEventListener('input', enforceFormat);
+                        input.addEventListener('blur', enforceFormat);
+                        input.addEventListener('paste', function(e) {
+                            e.preventDefault();
+                            let paste = (e.clipboardData || window.clipboardData).getData('text');
+                            input.value = formatDate(paste);
+                            enforceFormat();
                         });
                         input.setAttribute('maxlength', '10');
+                        input.setAttribute('pattern', '\\d{2}/\\d{2}/\\d{4}');
+                        input.setAttribute('inputmode', 'numeric');
+                        input.setAttribute('placeholder', 'DD/MM/YYYY');
                         input._dateFormatHandler = true;
-                    };
-                    addDateFormatter(startInput);
-                    addDateFormatter(endInput);
+                    }
+                    attachDateFormatter(tr.querySelector('input[data-kind="stretch-start"]'));
+                    attachDateFormatter(tr.querySelector('input[data-kind="stretch-end"]'), function() {
+                        // End date min = start date
+                        let v = tr.querySelector('input[data-kind="stretch-start"]').value;
+                        if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
+                            let d = v.split('/');
+                            return new Date(+d[2], +d[1] - 1, +d[0]);
+                        }
+                        return null;
+                    });
                 }, 0);
                 stretchList.appendChild(tr);
 
@@ -1142,6 +1412,13 @@
                         <button type="button" class="btn-secondary btn-small" data-kind="act-remove" data-idx="${idx}" data-aidx="${aidx}">Remove</button>
                     `;
                     actList.appendChild(row);
+                    // Attach date formatter to activity date fields
+                    const actStartInput = row.querySelector('input[data-kind="act-start-date"]');
+                    const actEndInput = row.querySelector('input[data-kind="act-end-date"]');
+                    if (typeof attachDateFormatter === 'function') {
+                        attachDateFormatter(actStartInput);
+                        attachDateFormatter(actEndInput);
+                    }
                 });
 
                 // Utility functions for date conversion
@@ -1169,8 +1446,8 @@
         // After rendering, directly attach the formatter to each date input and force placeholder
         function attachDateFormatter(input) {
             if (!input || input._dateFormatHandler) return;
-            input.addEventListener('input', function(e) {
-                let value = input.value.replace(/\D/g, '').slice(0, 8);
+            function formatDate(val) {
+                let value = val.replace(/\D/g, '').slice(0, 8);
                 let formatted = '';
                 if (value.length > 0) {
                     formatted += value.substring(0, 2);
@@ -1181,7 +1458,47 @@
                 if (value.length > 4) {
                     formatted += '/' + value.substring(4, 8);
                 }
+                return formatted;
+            }
+            function enforceFormat(e) {
+                let formatted = formatDate(input.value);
+                // Only clear if user entered 10 digits and it's not a valid date
+                if (formatted.length === 10) {
+                    const parts = formatted.split('/');
+                    const d = parseInt(parts[0], 10);
+                    const m = parseInt(parts[1], 10);
+                    const y = parseInt(parts[2], 10);
+                    const isValid = d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1900 && y <= 2100;
+                    if (!isValid) {
+                        // Only clear if all 10 digits are present and invalid
+                        input.value = formatted;
+                        input.style.borderColor = '#d44545';
+                        input.style.background = 'rgba(214,69,69,0.18)';
+                        input.title = 'Invalid date format (DD/MM/YYYY required)';
+                        return;
+                    } else {
+                        input.style.borderColor = '';
+                        input.style.background = '';
+                        input.title = '';
+                    }
+                } else {
+                    input.style.borderColor = '';
+                    input.style.background = '';
+                    input.title = '';
+                }
                 input.value = formatted;
+                // Move caret to end for better UX
+                if (document.activeElement === input) {
+                    input.setSelectionRange(formatted.length, formatted.length);
+                }
+            }
+            input.addEventListener('input', enforceFormat);
+            input.addEventListener('blur', enforceFormat);
+            input.addEventListener('paste', function(e) {
+                e.preventDefault();
+                let paste = (e.clipboardData || window.clipboardData).getData('text');
+                input.value = formatDate(paste);
+                enforceFormat();
             });
             input.setAttribute('maxlength', '10');
             input.setAttribute('pattern', '\\d{2}/\\d{2}/\\d{4}');
@@ -1254,9 +1571,25 @@
             input.addEventListener('input', function(e) {
                 checkAndWarnAllActivityDates();
                 updateActivityDays();
+                // Lock activity date within stretch range
+                const idx = input.getAttribute('data-idx');
+                const aidx = input.getAttribute('data-aidx');
+                if (idx !== null && aidx !== null && segments[idx]) {
+                    const seg = segments[idx];
+                    const stretchStart = ddmmyyyyToDate(seg.planned_start_date);
+                    const stretchEnd = ddmmyyyyToDate(seg.planned_end_date);
+                    let val = input.value;
+                    let d = ddmmyyyyToDate(val);
+                    if (d && stretchStart && d < stretchStart) {
+                        input.value = dateToDdmmyyyy(stretchStart);
+                    }
+                    if (d && stretchEnd && d > stretchEnd) {
+                        input.value = dateToDdmmyyyy(stretchEnd);
+                    }
+                }
             });
             input.addEventListener('blur', function(e) {
-                // Clamp activity date to stretch range if possible
+                // Lock activity date within stretch range
                 const idx = input.getAttribute('data-idx');
                 const aidx = input.getAttribute('data-aidx');
                 if (idx !== null && aidx !== null && segments[idx]) {
@@ -1319,6 +1652,150 @@
         actDateInputs.forEach(addDateFormatter);
 
         function handleInput(e){
+                                    // --- Chainage/Length sync logic ---
+                                    if(kind === 'chainage-start'){
+                                        let val = String(t.value || '').trim();
+                                        let match = val.match(/^(\d+)\+(\d{3})$/);
+                                        if(match) {
+                                            let km = parseInt(match[1], 10);
+                                            let m = parseInt(match[2], 10);
+                                            let newStart = km * 1000 + m;
+                                            let newLen = segments[idx].end_m - newStart;
+                                            if(newLen > 0) {
+                                                segments[idx].start_m = newStart;
+                                                segments[idx].length_m = newLen;
+                                                // Update length input field
+                                                const row = t.closest('tr');
+                                                if(row) {
+                                                    let lenInput = row.querySelector('input[data-kind="stretch-length"]');
+                                                    if(lenInput) lenInput.value = newLen;
+                                                }
+                                                t.style.borderColor = '';
+                                                t.title = '';
+                                                // Also update previous stretch's end chainage if exists
+                                                if(idx > 0) {
+                                                    segments[idx-1].end_m = newStart;
+                                                    // Update previous row's end chainage input
+                                                    let prevRow = stretchList.querySelector(`input[data-kind="chainage-end"][data-idx="${idx-1}"]`);
+                                                    if(prevRow) prevRow.value = chainageFromMeters(newStart);
+                                                }
+                                            } else {
+                                                t.style.borderColor = '#d44545';
+                                                t.title = 'Start chainage must be less than end chainage';
+                                                return;
+                                            }
+                                        }
+                                    }
+                                    if(kind === 'chainage-end'){
+                                        let val = String(t.value || '').trim();
+                                        let match = val.match(/^(\d+)\+(\d{3})$/);
+                                        if(match) {
+                                            let km = parseInt(match[1], 10);
+                                            let m = parseInt(match[2], 10);
+                                            let newEnd = km * 1000 + m;
+                                            let newLen = newEnd - segments[idx].start_m;
+                                            if(newLen > 0) {
+                                                segments[idx].end_m = newEnd;
+                                                segments[idx].length_m = newLen;
+                                                // Update length input field
+                                                const row = t.closest('tr');
+                                                if(row) {
+                                                    let lenInput = row.querySelector('input[data-kind="stretch-length"]');
+                                                    if(lenInput) lenInput.value = newLen;
+                                                }
+                                                t.style.borderColor = '';
+                                                t.title = '';
+                                                // Also update next stretch's start chainage if exists
+                                                if(idx < segments.length-1) {
+                                                    segments[idx+1].start_m = newEnd;
+                                                    // Update next row's start chainage input
+                                                    let nextRow = stretchList.querySelector(`input[data-kind="chainage-start"][data-idx="${idx+1}"]`);
+                                                    if(nextRow) nextRow.value = chainageFromMeters(newEnd);
+                                                }
+                                            } else {
+                                                t.style.borderColor = '#d44545';
+                                                t.title = 'End chainage must be greater than start chainage';
+                                                return;
+                                            }
+                                        }
+                                    }
+                                    if(kind === 'stretch-length'){
+                                        const val = parseInt(String(t.value || '0'), 10) || 1;
+                                        // When length is changed, update end chainage to match
+                                        segments[idx].length_m = Math.max(1, val);
+                                        segments[idx].end_m = segments[idx].start_m + segments[idx].length_m;
+                                        // Update end chainage input field
+                                        const row = t.closest('tr');
+                                        if(row) {
+                                            let endInput = row.querySelector('input[data-kind="chainage-end"]');
+                                            if(endInput) endInput.value = chainageFromMeters(segments[idx].end_m);
+                                        }
+                                    }
+                        // --- Chainage/Length sync logic ---
+                        if(kind === 'chainage-start'){
+                            let val = String(t.value || '').trim();
+                            let match = val.match(/^(\d+)\+(\d{3})$/);
+                            if(match) {
+                                let km = parseInt(match[1], 10);
+                                let m = parseInt(match[2], 10);
+                                let newStart = km * 1000 + m;
+                                let newLen = segments[idx].end_m - newStart;
+                                if(newLen > 0) {
+                                    segments[idx].start_m = newStart;
+                                    segments[idx].length_m = newLen;
+                                    // Update length input field
+                                    const row = t.closest('tr');
+                                    if(row) {
+                                        let lenInput = row.querySelector('input[data-kind="stretch-length"]');
+                                        if(lenInput) lenInput.value = newLen;
+                                    }
+                                    t.style.borderColor = '';
+                                    t.title = '';
+                                } else {
+                                    t.style.borderColor = '#d44545';
+                                    t.title = 'Start chainage must be less than end chainage';
+                                    return;
+                                }
+                            }
+                        }
+                        if(kind === 'chainage-end'){
+                            let val = String(t.value || '').trim();
+                            let match = val.match(/^(\d+)\+(\d{3})$/);
+                            if(match) {
+                                let km = parseInt(match[1], 10);
+                                let m = parseInt(match[2], 10);
+                                let newEnd = km * 1000 + m;
+                                let newLen = newEnd - segments[idx].start_m;
+                                if(newLen > 0) {
+                                    segments[idx].end_m = newEnd;
+                                    segments[idx].length_m = newLen;
+                                    // Update length input field
+                                    const row = t.closest('tr');
+                                    if(row) {
+                                        let lenInput = row.querySelector('input[data-kind="stretch-length"]');
+                                        if(lenInput) lenInput.value = newLen;
+                                    }
+                                    t.style.borderColor = '';
+                                    t.title = '';
+                                } else {
+                                    t.style.borderColor = '#d44545';
+                                    t.title = 'End chainage must be greater than start chainage';
+                                    return;
+                                }
+                            }
+                        }
+                        if(kind === 'stretch-length'){
+                            const val = parseInt(String(t.value || '0'), 10) || 1;
+                            // When length is changed, update end chainage to match
+                            segments[idx].length_m = Math.max(1, val);
+                            segments[idx].end_m = segments[idx].start_m + segments[idx].length_m;
+                            // Update end chainage input field
+                            const row = t.closest('tr');
+                            if(row) {
+                                let endInput = row.querySelector('input[data-kind="chainage-end"]');
+                                if(endInput) endInput.value = chainageFromMeters(segments[idx].end_m);
+                            }
+                        }
             const t = e.target;
             if(!t) return;
             const kind = t.getAttribute('data-kind');
@@ -1435,7 +1912,7 @@
             }
 
             if(kind === 'update-days'){
-                // Update only the days fields for this stretch (idx)
+                // Update days fields for this stretch (idx) and sync to data model, then re-render
                 var detail = document.querySelector('div[data-kind="details-body"][data-idx="' + idx + '"]');
                 if (detail) {
                     var actList = detail.querySelector('div[data-kind="act-list"]');
@@ -1445,19 +1922,20 @@
                             var startInput = row.querySelector('input[data-kind="act-start-date"]');
                             var endInput = row.querySelector('input[data-kind="act-end-date"]');
                             var daysInput = row.querySelector('input[data-kind="act-days"]');
-                            if (startInput && endInput && daysInput) {
-                                let d1 = ddmmyyyyToDate(startInput.value);
-                                let d2 = ddmmyyyyToDate(endInput.value);
-                                let days = '';
-                                if (d1 && d2) {
-                                    let diff = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
-                                    days = (diff >= 0) ? (diff + 1) : '';
+                            var aidx = startInput ? startInput.getAttribute('data-aidx') : null;
+                            if (startInput && endInput && daysInput && aidx !== null) {
+                                // Always update the data model from the DOM before recalculating
+                                if (segments[idx] && segments[idx].activities && segments[idx].activities[aidx]) {
+                                    segments[idx].activities[aidx].planned_start_date = startInput.value;
+                                    segments[idx].activities[aidx].planned_end_date = endInput.value;
                                 }
-                                daysInput.value = days;
                             }
                         });
                     }
                 }
+                serializeSegments();
+                // Now re-render, which will recalculate days and show the latest values
+                renderSegments();
                 return;
             }
 
@@ -1473,11 +1951,76 @@
             // Material add/remove handling removed as per request
         }
 
+
         if(btnGenerate){
             btnGenerate.addEventListener('click', function(){
                 syncTotalLength();
                 generateSegments();
                 renderSegments();
+                // Switch button colors
+                btnGenerate.classList.remove('btn-primary');
+                btnGenerate.classList.add('btn-secondary');
+                btnAlign.classList.remove('btn-secondary');
+                btnAlign.classList.add('btn-primary');
+            });
+        }
+
+        if(btnAlign){
+            btnAlign.addEventListener('click', function(){
+                if(!segments.length) return;
+                // Only align if there are at least 2 stretches
+                for(let i=1;i<segments.length;i++){
+                    const prev = segments[i-1];
+                    const seg = segments[i];
+                    // If user has set dates, skip
+                    if(seg._manual_start && seg._manual_end) continue;
+                    // Estimate duration based on length, width, depth (simple heuristic: 1 day per 100m*width*depth)
+                    let len = parseFloat(seg.length_m || 0);
+                    let width = parseFloat(seg.width_m || 1);
+                    let depth = parseFloat(seg.depth_m || 1);
+                    if(isNaN(len) || len<=0) len = 100;
+                    if(isNaN(width) || width<=0) width = 1;
+                    if(isNaN(depth) || depth<=0) depth = 1;
+                    // Heuristic: 1 day per 100m*width*depth (minimum 1 day)
+                    let days = Math.max(1, Math.round((len * width * depth) / 100));
+                    // Start date = previous stretch's end date + 1 day
+                    let prevEnd = prev.planned_end_date;
+                    let startDate = prevEnd;
+                    if(prevEnd && /^\d{2}\/\d{2}\/\d{4}$/.test(prevEnd)){
+                        let [d,m,y] = prevEnd.split('/').map(Number);
+                        let dt = new Date(y, m-1, d);
+                        dt.setDate(dt.getDate() + 1);
+                        startDate = dt.toLocaleDateString('en-GB').replace(/\//g,'/');
+                    }
+                    // End date = start date + days - 1
+                    let endDate = startDate;
+                    if(startDate && /^\d{2}\/\d{2}\/\d{4}$/.test(startDate)){
+                        let [d,m,y] = startDate.split('/').map(Number);
+                        let dt = new Date(y, m-1, d);
+                        dt.setDate(dt.getDate() + days - 1);
+                        endDate = dt.toLocaleDateString('en-GB').replace(/\//g,'/');
+                    }
+                    seg.planned_start_date = startDate;
+                    seg.planned_end_date = endDate;
+                    seg._manual_start = false;
+                    seg._manual_end = false;
+                    // Copy activities structure from previous stretch (names only, but update dates)
+                    seg.activities = (prev.activities || []).map(a => ({
+                        name: a.name,
+                        include: true,
+                        planned_start_date: startDate,
+                        planned_end_date: endDate,
+                        start_time: a.start_time || '',
+                        end_time: a.end_time || '',
+                        planned_duration_hours: a.planned_duration_hours || null,
+                    }));
+                }
+                renderSegments();
+                // Switch button colors
+                btnAlign.classList.remove('btn-primary');
+                btnAlign.classList.add('btn-secondary');
+                btnGenerate.classList.remove('btn-secondary');
+                btnGenerate.classList.add('btn-primary');
             });
         }
 
