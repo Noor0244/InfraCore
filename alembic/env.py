@@ -4,8 +4,11 @@ from alembic import context
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from app.db.base import Base
+from app.db.base import Base, import_models
 from app.models import material, material_vendor, activity, road_stretch, material_activity, material_stretch
+
+# Import all models for metadata registration
+import_models()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -8,6 +8,7 @@ class StretchActivity(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     stretch_id = Column(Integer, ForeignKey("stretches.id"), nullable=False, index=True)
+    project_activity_id = Column(Integer, ForeignKey("project_activities.id"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     planned_start_date = Column(Date, nullable=True)
     planned_end_date = Column(Date, nullable=True)

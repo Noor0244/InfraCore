@@ -1,7 +1,69 @@
+/* ...existing code... */
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background: linear-gradient(120deg, #181c20 0%, #23272e 100%);
+        color: #e3e8f0;
+    }
+    .login-card {
+        background: #23272e;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.45);
+    }
+    .login-title {
+        color: #90caf9;
+    }
+    .login-subtitle {
+        color: #b0b8c1;
+    }
+    .form-group label {
+        color: #90caf9;
+    }
+    .input-icon-group {
+        background: #23272e;
+        border: 1.5px solid #333a45;
+    }
+    .input-icon-group:focus-within {
+        border: 1.5px solid #90caf9;
+        background: #23272e;
+    }
+    input[type="text"],
+    input[type="password"] {
+        color: #e3e8f0;
+        background: transparent;
+    }
+    .toggle-password {
+        color: #b0b8c1;
+    }
+    .toggle-password:focus,
+    .toggle-password:hover {
+        color: #90caf9;
+    }
+    .login-btn {
+        background: linear-gradient(90deg, #1565c0 60%, #1976d2 100%);
+        color: #fff;
+    }
+    .login-btn:focus,
+    .login-btn:hover {
+        background: linear-gradient(90deg, #1976d2 60%, #2196f3 100%);
+    }
+    .flash {
+        background: #3a2323;
+        color: #ffbdbd;
+    }
+    .footer-text {
+        color: #b0b8c1;
+    }
+    .forgot-link {
+        color: #90caf9;
+    }
+    .forgot-link:hover {
+        color: #42a5f5;
+    }
+}
 /* Improved Modern Login Page CSS for InfraCore */
 body {
     margin: 0;
-    height: 100vh;
+    min-height: 100vh;
     background: linear-gradient(120deg, #f7f9fb 0%, #e3e8f0 100%);
     font-family: 'Inter', 'Roboto', 'Segoe UI', system-ui, sans-serif;
     display: flex;
@@ -13,10 +75,11 @@ body {
 .login-card {
     background: #fff;
     border: none;
-    width: 380px;
-    padding: 40px 32px 32px 32px;
+    width: 370px;
+    max-width: 95vw;
+    padding: 36px 28px 28px 28px;
     border-radius: 18px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.09);
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -30,7 +93,7 @@ body {
 
 .login-title {
     text-align: center;
-    font-size: 2rem;
+    font-size: 2.1rem;
     font-weight: 700;
     margin-bottom: 4px;
     color: #1976d2;
@@ -41,11 +104,11 @@ body {
     text-align: center;
     font-size: 1.08rem;
     color: #64748b;
-    margin-bottom: 28px;
+    margin-bottom: 24px;
 }
 
 .form-group {
-    margin-bottom: 22px;
+    margin-bottom: 20px;
 }
 
 label {
@@ -56,8 +119,143 @@ label {
     font-weight: 500;
 }
 
-input {
+.input-icon-group {
+    display: flex;
+    align-items: center;
+    background: #f3f6fa;
+    border-radius: 8px;
+    border: 1px solid #e3e8f0;
+    padding: 0 10px;
+    transition: border 0.2s;
+}
+.input-icon {
+    display: flex;
+    align-items: center;
+    margin-right: 6px;
+}
+.input-icon svg {
+    display: block;
+}
+.input-icon-group:focus-within {
+    border: 1.5px solid #1976d2;
+    background: #eaf2fb;
+}
+
+input[type="text"],
+input[type="password"] {
     width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 1.08em;
+    padding: 12px 0 12px 0;
+    outline: none;
+    color: #222;
+    font-family: inherit;
+}
+input[type="text"]:focus,
+input[type="password"]:focus {
+    background: transparent;
+}
+
+.toggle-password {
+    background: none;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    margin-left: 6px;
+    color: #b0b8c1;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+.toggle-password:focus,
+.toggle-password:hover {
+    color: #1976d2;
+}
+
+.login-btn {
+    width: 100%;
+    background: linear-gradient(90deg, #1976d2 60%, #2196f3 100%);
+    color: #fff;
+    font-size: 1.1em;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 13px 0;
+    margin-top: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(25,118,210,0.07);
+    transition: background 0.2s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.login-btn:focus,
+.login-btn:hover {
+    background: linear-gradient(90deg, #1565c0 60%, #1976d2 100%);
+    box-shadow: 0 4px 16px rgba(25,118,210,0.13);
+}
+.login-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.spinner {
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid #fff;
+    border-top: 2.5px solid #1976d2;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.flash {
+    background: #ffe0e0;
+    color: #b71c1c;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-size: 1em;
+    text-align: center;
+}
+
+.footer-text {
+    text-align: center;
+    font-size: 0.98em;
+    color: #7b8a9a;
+    margin-top: 6px;
+}
+.forgot-link {
+    color: #1976d2;
+    text-decoration: underline;
+    font-weight: 500;
+    font-size: 1em;
+    transition: color 0.2s;
+}
+.forgot-link:hover {
+    color: #0d47a1;
+}
+
+@media (max-width: 500px) {
+    .login-card {
+        width: 98vw;
+        padding: 18px 4vw 18px 4vw;
+    }
+    .login-title {
+        font-size: 1.4rem;
+    }
+    .login-subtitle {
+        font-size: 0.98rem;
+    }
+}
     padding: 12px 14px;
     border-radius: 10px;
     border: 1px solid #e0e6f0;

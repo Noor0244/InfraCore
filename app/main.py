@@ -131,6 +131,9 @@ app = FastAPI(
 )
 
 # ---------------- TEMPLATES & STATIC ----------------
+
+import os
+STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
 templates = Jinja2Templates(directory="app/templates")
 register_template_filters(templates)
 try:
@@ -138,7 +141,7 @@ try:
     templates.env.cache = {}
 except Exception:
     pass
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 # ---------------- SESSION ----------------

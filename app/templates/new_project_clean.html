@@ -814,6 +814,22 @@
             return `${km}+${mm}`;
         }
 
+        function ddmmyyyyToDate(str) {
+            if (!str) return null;
+            const parts = String(str || '').split('/');
+            if (parts.length !== 3) return null;
+            const [dd, mm, yyyy] = parts;
+            return new Date(parseInt(yyyy, 10), parseInt(mm, 10) - 1, parseInt(dd, 10));
+        }
+
+        function dateToDdmmyyyy(date) {
+            if (!date) return '';
+            const d = date.getDate().toString().padStart(2, '0');
+            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+            const y = date.getFullYear();
+            return `${d}/${m}/${y}`;
+        }
+
         function isRoad(){
             return projectType && projectType.value === 'Road';
         }
@@ -1170,6 +1186,56 @@
             segmentsJson.value = JSON.stringify(payload);
         }
 
+        function syncStretchDatesFromDom(){
+            if(!stretchList || !segments.length) return;
+            const startInputs = stretchList.querySelectorAll('input[data-kind="stretch-start"]');
+            startInputs.forEach(function(input){
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                if(idx < 0 || idx >= segments.length) return;
+                const val = String(input.value || '').trim();
+                if(val){
+                    segments[idx].planned_start_date = val;
+                    segments[idx]._manual_start = true;
+                }
+            });
+            const endInputs = stretchList.querySelectorAll('input[data-kind="stretch-end"]');
+            endInputs.forEach(function(input){
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                if(idx < 0 || idx >= segments.length) return;
+                const val = String(input.value || '').trim();
+                if(val){
+                    segments[idx].planned_end_date = val;
+                    segments[idx]._manual_end = true;
+                }
+            });
+            const startPickers = stretchList.querySelectorAll('input[data-kind="stretch-start-picker"]');
+            startPickers.forEach(function(input){
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                if(idx < 0 || idx >= segments.length) return;
+                const iso = String(input.value || '').trim();
+                if(iso){
+                    const dd = isoToDdmmyyyy(iso);
+                    if(dd){
+                        segments[idx].planned_start_date = dd;
+                        segments[idx]._manual_start = true;
+                    }
+                }
+            });
+            const endPickers = stretchList.querySelectorAll('input[data-kind="stretch-end-picker"]');
+            endPickers.forEach(function(input){
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                if(idx < 0 || idx >= segments.length) return;
+                const iso = String(input.value || '').trim();
+                if(iso){
+                    const dd = isoToDdmmyyyy(iso);
+                    if(dd){
+                        segments[idx].planned_end_date = dd;
+                        segments[idx]._manual_end = true;
+                    }
+                }
+            });
+        }
+
         function renderSegments(){
             if(!stretchEditor || !stretchList || !stretchDetails) return;
             stretchList.innerHTML = '';
@@ -1357,8 +1423,9 @@
                         // Robustly sanitize all system-generated activities
                         let s = ddmmyyyyToDate(a.planned_start_date);
                         let e = ddmmyyyyToDate(a.planned_end_date);
-                        // If not manually edited, or if value is invalid, always auto-correct
-                        if (!a._manual_dates || !s || !e) {
+                        const hasStretchWindow = !!startDate && !!endDate;
+                        // Only auto-correct when NOT manual and dates are missing/invalid
+                        if (!a._manual_dates && hasStretchWindow && (!s || !e)) {
                             let actDays = daysPerAct + (aidx < remainder ? 1 : 0);
                             let actStart = new Date(current);
                             let actEnd = new Date(current);
@@ -1370,10 +1437,10 @@
                             a.planned_end_date = dateToDdmmyyyy(actEnd);
                             current.setDate(current.getDate() + actDays);
                             a._manual_dates = false;
-                        } else {
-                            // For user-edited, still clamp to stretch range if out of bounds or invalid
-                            if (!s || s < startDate) a.planned_start_date = dateToDdmmyyyy(startDate);
-                            if (!e || e > endDate) a.planned_end_date = dateToDdmmyyyy(endDate);
+                        } else if (a._manual_dates && hasStretchWindow) {
+                            // For user-edited, clamp only if out of bounds
+                            if (s && s < startDate) a.planned_start_date = dateToDdmmyyyy(startDate);
+                            if (e && e > endDate) a.planned_end_date = dateToDdmmyyyy(endDate);
                         }
                     });
                 }
@@ -1382,15 +1449,12 @@
                     function isValidDdmmyyyy(str) {
                         return /^\d{2}\/\d{2}\/\d{4}$/.test(str) && ddmmyyyyToDate(str) instanceof Date && !isNaN(ddmmyyyyToDate(str));
                     }
-                    // If start date is invalid, set to stretch start
-                    if (!isValidDdmmyyyy(a.planned_start_date)) {
+                    // If start/end date is invalid, only auto-fix for non-manual activities
+                    if (!isValidDdmmyyyy(a.planned_start_date) && !a._manual_dates) {
                         a.planned_start_date = dateToDdmmyyyy(startDate);
-                        a._manual_dates = false;
                     }
-                    // If end date is invalid, set to stretch end
-                    if (!isValidDdmmyyyy(a.planned_end_date)) {
+                    if (!isValidDdmmyyyy(a.planned_end_date) && !a._manual_dates) {
                         a.planned_end_date = dateToDdmmyyyy(endDate);
-                        a._manual_dates = false;
                     }
                     const row = document.createElement('div');
                     row.style.display = 'grid';
@@ -1420,21 +1484,6 @@
                         attachDateFormatter(actEndInput);
                     }
                 });
-
-                // Utility functions for date conversion
-                function ddmmyyyyToDate(str) {
-                    if (!str) return null;
-                    const parts = str.split('/');
-                    if (parts.length !== 3) return null;
-                    return new Date(parts[2], parts[1] - 1, parts[0]);
-                }
-                function dateToDdmmyyyy(date) {
-                    if (!date) return '';
-                    const d = date.getDate().toString().padStart(2, '0');
-                    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-                    const y = date.getFullYear();
-                    return `${d}/${m}/${y}`;
-                }
 
                 // Material list rendering removed as per request
             });
@@ -1510,6 +1559,23 @@
         dateInputs.forEach(attachDateFormatter);
         var actDateInputs = stretchDetails.querySelectorAll('input[data-kind="act-start-date"], input[data-kind="act-end-date"]');
         // Update days fields when dates change (inclusive, always at least 1 if valid)
+        function syncStretchDatesFromTableToSegments(){
+            if(!stretchList || !segments.length) return;
+            const startInputs = stretchList.querySelectorAll('input[data-kind="stretch-start"]');
+            const endInputs = stretchList.querySelectorAll('input[data-kind="stretch-end"]');
+            startInputs.forEach(function(input){
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                if(idx >= 0 && idx < segments.length){
+                    segments[idx].planned_start_date = String(input.value || '').trim();
+                }
+            });
+            endInputs.forEach(function(input){
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                if(idx >= 0 && idx < segments.length){
+                    segments[idx].planned_end_date = String(input.value || '').trim();
+                }
+            });
+        }
         function updateActivityDays() {
             var rows = stretchDetails.querySelectorAll('div[data-kind="act-list"] > div');
             rows.forEach(function(row) {
@@ -1532,8 +1598,8 @@
         function checkAndWarnAllActivityDates() {
             var allActDateInputs = stretchDetails.querySelectorAll('input[data-kind="act-start-date"], input[data-kind="act-end-date"]');
             allActDateInputs.forEach(function(input) {
-                const idx = input.getAttribute('data-idx');
-                const aidx = input.getAttribute('data-aidx');
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                const aidx = parseInt(input.getAttribute('data-aidx') || '-1', 10);
                 let warn = false;
                 let warnMsg = '';
                 let val = (input.value || '').trim();
@@ -1543,15 +1609,15 @@
                 if (!validDate || !d) {
                     warn = true;
                     warnMsg = 'Invalid date format (DD/MM/YYYY required)';
-                } else if (idx !== null && aidx !== null && segments[idx]) {
+                } else if (idx >= 0 && aidx >= 0 && segments[idx]) {
                     const seg = segments[idx];
                     const stretchStart = ddmmyyyyToDate(seg.planned_start_date);
                     const stretchEnd = ddmmyyyyToDate(seg.planned_end_date);
-                    if (stretchStart && d < stretchStart) {
+                    if (stretchStart && d.getTime() < stretchStart.getTime()) {
                         warn = true;
                         warnMsg = 'Date is before stretch start date (' + dateToDdmmyyyy(stretchStart) + ')';
                     }
-                    if (stretchEnd && d > stretchEnd) {
+                    if (stretchEnd && d.getTime() > stretchEnd.getTime()) {
                         warn = true;
                         warnMsg = 'Date is after stretch end date (' + dateToDdmmyyyy(stretchEnd) + ')';
                     }
@@ -1569,39 +1635,43 @@
         }
         actDateInputs.forEach(function(input) {
             input.addEventListener('input', function(e) {
+                syncStretchDatesFromTableToSegments();
                 checkAndWarnAllActivityDates();
                 updateActivityDays();
                 // Lock activity date within stretch range
-                const idx = input.getAttribute('data-idx');
-                const aidx = input.getAttribute('data-aidx');
-                if (idx !== null && aidx !== null && segments[idx]) {
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                const aidx = parseInt(input.getAttribute('data-aidx') || '-1', 10);
+                if (idx >= 0 && aidx >= 0 && segments[idx]) {
                     const seg = segments[idx];
                     const stretchStart = ddmmyyyyToDate(seg.planned_start_date);
                     const stretchEnd = ddmmyyyyToDate(seg.planned_end_date);
-                    let val = input.value;
+                    let val = String(input.value || '').trim();
                     let d = ddmmyyyyToDate(val);
-                    if (d && stretchStart && d < stretchStart) {
+                    if (d && stretchStart && d.getTime() < stretchStart.getTime()) {
                         input.value = dateToDdmmyyyy(stretchStart);
+                        d = stretchStart;
                     }
-                    if (d && stretchEnd && d > stretchEnd) {
+                    if (d && stretchEnd && d.getTime() > stretchEnd.getTime()) {
                         input.value = dateToDdmmyyyy(stretchEnd);
                     }
                 }
             });
             input.addEventListener('blur', function(e) {
                 // Lock activity date within stretch range
-                const idx = input.getAttribute('data-idx');
-                const aidx = input.getAttribute('data-aidx');
-                if (idx !== null && aidx !== null && segments[idx]) {
+                syncStretchDatesFromTableToSegments();
+                const idx = parseInt(input.getAttribute('data-idx') || '-1', 10);
+                const aidx = parseInt(input.getAttribute('data-aidx') || '-1', 10);
+                if (idx >= 0 && aidx >= 0 && segments[idx]) {
                     const seg = segments[idx];
                     const stretchStart = ddmmyyyyToDate(seg.planned_start_date);
                     const stretchEnd = ddmmyyyyToDate(seg.planned_end_date);
-                    let val = input.value;
+                    let val = String(input.value || '').trim();
                     let d = ddmmyyyyToDate(val);
-                    if (d && stretchStart && d < stretchStart) {
+                    if (d && stretchStart && d.getTime() < stretchStart.getTime()) {
                         input.value = dateToDdmmyyyy(stretchStart);
+                        d = stretchStart;
                     }
-                    if (d && stretchEnd && d > stretchEnd) {
+                    if (d && stretchEnd && d.getTime() > stretchEnd.getTime()) {
                         input.value = dateToDdmmyyyy(stretchEnd);
                     }
                 }
@@ -1919,19 +1989,30 @@
                     if (actList) {
                         var rows = actList.querySelectorAll('div');
                         rows.forEach(function(row) {
+                            var nameInput = row.querySelector('input[data-kind="act-name"]');
                             var startInput = row.querySelector('input[data-kind="act-start-date"]');
                             var endInput = row.querySelector('input[data-kind="act-end-date"]');
                             var daysInput = row.querySelector('input[data-kind="act-days"]');
-                            var aidx = startInput ? startInput.getAttribute('data-aidx') : null;
-                            if (startInput && endInput && daysInput && aidx !== null) {
+                            var aidx = startInput ? parseInt(startInput.getAttribute('data-aidx') || '-1', 10) : -1;
+                            if (startInput && endInput && daysInput && aidx >= 0) {
                                 // Always update the data model from the DOM before recalculating
                                 if (segments[idx] && segments[idx].activities && segments[idx].activities[aidx]) {
-                                    segments[idx].activities[aidx].planned_start_date = startInput.value;
-                                    segments[idx].activities[aidx].planned_end_date = endInput.value;
+                                    if (nameInput) segments[idx].activities[aidx].name = String(nameInput.value || '').trim();
+                                    segments[idx].activities[aidx].planned_start_date = String(startInput.value || '').trim();
+                                    segments[idx].activities[aidx].planned_end_date = String(endInput.value || '').trim();
                                 }
                             }
                         });
                     }
+                }
+                // Sort activities by start date
+                if (segments[idx] && segments[idx].activities) {
+                    segments[idx].activities.sort(function(a, b) {
+                        var dateA = ddmmyyyyToDate(a.planned_start_date);
+                        var dateB = ddmmyyyyToDate(b.planned_start_date);
+                        if (!dateA || !dateB) return 0;
+                        return dateA.getTime() - dateB.getTime();
+                    });
                 }
                 serializeSegments();
                 // Now re-render, which will recalculate days and show the latest values
@@ -1968,6 +2049,7 @@
         if(btnAlign){
             btnAlign.addEventListener('click', function(){
                 if(!segments.length) return;
+                syncStretchDatesFromDom();
                 // Only align if there are at least 2 stretches
                 for(let i=1;i<segments.length;i++){
                     const prev = segments[i-1];
@@ -2000,10 +2082,9 @@
                         dt.setDate(dt.getDate() + days - 1);
                         endDate = dt.toLocaleDateString('en-GB').replace(/\//g,'/');
                     }
-                    seg.planned_start_date = startDate;
-                    seg.planned_end_date = endDate;
-                    seg._manual_start = false;
-                    seg._manual_end = false;
+                    if (!seg._manual_start && !seg.planned_start_date) seg.planned_start_date = startDate;
+                    if (!seg._manual_end && !seg.planned_end_date) seg.planned_end_date = endDate;
+                    // Do NOT reset _manual_start/_manual_end here
                     // Copy activities structure from previous stretch (names only, but update dates)
                     seg.activities = (prev.activities || []).map(a => ({
                         name: a.name,
@@ -2026,6 +2107,7 @@
 
         if(stretchBlock){
             stretchBlock.addEventListener('input', handleInput);
+            stretchBlock.addEventListener('change', handleInput);
             // Use event delegation for click events so dynamically added buttons work
             stretchBlock.addEventListener('click', function(e) {
                 handleClick(e);
