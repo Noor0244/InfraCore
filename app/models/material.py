@@ -69,6 +69,17 @@ class Material(Base):
         cascade="all, delete-orphan",
     )
 
+    # Helper properties to access actual activities and stretches
+    @property
+    def activities(self):
+        """Get list of Activity objects linked to this material"""
+        return [link.activity for link in self.activities_link if link.activity]
+    
+    @property
+    def stretches(self):
+        """Get list of RoadStretch objects linked to this material"""
+        return [link.stretch for link in self.stretches_link if link.stretch]
+
     # ---------------- Helpers ----------------
     def parsed_allowed_units(self) -> list[str]:
         raw = (self.allowed_units or "").strip()

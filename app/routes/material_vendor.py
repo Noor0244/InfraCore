@@ -319,11 +319,15 @@ def material_vendor_page(request: Request, project_id: int, db: Session = Depend
             "status": project.status,
         }
 
-    # Eagerly load vendors for each material
+    # Eagerly load vendors, stretches, and activities for each material
     materials = (
         db.query(Material)
         .filter(Material.is_active == True)
-        .options(selectinload(Material.vendors))
+        .options(
+            selectinload(Material.vendors),
+            selectinload(Material.stretches_link).selectinload(MaterialStretch.stretch),
+            selectinload(Material.activities_link).selectinload(MaterialActivity.activity)
+        )
         .all()
     )
 

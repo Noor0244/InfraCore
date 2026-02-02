@@ -1,0 +1,900 @@
+{% set fallback_project_types = ["Road", "Bridge", "Flyover", "Building", "Utility / Pipeline"] %}
+{% set fallback_legacy_project_types = ["Residential", "Commercial", "Industrial", "Utility", "Other"] %}
+{% set fallback_road_categories = ["Expressway", "National Highway (NH)", "State Highway (SH)", "Major District Road (MDR)", "Other District Road (ODR)", "Village / Rural Road (VR)", "Urban Road", "Service Road"] %}
+{% set project_types = classification_metadata.get('project_types', []) %}
+{% set legacy_project_types = classification_metadata.get('legacy_project_types', []) %}
+{% set road_categories = classification_metadata.get('road_categories', []) %}
+{% if not project_types %}{% set project_types = fallback_project_types %}{% endif %}
+{% if not legacy_project_types %}{% set legacy_project_types = fallback_legacy_project_types %}{% endif %}
+{% if not road_categories %}{% set road_categories = fallback_road_categories %}{% endif %}
+
+<h1 class="page-title">Edit Project</h1>
+
+<div class="help-text" style="margin:-6px 0 14px;opacity:0.9">
+    Make changes to your project. Stretches remain editable after creation.
+</div>
+
+<div class="card card--page">
+
+<style>
+    /* Card and Section Styling */
+    .card--page {
+        background: #181c24;
+        border-radius: 18px;
+        box-shadow: 0 4px 32px 0 rgba(0,0,0,0.18), 0 1.5px 6px 0 rgba(0,0,0,0.10);
+        padding: 32px 32px 24px 32px;
+        margin: 0 auto 32px auto;
+        max-width: 1100px;
+    }
+    .form-section {
+        margin-bottom: 32px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 12px;
+        letter-spacing: 0.01em;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 18px 24px;
+        margin-bottom: 8px;
+    }
+    /* Inputs */
+    input[type="text"], input[type="number"], input[type="email"], input[type="password"], select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1.5px solid #2a2e38;
+        background: #232733;
+        color: #fff;
+        font-size: 1rem;
+        margin-top: 4px;
+        transition: border-color 0.18s, box-shadow 0.18s;
+        box-shadow: 0 1.5px 4px 0 rgba(0,0,0,0.07);
+    }
+    input[type="text"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="password"]:focus, select:focus {
+        border-color: #3498db;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(52,152,219,0.18);
+    }
+    label {
+        font-weight: 600;
+        color: #e0e6f0;
+        margin-bottom: 2px;
+        display: block;
+    }
+    .help-text {
+        color: #b0b8c9;
+        font-size: 0.97em;
+        margin-top: 2px;
+    }
+    /* Buttons */
+    button, .btn-primary, .btn-secondary, .btn-danger, .btn-small {
+        position: relative;
+        overflow: hidden;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 22px;
+        font-size: 1rem;
+        font-weight: 600;
+        background: linear-gradient(90deg, #3498db 60%, #217dbb 100%);
+        color: #fff;
+        cursor: pointer;
+        box-shadow: 0 2px 8px 0 rgba(52,152,219,0.10);
+        transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
+        margin-right: 8px;
+    }
+    button:hover, .btn-primary:hover, .btn-secondary:hover, .btn-danger:hover, .btn-small:hover {
+        background: linear-gradient(90deg, #217dbb 60%, #3498db 100%);
+        box-shadow: 0 4px 16px 0 rgba(52,152,219,0.18);
+        transform: translateY(-2px) scale(1.03);
+    }
+    .btn-secondary {
+        background: linear-gradient(90deg, #444950 60%, #232733 100%);
+        color: #fff;
+    }
+    .btn-secondary:hover {
+        background: linear-gradient(90deg, #232733 60%, #444950 100%);
+    }
+    .btn-danger {
+        background: linear-gradient(90deg, #d44545 60%, #a12a2a 100%);
+        color: #fff;
+    }
+    .btn-danger:hover {
+        background: linear-gradient(90deg, #a12a2a 60%, #d44545 100%);
+    }
+    .btn-small {
+        font-size: 0.95em;
+        padding: 7px 14px;
+    }
+    .required {
+        color: #ffb347;
+        font-size: 1.1em;
+        margin-left: 2px;
+    }
+    .form-errors{
+        display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(214,69,69,0.45);background:rgba(214,69,69,0.12);border-radius:8px;color:var(--text-primary)
+    }
+    .is-invalid{border-color: rgba(214,69,69,0.9) !important; box-shadow: 0 0 0 3px rgba(214,69,69,0.15)}
+    .date-dual{display:flex;gap:8px;align-items:center}
+    .date-dual input[type="date"]{max-width:170px}
+    /* Ripple effect for all buttons */
+    button, .btn-primary, .btn-secondary, .btn-danger, .btn-small {
+        position: relative;
+        overflow: hidden;
+    }
+    .ripple {
+        position: absolute;
+        border-radius: 50%;
+        transform: scale(0);
+        animation: ripple-animate 0.5s linear;
+        background-color: rgba(255,255,255,0.4);
+        pointer-events: none;
+        z-index: 2;
+    }
+    @keyframes ripple-animate {
+        to {
+            transform: scale(2.5);
+            opacity: 0;
+        }
+    }
+    /* Table improvements */
+    table.table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #20232b;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+    table.table th, table.table td {
+        padding: 10px 8px;
+        text-align: left;
+        color: #e0e6f0;
+        border-bottom: 1px solid #232733;
+    }
+    table.table th {
+        background: #232733;
+        font-weight: 700;
+        font-size: 1.05em;
+        letter-spacing: 0.01em;
+    }
+    table.table tr:last-child td {
+        border-bottom: none;
+    }
+    /* Responsive tweaks */
+    @media (max-width: 900px) {
+        .card--page { padding: 18px 4vw 12px 4vw; }
+        .form-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<form id="editProjectForm" method="post" action="/projects/{{ project.id }}/update">
+
+    <div id="formErrors" class="form-errors"></div>
+
+    <!-- ================= BASIC INFO ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Basic Information</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Project Name <span class="required">*</span></label>
+                <input type="text" name="name" required value="{{ project.name or '' }}">
+                <div class="help-text">Use a concise, descriptive name (e.g. NH-66 Upgrade)</div>
+            </div>
+
+            <div>
+                <label>Project Code / Package No</label>
+                <input type="text" name="project_code" value="{{ project.project_code or '' }}">
+            </div>
+
+            <div>
+                <label>Client / Authority</label>
+                <input type="text" name="client_authority" value="{{ project.client_authority or '' }}">
+            </div>
+
+            <div>
+                <label>Contractor</label>
+                <input type="text" name="contractor" value="{{ project.contractor or '' }}">
+            </div>
+
+            <div>
+                <label>Consultant / PMC</label>
+                <input type="text" name="consultant_pmc" value="{{ project.consultant_pmc or '' }}">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= ROLE BASED USER ================= -->
+    {% if user and user["role"] in ["admin", "superadmin"] %}
+
+    <section class="form-section" id="project_team_section">
+        <h3 class="section-title">Role Based User</h3>
+        <div class="help-text">Assign users to this project and set their role.</div>
+
+        <div class="card" style="margin-bottom:14px;padding:12px">
+            <h4 class="section-title" style="font-size:14px;margin:0 0 8px 0">Create User</h4>
+            <div class="help-text" style="margin-bottom:10px">Create a system user (Admin/Manager/User/Viewer).</div>
+            <div class="form-grid">
+                <div>
+                    <label>Username</label>
+                    <input type="text" name="username" form="createUserForm" required autocomplete="off" spellcheck="false">
+                </div>
+                <div>
+                    <label>Email</label>
+                    <input type="email" name="email" form="createUserForm" autocomplete="off">
+                </div>
+                <div>
+                    <label>Password</label>
+                    <input type="password" name="password" form="createUserForm" required autocomplete="new-password">
+                </div>
+                <div>
+                    <label>System Role</label>
+                    <select name="role" form="createUserForm" required autocomplete="off">
+                        <option value="admin">Admin</option>
+                        <option value="manager">Manager</option>
+                        <option value="user" selected>User</option>
+                        <option value="viewer">Viewer</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top:10px">
+                <button type="submit" class="btn-primary" form="createUserForm">Create User</button>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div>
+                <label>User</label>
+                <select id="project_team_user">
+                    <option value="">Select User</option>
+                    {% for u in (all_users or []) %}
+                        {% if u.role != "superadmin" %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>Role in Project</label>
+                <select id="project_team_role">
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="viewer" selected>Viewer</option>
+                    <option value="member">Member</option>
+                </select>
+            </div>
+
+            <div style="display:flex;align-items:flex-end">
+                <button type="button" class="btn-primary" id="add_project_team">Add User</button>
+            </div>
+        </div>
+
+        <div id="project_team_list" style="margin-top:12px"></div>
+    </section>
+
+    <hr>
+    {% endif %}
+
+    <!-- ================= PROJECT TIMELINE ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Project Timeline</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Project Start Date <span class="required">*</span></label>
+                <input type="text" name="planned_start_date" id="planned_start_date" required placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{4}" value="{{ project.planned_start_date.strftime('%d/%m/%Y') if project.planned_start_date else '' }}">
+                <div class="help-text">Format: <b>DD/MM/YYYY</b></div>
+            </div>
+
+            <div>
+                <label>Project End Date <span class="required">*</span></label>
+                <input type="text" name="planned_end_date" id="planned_end_date" required placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" pattern="\d{1,2}/\d{1,2}/\d{4}" value="{{ project.planned_end_date.strftime('%d/%m/%Y') if project.planned_end_date else '' }}">
+                <script>
+                function attachDateFormatter(input, getMin, getMax) {
+                    if (!input || input._dateFormatHandler) return;
+                    function formatDate(val) {
+                        let value = String(val || '').replace(/\D/g, '').slice(0, 8);
+                        let formatted = '';
+                        if (value.length > 0) formatted += value.substring(0, 2);
+                        if (value.length > 2) formatted += '/' + value.substring(2, 4);
+                        if (value.length > 4) formatted += '/' + value.substring(4, 8);
+                        return formatted;
+                    }
+                    function isValidDdmmyyyy(str) {
+                        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return false;
+                        const [d, m, y] = str.split('/').map(Number);
+                        if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+                        const dt = new Date(y, m - 1, d);
+                        return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+                    }
+                    function enforceFormat(e) {
+                        let formatted = formatDate(input.value);
+                        input.value = formatted;
+                        let warn = false, msg = '';
+                        if (formatted.length === 10) {
+                            if (!isValidDdmmyyyy(formatted)) {
+                                warn = true;
+                                msg = 'Invalid date format (DD/MM/YYYY required)';
+                            } else {
+                                let min = getMin && getMin();
+                                let max = getMax && getMax();
+                                let d = formatted.split('/');
+                                let dt = new Date(+d[2], +d[1] - 1, +d[0]);
+                                if (min && dt < min) {
+                                    warn = true;
+                                    msg = 'Date is before allowed minimum (' + min.toLocaleDateString('en-GB') + ')';
+                                }
+                                if (max && dt > max) {
+                                    warn = true;
+                                    msg = 'Date is after allowed maximum (' + max.toLocaleDateString('en-GB') + ')';
+                                }
+                            }
+                        }
+                        if (warn) {
+                            input.style.borderColor = '#d44545';
+                            input.style.background = 'rgba(214,69,69,0.18)';
+                            input.title = msg;
+                        } else {
+                            input.style.borderColor = '';
+                            input.style.background = '';
+                            input.title = '';
+                        }
+                    }
+                    input.addEventListener('input', enforceFormat);
+                    input.addEventListener('blur', enforceFormat);
+                    input.addEventListener('paste', function(e) {
+                        e.preventDefault();
+                        let paste = (e.clipboardData || window.clipboardData).getData('text');
+                        input.value = formatDate(paste);
+                        enforceFormat();
+                    });
+                    input._dateFormatHandler = true;
+                }
+                attachDateFormatter(document.getElementById('planned_start_date'));
+                attachDateFormatter(document.getElementById('planned_end_date'), function() {
+                    let v = document.getElementById('planned_start_date').value;
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
+                        let d = v.split('/');
+                        return new Date(+d[2], +d[1] - 1, +d[0]);
+                    }
+                    return null;
+                });
+                </script>
+                <div class="help-text">Format: <b>DD/MM/YYYY</b></div>
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= ROAD SETUP ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Project Classification</h3>
+
+        <div class="form-grid">
+            <div style="min-width:260px">
+                <label>Project Type <span class="required">*</span></label>
+                <select name="project_type" id="project_type" required>
+                    <option value="">-- Select project type --</option>
+                    {% for pt in (project_types + legacy_project_types) %}
+                        <option value="{{ pt }}" {% if project.project_type == pt %}selected{% endif %}>{{ pt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-grid" id="road_fields_block" style="margin-top:10px;display:none">
+            <div style="min-width:260px">
+                <label>Road Category (required only for Road)</label>
+                <select name="road_category" id="road_category">
+                    <option value="">-- Select road category --</option>
+                    {% for rc in road_categories %}
+                        <option value="{{ rc }}" {% if project.road_category == rc %}selected{% endif %}>{{ rc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="min-width:260px">
+                <label>Road Engineering Type (required only for Road)</label>
+                <select name="road_engineering_type" id="road_engineering_type">
+                    <option value="">-- Select engineering type --</option>
+                    <option value="Flexible" {% if project.road_engineering_type == 'Flexible' %}selected{% endif %}>Flexible</option>
+                    <option value="Rigid" {% if project.road_engineering_type == 'Rigid' %}selected{% endif %}>Rigid</option>
+                    <option value="Overlay" {% if project.road_engineering_type == 'Overlay' %}selected{% endif %}>Overlay</option>
+                    <option value="Urban" {% if project.road_engineering_type == 'Urban' %}selected{% endif %}>Urban</option>
+                    <option value="Rural" {% if project.road_engineering_type == 'Rural' %}selected{% endif %}>Rural</option>
+                    <option value="Composite" {% if project.road_engineering_type == 'Composite' %}selected{% endif %}>Composite</option>
+                </select>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= STRETCH SYSTEM (ROAD ONLY) ================= -->
+    <section class="form-section" id="stretch_system_block" style="display:none">
+        <h3 class="section-title">Stretch System (Road Projects)</h3>
+        <div class="help-text">Mandatory for Road projects. Stretches remain editable after creation.</div>
+
+        <div class="form-grid" style="margin-top:10px">
+            <div>
+                <label>Total Road Length (km)</label>
+                <input type="number" id="stretch_total_length_km" step="0.01" min="0" placeholder="e.g. 12.50" value="">
+                <input type="hidden" name="road_length_km" id="road_length_km">
+            </div>
+            <div>
+                <label>Total Number of Stretches</label>
+                <input type="number" id="stretch_number_of_stretches" min="1" step="1" value="">
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:8px">
+                <button type="button" class="btn-primary" id="btnGenerateStretches">Generate stretches</button>
+                <button type="button" class="btn-secondary" id="btnAlignStretches" style="display:none">Align All Remaining Stretches</button>
+            </div>
+        </div>
+
+        <input type="hidden" name="stretch_segments_json" id="stretch_segments_json">
+
+        <div id="stretch_editor" style="margin-top:14px;display:none">
+            <div class="help-text">Edit stretch length to update chainage. Total length must equal the road length.</div>
+
+            <div style="overflow:auto;border:1px solid rgba(255,255,255,0.08);border-radius:12px;margin-top:10px">
+                <table class="table" style="margin:0;min-width:920px">
+                    <thead>
+                        <tr>
+                            <th style="width:80px">No</th>
+                            <th style="width:220px">Stretch Name</th>
+                            <th style="width:140px">Start Chainage</th>
+                            <th style="width:140px">End Chainage</th>
+                            <th style="width:120px">Length (m)</th>
+                            <th style="width:100px">Width (m)</th>
+                            <th style="width:100px">Depth (m)</th>
+                            <th style="width:170px">Start Date</th>
+                            <th style="width:170px">End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stretchSegmentList"></tbody>
+                </table>
+            </div>
+
+            <div id="stretchDetailsList" style="margin-top:12px"></div>
+        </div>
+
+        <div style="margin-top:16px">
+            <h4 class="section-title" style="font-size:14px">Road Details</h4>
+
+            <div class="form-grid">
+                <div>
+                    <label>Lane Configuration</label>
+                    <select name="lane_configuration" id="lane_configuration_select">
+                        <option value="">-- Select --</option>
+                        <option value="2L" {% if project.lane_configuration == '2L' %}selected{% endif %}>2L</option>
+                        <option value="4L" {% if project.lane_configuration == '4L' %}selected{% endif %}>4L (2x2)</option>
+                        <option value="6L" {% if project.lane_configuration == '6L' %}selected{% endif %}>6L (3x3)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Road Width (m)</label>
+                    <input type="number" step="0.01" name="road_width" value="{{ project.road_width or '' }}">
+                </div>
+                <div>
+                    <label>Carriageway Width (m)</label>
+                    <input type="number" step="0.01" name="carriageway_width" value="{{ project.carriageway_width or '' }}">
+                </div>
+                <div>
+                    <label>Shoulder Type</label>
+                    <input type="text" name="shoulder_type" value="{{ project.shoulder_type or '' }}">
+                </div>
+                <div>
+                    <label>Median Type</label>
+                    <input type="text" name="median_type" value="{{ project.median_type or '' }}">
+                </div>
+            </div>
+
+            <div style="margin-top:16px">
+                <h4 class="section-title" style="font-size:14px">Road Metadata (optional)</h4>
+                <div class="form-grid">
+                    <div>
+                        <label>Road Name</label>
+                        <input type="text" name="road_name" value="{{ project.road_name or '' }}">
+                    </div>
+                    <div>
+                        <label>Pavement Type</label>
+                        <select name="road_pavement_type">
+                            <option value="">-- Select --</option>
+                            <option value="Flexible" {% if project.road_pavement_type == 'Flexible' %}selected{% endif %}>Flexible</option>
+                            <option value="Rigid" {% if project.road_pavement_type == 'Rigid' %}selected{% endif %}>Rigid</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Terrain Type</label>
+                        <select name="terrain_type">
+                            <option value="">-- Select --</option>
+                            <option value="Plain" {% if project.terrain_type == 'Plain' %}selected{% endif %}>Plain</option>
+                            <option value="Rolling" {% if project.terrain_type == 'Rolling' %}selected{% endif %}>Rolling</option>
+                            <option value="Hilly" {% if project.terrain_type == 'Hilly' %}selected{% endif %}>Hilly</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= CONCRETE DETAILS ================= -->
+    <section class="form-section" id="concrete_details_block" style="display:none">
+        <h3 class="section-title">Concrete Pavement Details (optional)</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Concrete Pavement Type</label>
+                <select name="pavement_type">
+                    <option value="">-- Select --</option>
+                    <option value="PQC" {% if project.pavement_type == 'PQC' %}selected{% endif %}>PQC</option>
+                    <option value="RCC" {% if project.pavement_type == 'RCC' %}selected{% endif %}>RCC</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Slab Thickness (mm)</label>
+                <input type="number" name="slab_thickness_mm" min="100" step="1" value="{{ project.slab_thickness_mm or '' }}">
+            </div>
+
+            <div>
+                <label>Grade of Concrete</label>
+                <select name="grade_of_concrete">
+                    <option value="">-- Select grade --</option>
+                    <option value="M30" {% if project.grade_of_concrete == 'M30' %}selected{% endif %}>M30</option>
+                    <option value="M35" {% if project.grade_of_concrete == 'M35' %}selected{% endif %}>M35</option>
+                    <option value="M40" {% if project.grade_of_concrete == 'M40' %}selected{% endif %}>M40</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Joint Spacing (m)</label>
+                <input type="number" name="joint_spacing_m" min="3" step="0.1" value="{{ project.joint_spacing_m or '' }}">
+            </div>
+
+            <div>
+                <label>Dowel Diameter (mm)</label>
+                <input type="number" name="dowel_diameter_mm" min="16" step="1" value="{{ project.dowel_diameter_mm or '' }}">
+            </div>
+
+            <div>
+                <label>Tie Bar Diameter (mm)</label>
+                <input type="number" name="tie_bar_diameter_mm" min="12" step="1" value="{{ project.tie_bar_diameter_mm or '' }}">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= LOCATION ================= -->
+    <section class="form-section">
+        <h3 class="section-title">Location</h3>
+
+        <div class="form-grid">
+            <div>
+                <label>Country <span class="required">*</span></label>
+                <input type="text" name="country" value="{{ project.country or 'India' }}" required>
+            </div>
+
+            <div>
+                <label>State / Province</label>
+                <input type="text" name="state" value="{{ project.state or '' }}">
+            </div>
+
+            <div>
+                <label>District</label>
+                <input type="text" name="district" value="{{ project.district or '' }}">
+            </div>
+
+            <div>
+                <label>City <span class="required">*</span></label>
+                <input type="text" name="city" required value="{{ project.city or '' }}">
+            </div>
+        </div>
+
+        <div class="form-grid" style="margin-top:12px">
+            <div>
+                <label>Start Chainage</label>
+                <input type="text" name="chainage_start" value="{{ project.chainage_start or '' }}">
+            </div>
+
+            <div>
+                <label>End Chainage</label>
+                <input type="text" name="chainage_end" value="{{ project.chainage_end or '' }}">
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <!-- ================= HIDDEN PAYLOADS ================= -->
+    <input type="hidden" name="activity_presets_json">
+    <input type="hidden" name="activity_preset_defs_json">
+    <input type="hidden" name="material_presets_json">
+    <input type="hidden" name="material_preset_defs_json">
+    <input type="hidden" name="project_team_json">
+    <input type="hidden" name="road_extras_json">
+
+    <!-- ================= ACTIONS ================= -->
+    <div style="display:flex;gap:12px;margin-top:20px">
+        <button class="btn-primary" type="submit">Save Changes</button>
+        <a href="/dashboard" class="btn-secondary">Cancel</a>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.body.addEventListener('click', function(e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            let oldRipple = btn.querySelector('.ripple');
+            if (oldRipple) oldRipple.remove();
+            const ripple = document.createElement('span');
+            ripple.className = 'ripple';
+            const rect = btn.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size/2) + 'px';
+            ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
+            btn.appendChild(ripple);
+            ripple.addEventListener('animationend', function() {
+                ripple.remove();
+            });
+        }, false);
+    });
+
+    (function(){
+        const projectType = document.querySelector('select[name="project_type"]');
+        const roadCategory = document.querySelector('select[name="road_category"]');
+        const roadEngineering = document.querySelector('select[name="road_engineering_type"]');
+        const stretchBlock = document.getElementById('stretch_system_block');
+        const roadFieldsBlock = document.getElementById('road_fields_block');
+        const concreteBlock = document.getElementById('concrete_details_block');
+        const totalLenKm = document.getElementById('stretch_total_length_km');
+        const stretchCount = document.getElementById('stretch_number_of_stretches');
+        const btnGenerate = document.getElementById('btnGenerateStretches');
+        const btnAlign = document.getElementById('btnAlignStretches');
+        const stretchEditor = document.getElementById('stretch_editor');
+        const stretchList = document.getElementById('stretchSegmentList');
+        const stretchDetails = document.getElementById('stretchDetailsList');
+        const segmentsJson = document.getElementById('stretch_segments_json');
+
+        let segments = [];
+
+        // Load stretches from hidden data element
+        const stretchesDataEl = document.querySelector('script[id="stretches-data"]');
+        if (stretchesDataEl) {
+            try {
+                segments = JSON.parse(stretchesDataEl.textContent) || [];
+            } catch (e) {
+                segments = [];
+            }
+        }
+
+        function isRoad(){
+            return projectType && projectType.value === 'Road';
+        }
+
+        function toggleRoadFields(){
+            if(!roadFieldsBlock) return;
+            if(isRoad()){
+                roadFieldsBlock.style.display = '';
+                if(roadCategory) roadCategory.required = true;
+                if(roadEngineering) roadEngineering.required = true;
+            } else {
+                roadFieldsBlock.style.display = 'none';
+                if(roadCategory){
+                    roadCategory.required = false;
+                    roadCategory.value = '';
+                }
+                if(roadEngineering){
+                    roadEngineering.required = false;
+                    roadEngineering.value = '';
+                }
+                if(concreteBlock){
+                    concreteBlock.style.display = 'none';
+                }
+            }
+        }
+
+        function toggleConcreteBlock(){
+            if(!concreteBlock) return;
+            const et = roadEngineering ? String(roadEngineering.value || '').trim() : '';
+            if(isRoad() && et === 'Rigid'){
+                concreteBlock.style.display = '';
+            } else {
+                concreteBlock.style.display = 'none';
+            }
+        }
+
+        function showStretchBlock(){
+            if(!stretchBlock) return;
+            if(isRoad()){
+                stretchBlock.style.display = '';
+            } else {
+                stretchBlock.style.display = 'none';
+                segments = [];
+            }
+        }
+
+        function ddmmyyyyToDate(str) {
+            if (!str) return null;
+            const parts = String(str || '').split('/');
+            if (parts.length !== 3) return null;
+            const [dd, mm, yyyy] = parts;
+            return new Date(parseInt(yyyy, 10), parseInt(mm, 10) - 1, parseInt(dd, 10));
+        }
+
+        function dateToDdmmyyyy(date) {
+            if (!date) return '';
+            const d = date.getDate().toString().padStart(2, '0');
+            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+            const y = date.getFullYear();
+            return `${d}/${m}/${y}`;
+        }
+
+        function chainageFromMeters(m){
+            const km = Math.floor(m / 1000);
+            const mm = String(m % 1000).padStart(3, '0');
+            return `${km}+${mm}`;
+        }
+
+        function serializeSegments(){
+            if(!segmentsJson) return;
+            const payload = segments.map(seg => ({
+                sequence_no: seg.sequence_no,
+                stretch_code: seg.stretch_code,
+                stretch_name: seg.stretch_name,
+                start_m: seg.start_m,
+                end_m: seg.end_m,
+                length_m: seg.length_m,
+                width_m: seg.width_m || null,
+                depth_m: seg.depth_m || null,
+                planned_start_date: seg.planned_start_date,
+                planned_end_date: seg.planned_end_date,
+                activities: (seg.activities || []).map(a => ({
+                    name: a.name,
+                    include: !!a.include,
+                    planned_start_date: a.planned_start_date,
+                    planned_end_date: a.planned_end_date,
+                    start_time: a.start_time || null,
+                    end_time: a.end_time || null,
+                    planned_duration_hours: a.planned_duration_hours,
+                })),
+            }));
+            segmentsJson.value = JSON.stringify(payload);
+        }
+
+        function renderSegments(){
+            if(!stretchEditor || !stretchList || !stretchDetails) return;
+            stretchList.innerHTML = '';
+            stretchDetails.innerHTML = '';
+            if(!segments.length){
+                stretchEditor.style.display = 'none';
+                serializeSegments();
+                if(btnAlign) btnAlign.style.display = 'none';
+                return;
+            }
+            stretchEditor.style.display = '';
+            if(btnAlign) btnAlign.style.display = segments.length > 1 ? '' : 'none';
+
+            segments.forEach((seg, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${seg.sequence_no}</strong></td>
+                    <td><input type="text" value="${seg.stretch_name}" data-kind="stretch-name" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="text" value="${chainageFromMeters(seg.start_m)}" data-kind="chainage-start" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="text" value="${chainageFromMeters(seg.end_m)}" data-kind="chainage-end" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="number" min="1" step="1" value="${seg.length_m}" data-kind="stretch-length" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="number" min="0" step="0.01" value="${seg.width_m || ''}" data-kind="stretch-width" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="number" min="0" step="0.01" value="${seg.depth_m || ''}" data-kind="stretch-depth" data-idx="${idx}" style="width:100%"></td>
+                    <td><input type="text" value="${seg.planned_start_date || ''}" maxlength="10" inputmode="numeric" data-kind="stretch-start" data-idx="${idx}"></td>
+                    <td><input type="text" value="${seg.planned_end_date || ''}" maxlength="10" inputmode="numeric" data-kind="stretch-end" data-idx="${idx}"></td>
+                `;
+                stretchList.appendChild(tr);
+            });
+
+            serializeSegments();
+        }
+
+        if(projectType){
+            projectType.addEventListener('change', function(){
+                showStretchBlock();
+                toggleRoadFields();
+                toggleConcreteBlock();
+            });
+        }
+        if(roadCategory){
+            roadCategory.addEventListener('change', function(){
+                toggleConcreteBlock();
+            });
+        }
+        if(roadEngineering){
+            roadEngineering.addEventListener('change', function(){
+                toggleConcreteBlock();
+            });
+        }
+
+        if(btnGenerate){
+            btnGenerate.addEventListener('click', function(){
+                const totalKm = parseFloat(String(totalLenKm && totalLenKm.value || '0')) || 0;
+                const count = parseInt(String(stretchCount && stretchCount.value || '0'), 10) || 0;
+                if(totalKm <= 0 || count <= 0) return;
+                const totalM = Math.round(totalKm * 1000);
+                const base = Math.floor(totalM / count);
+                let cursor = 0;
+                segments = [];
+                for(let i=1;i<=count;i++){
+                    const isLast = i === count;
+                    const end = isLast ? totalM : (cursor + base);
+                    segments.push({
+                        sequence_no: i,
+                        stretch_code: `ST-${String(i).padStart(3,'0')}`,
+                        stretch_name: `Stretch ${i}`,
+                        start_m: cursor,
+                        end_m: end,
+                        length_m: Math.max(end - cursor, 1),
+                        width_m: null,
+                        depth_m: null,
+                        planned_start_date: '',
+                        planned_end_date: '',
+                        activities: [],
+                    });
+                    cursor = end;
+                }
+                renderSegments();
+                btnGenerate.classList.remove('btn-primary');
+                btnGenerate.classList.add('btn-secondary');
+                if(btnAlign){
+                    btnAlign.classList.remove('btn-secondary');
+                    btnAlign.classList.add('btn-primary');
+                }
+            });
+        }
+
+        if(stretchBlock){
+            stretchBlock.addEventListener('input', function(e){
+                const t = e.target;
+                if(!t) return;
+                const kind = t.getAttribute('data-kind');
+                const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+                if(idx < 0 || idx >= segments.length) return;
+                if(kind === 'stretch-name') segments[idx].stretch_name = String(t.value || '').trim();
+                if(kind === 'stretch-start') segments[idx].planned_start_date = String(t.value || '').trim();
+                if(kind === 'stretch-end') segments[idx].planned_end_date = String(t.value || '').trim();
+                if(kind === 'stretch-width') segments[idx].width_m = parseFloat(String(t.value || '0')) || 0;
+                if(kind === 'stretch-depth') segments[idx].depth_m = parseFloat(String(t.value || '0')) || 0;
+                if(kind === 'stretch-length') {
+                    segments[idx].length_m = Math.max(1, parseInt(String(t.value || '0'), 10) || 1);
+                }
+                serializeSegments();
+            });
+        }
+
+        toggleRoadFields();
+        showStretchBlock();
+        toggleConcreteBlock();
+        renderSegments();
+    })();
+    </script>
+
+</form>
+
+<form id="createUserForm" method="post" action="/projects/create-user"></form>
+
+<!-- Load existing stretches data for editing -->
+<script type="application/json" id="stretches-data">
+{{ stretches_json | safe }}
+</script>

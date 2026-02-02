@@ -977,8 +977,15 @@ def logout(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse("/login", status_code=302)
 
 # ======================================================
-# ROOT
+# ROOT - REDIRECT TO LOGIN IF NOT AUTHENTICATED
 # ======================================================
 @app.get("/")
-def root():
+def root(request: Request):
+    """
+    Root endpoint - redirects new/unauthenticated users to login page
+    and authenticated users to dashboard
+    """
+    user = request.session.get("user")
+    if user is None:
+        return RedirectResponse("/login", status_code=302)
     return RedirectResponse("/dashboard", status_code=302)
