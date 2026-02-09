@@ -40,7 +40,7 @@
 </div>
 <!-- Add Stock Modal -->
 <div id="addStockModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:#181f2a;padding:32px 24px 24px 24px;border-radius:12px;max-width:420px;margin:60px auto;position:relative;">
+  <div style="background:var(--card-bg);color:var(--text-primary);padding:32px 24px 24px 24px;border-radius:12px;max-width:420px;margin:60px auto;position:relative;">
     <button onclick="document.getElementById('addStockModal').style.display='none'" style="position:absolute;top:10px;right:14px;font-size:20px;background:none;border:none;color:#fff;cursor:pointer">&times;</button>
     <h3 style="margin-top:0">Add New Stock</h3>
     <form method="post" action="/stock/add" id="addStockForm">

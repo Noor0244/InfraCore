@@ -30,8 +30,8 @@
             cursor: pointer;
         }
         .btn-secondary {
-            background: #6b7280;
-            color: #fff;
+            background: #e5e7eb;
+            color: #111827;
             padding: 9px 14px;
             border-radius: 6px;
             border: none;
@@ -44,23 +44,24 @@
     <!-- Dark mode script (runs before page paint) -->
     <script>
         (function () {
-            const theme = localStorage.getItem("theme");
-            if (theme === "dark") {
-                document.documentElement.classList.add("dark");
-                return;
-            }
-
-            if (theme === "light") {
-                document.documentElement.classList.remove("dark");
-                return;
-            }
-
-            // "system" or unset => follow OS preference
-            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-                document.documentElement.classList.add("dark");
+            const html = document.documentElement;
+            const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            
+            // Check initial system preference and apply it
+            if (darkModeQuery.matches) {
+                html.classList.add('dark');
             } else {
-                document.documentElement.classList.remove("dark");
+                html.classList.remove('dark');
             }
+            
+            // Listen for system theme changes
+            darkModeQuery.addEventListener('change', (e) => {
+                if (e.matches) {
+                    html.classList.add('dark');
+                } else {
+                    html.classList.remove('dark');
+                }
+            });
         })();
     </script>
 </head>

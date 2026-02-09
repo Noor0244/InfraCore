@@ -1,5 +1,5 @@
 from fastapi import status, APIRouter, Request, Depends, Form
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, selectinload
 from app.db.session import get_db
@@ -13,6 +13,48 @@ from app.models.material_stretch import MaterialStretch
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+
+def _resolve_user(request: Request):
+    if hasattr(request, "session") and request.session.get("user"):
+        return request.session.get("user")
+    if "user" in request.scope:
+        return request.scope.get("user")
+    return None
+
+
+@router.get("/project/{project_id}/materials/add", response_class=HTMLResponse)
+def add_material_page(request: Request, project_id: int, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    user = _resolve_user(request)
+    if not project:
+        return RedirectResponse("/projects", status_code=302)
+
+    return templates.TemplateResponse(
+        "add_material.html",
+        {
+            "request": request,
+            "user": user,
+            "project": project,
+        },
+    )
+
+
+@router.get("/vendors/add", response_class=HTMLResponse)
+def add_vendor_page(request: Request, db: Session = Depends(get_db)):
+    materials = db.query(Material).order_by(Material.name.asc()).all()
+    user = _resolve_user(request)
+    project_id = request.query_params.get("project_id")
+
+    return templates.TemplateResponse(
+        "add_vendor.html",
+        {
+            "request": request,
+            "user": user,
+            "materials": materials,
+            "project_id": project_id,
+        },
+    )
 
 # --- AJAX endpoints for Material–Activity and Material–Stretch linking ---
 # Get current activities linked to a material
@@ -131,11 +173,19 @@ async def add_vendor(request: Request, db: Session = Depends(get_db)):
     lead_times = form.getlist("lead_times[]")
     supply_capacities = form.getlist("supply_capacities[]")
     
+    return_to = form.get("return_to")
+    if return_to and not str(return_to).startswith("/"):
+        return_to = None
+
     if not vendor_name or not vendor_type or not vendor_contact or not vendor_location:
-        return RedirectResponse("/material_vendor?error=Missing+required+fields", status_code=303)
+        target = return_to or "/material_vendor"
+        connector = "&" if "?" in target else "?"
+        return RedirectResponse(f"{target}{connector}error=Missing+required+fields", status_code=303)
     
     if not materials_supplied or not materials_supplied[0]:
-        return RedirectResponse("/material_vendor?error=At+least+one+material+must+be+supplied", status_code=303)
+        target = return_to or "/material_vendor"
+        connector = "&" if "?" in target else "?"
+        return RedirectResponse(f"{target}{connector}error=At+least+one+material+must+be+supplied", status_code=303)
     
     # Create vendor entry for each material supplied
     try:
@@ -178,11 +228,15 @@ async def add_vendor(request: Request, db: Session = Depends(get_db)):
             db.add(new_vendor)
         
         db.commit()
-        return RedirectResponse(f"/material_vendor?success=Vendor+added+successfully", status_code=303)
+        target = return_to or "/material_vendor"
+        connector = "&" if "?" in target else "?"
+        return RedirectResponse(f"{target}{connector}success=Vendor+added+successfully", status_code=303)
     
     except Exception as e:
         db.rollback()
-        return RedirectResponse(f"/material_vendor?error=Error+adding+vendor:{str(e)}", status_code=303)
+        target = return_to or "/material_vendor"
+        connector = "&" if "?" in target else "?"
+        return RedirectResponse(f"{target}{connector}error=Error+adding+vendor:{str(e)}", status_code=303)
 
 # Update vendor
 @router.post("/vendors/{vendor_id}/update")
@@ -249,6 +303,21 @@ async def toggle_vendor_status(vendor_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"success": True, "is_active": vendor.is_active}
+
+
+@router.post("/vendors/{vendor_id}/delete")
+async def delete_vendor(vendor_id: int, db: Session = Depends(get_db)):
+    vendor = db.query(MaterialVendor).filter(MaterialVendor.id == vendor_id).first()
+    if not vendor:
+        return JSONResponse({"success": False, "error": "Vendor not found"}, status_code=404)
+
+    try:
+        db.delete(vendor)
+        db.commit()
+        return JSONResponse({"success": True})
+    except Exception as e:
+        db.rollback()
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 @router.post("/project/{project_id}/materials/add")
 async def add_material(request: Request, project_id: int, db: Session = Depends(get_db)):

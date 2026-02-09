@@ -19,22 +19,23 @@
 <style>
     /* Card and Section Styling */
     .card--page {
-        background: #181c24;
+        background: var(--card-bg);
         border-radius: 18px;
         box-shadow: 0 4px 32px 0 rgba(0,0,0,0.18), 0 1.5px 6px 0 rgba(0,0,0,0.10);
         padding: 32px 32px 24px 32px;
         margin: 0 auto 32px auto;
         max-width: 1100px;
+        color: var(--text-primary);
     }
     .form-section {
         margin-bottom: 32px;
         padding-bottom: 18px;
-        border-bottom: 1px solid rgba(255,255,255,0.07);
+        border-bottom: 1px solid var(--border-color);
     }
     .section-title {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #fff;
+        color: var(--text-primary);
         margin-bottom: 12px;
         letter-spacing: 0.01em;
     }
@@ -49,27 +50,27 @@
         width: 100%;
         padding: 10px 12px;
         border-radius: 8px;
-        border: 1.5px solid #2a2e38;
-        background: #232733;
-        color: #fff;
+        border: 1.5px solid var(--input-border);
+        background: var(--input-bg);
+        color: var(--text-primary);
         font-size: 1rem;
         margin-top: 4px;
         transition: border-color 0.18s, box-shadow 0.18s;
         box-shadow: 0 1.5px 4px 0 rgba(0,0,0,0.07);
     }
     input[type="text"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="password"]:focus, select:focus {
-        border-color: #3498db;
+        border-color: #2563eb;
         outline: none;
-        box-shadow: 0 0 0 2px rgba(52,152,219,0.18);
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
     }
     label {
         font-weight: 600;
-        color: #e0e6f0;
+        color: var(--text-primary);
         margin-bottom: 2px;
         display: block;
     }
     .help-text {
-        color: #b0b8c9;
+        color: var(--text-secondary);
         font-size: 0.97em;
         margin-top: 2px;
     }
@@ -82,31 +83,38 @@
         padding: 10px 22px;
         font-size: 1rem;
         font-weight: 600;
-        background: linear-gradient(90deg, #3498db 60%, #217dbb 100%);
+        background: linear-gradient(90deg, #2563eb 60%, #1d4ed8 100%);
         color: #fff;
         cursor: pointer;
-        box-shadow: 0 2px 8px 0 rgba(52,152,219,0.10);
+        box-shadow: 0 2px 8px 0 rgba(37, 99, 235, 0.10);
         transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
         margin-right: 8px;
     }
     button:hover, .btn-primary:hover, .btn-secondary:hover, .btn-danger:hover, .btn-small:hover {
-        background: linear-gradient(90deg, #217dbb 60%, #3498db 100%);
-        box-shadow: 0 4px 16px 0 rgba(52,152,219,0.18);
+        background: linear-gradient(90deg, #1d4ed8 60%, #2563eb 100%);
+        box-shadow: 0 4px 16px 0 rgba(37, 99, 235, 0.18);
         transform: translateY(-2px) scale(1.03);
     }
     .btn-secondary {
-        background: linear-gradient(90deg, #444950 60%, #232733 100%);
-        color: #fff;
+        background: #e5e7eb;
+        color: #111827;
     }
     .btn-secondary:hover {
-        background: linear-gradient(90deg, #232733 60%, #444950 100%);
+        background: #d1d5db;
+    }
+    .dark .btn-secondary {
+        background: #374151;
+        color: #e5e7eb;
+    }
+    .dark .btn-secondary:hover {
+        background: #4b5563;
     }
     .btn-danger {
-        background: linear-gradient(90deg, #d44545 60%, #a12a2a 100%);
+        background: linear-gradient(90deg, #ef4444 60%, #dc2626 100%);
         color: #fff;
     }
     .btn-danger:hover {
-        background: linear-gradient(90deg, #a12a2a 60%, #d44545 100%);
+        background: linear-gradient(90deg, #dc2626 60%, #ef4444 100%);
     }
     .btn-small {
         font-size: 0.95em;
@@ -148,22 +156,24 @@
         width: 100%;
         border-collapse: separate;
         border-spacing: 0;
-        background: #20232b;
+        background: var(--card-bg);
         border-radius: 10px;
         overflow: hidden;
         margin-bottom: 12px;
+        color: var(--text-primary);
     }
     table.table th, table.table td {
         padding: 10px 8px;
         text-align: left;
-        color: #e0e6f0;
-        border-bottom: 1px solid #232733;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
     }
     table.table th {
-        background: #232733;
+        background: rgba(0,0,0,0.03);
         font-weight: 700;
         font-size: 1.05em;
         letter-spacing: 0.01em;
+        color: var(--text-secondary);
     }
     table.table tr:last-child td {
         border-bottom: none;

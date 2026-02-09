@@ -1,32 +1,33 @@
 /* Modern User Management Page CSS */
 body {
-    background: #f7f9fb;
+    background: var(--bg);
     font-family: 'Inter', 'Roboto', Arial, sans-serif;
-    color: #222;
+    color: var(--text-primary);
 }
 
 .user-management-container {
     max-width: 1100px;
     margin: 40px auto;
     padding: 24px;
-    background: #fff;
+    background: var(--card-bg);
     border-radius: 16px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.07);
 }
 
 .section-card {
-    background: #fff;
+    background: var(--card-bg);
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     margin-bottom: 32px;
     padding: 20px 24px;
+    color: var(--text-primary);
 }
 
 .section-title {
     font-size: 1.4rem;
     font-weight: 600;
     margin-bottom: 16px;
-    color: #2d3748;
+    color: var(--text-primary);
 }
 
 .table {
@@ -38,13 +39,19 @@ body {
 .table th, .table td {
     padding: 12px 10px;
     text-align: left;
+    color: var(--text-primary);
 }
 
 .table th {
-    background: #f0f4f8;
+    background: rgba(0,0,0,0.03);
     font-weight: 500;
-    color: #4a5568;
-    border-bottom: 1px solid #e2e8f0;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.dark .table th {
+    background: rgba(255,255,255,0.03);
+    border-bottom-color: var(--border-color);
 }
 
 .table tr {
@@ -52,33 +59,51 @@ body {
 }
 
 .table tr:nth-child(even) {
-    background: #f7fafc;
+    background: rgba(0,0,0,0.02);
+}
+
+.dark .table tr:nth-child(even) {
+    background: rgba(255,255,255,0.02);
 }
 
 .table tr:hover {
-    background: #e6f0fa;
+    background: rgba(59,130,246,0.07);
+}
+
+.dark .table tr:hover {
+    background: rgba(59,130,246,0.15);
 }
 
 .status-active {
-    color: #38a169;
-    background: #e6fffa;
+    color: #166534;
+    background: #dcfce7;
     border-radius: 6px;
     padding: 2px 8px;
     font-size: 0.95em;
     font-weight: 500;
+}
+
+.dark .status-active {
+    color: #86efac;
+    background: #16a34a22;
 }
 
 .role-admin {
-    color: #3182ce;
-    background: #ebf8ff;
+    color: #0c4a6e;
+    background: #dbeafe;
     border-radius: 6px;
     padding: 2px 8px;
     font-size: 0.95em;
     font-weight: 500;
 }
 
+.dark .role-admin {
+    color: #60a5fa;
+    background: #0c2a4722;
+}
+
 .role-user {
-    color: #805ad5;
+    color: #6b21a8;
     background: #f3e8ff;
     border-radius: 6px;
     padding: 2px 8px;
@@ -86,13 +111,23 @@ body {
     font-weight: 500;
 }
 
+.dark .role-user {
+    color: #d8b4fe;
+    background: #6b21a833;
+}
+
 .role-superadmin {
-    color: #d53f8c;
-    background: #fff5f7;
+    color: #831843;
+    background: #fbf1f9;
     border-radius: 6px;
     padding: 2px 8px;
     font-size: 0.95em;
     font-weight: 500;
+}
+
+.dark .role-superadmin {
+    color: #f472b6;
+    background: #83184344;
 }
 
 .action-btn {
@@ -107,55 +142,91 @@ body {
 }
 
 .action-edit {
-    background: #e3f2fd;
-    color: #1976d2;
+    background: #dbeafe;
+    color: #0c4a6e;
 }
 .action-edit:hover {
-    background: #bbdefb;
+    background: #bfdbfe;
+}
+
+.dark .action-edit {
+    background: #0c2a4722;
+    color: #60a5fa;
+}
+
+.dark .action-edit:hover {
+    background: #0c2a4755;
 }
 
 .action-delete {
-    background: #ffebee;
-    color: #d32f2f;
+    background: #fee2e2;
+    color: #991b1b;
 }
 .action-delete:hover {
-    background: #ffcdd2;
+    background: #fecaca;
+}
+
+.dark .action-delete {
+    background: #dc262622;
+    color: #fca5a5;
+}
+
+.dark .action-delete:hover {
+    background: #dc262644;
 }
 
 .action-disable {
-    background: #f5f5f5;
-    color: #757575;
+    background: #f3f4f6;
+    color: #374151;
 }
 .action-disable:hover {
-    background: #e0e0e0;
+    background: #e5e7eb;
+}
+
+.dark .action-disable {
+    background: #374151;
+    color: #9ca3af;
+}
+
+.dark .action-disable:hover {
+    background: #4b5563;
 }
 
 .action-sessions {
-    background: #ede7f6;
-    color: #5e35b1;
+    background: #f3e8ff;
+    color: #6b21a8;
 }
 .action-sessions:hover {
-    background: #d1c4e9;
+    background: #e9d5ff;
+}
+
+.dark .action-sessions {
+    background: #6b21a833;
+    color: #d8b4fe;
+}
+
+.dark .action-sessions:hover {
+    background: #6b21a855;
 }
 
 .add-user-btn {
-    background: #1976d2;
+    background: #2563eb;
     color: #fff;
     border-radius: 8px;
     padding: 8px 20px;
     font-size: 1em;
     font-weight: 600;
     border: none;
-    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.08);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
     transition: background 0.2s;
 }
 .add-user-btn:hover {
-    background: #1565c0;
+    background: #1d4ed8;
 }
 
 .audit-btn, .road-preset-btn {
-    background: #f0f4f8;
-    color: #1976d2;
+    background: #e5e7eb;
+    color: #111827;
     border-radius: 8px;
     padding: 8px 16px;
     font-size: 1em;
@@ -165,7 +236,16 @@ body {
     transition: background 0.2s;
 }
 .audit-btn:hover, .road-preset-btn:hover {
-    background: #e3f2fd;
+    background: #d1d5db;
+}
+
+.dark .audit-btn, .dark .road-preset-btn {
+    background: #374151;
+    color: #60a5fa;
+}
+
+.dark .audit-btn:hover, .dark .road-preset-btn:hover {
+    background: #4b5563;
 }
 
 @media (max-width: 800px) {
@@ -183,3 +263,4 @@ body {
         font-size: 0.95em;
     }
 }
+

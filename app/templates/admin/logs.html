@@ -2,30 +2,31 @@
 {% block content %}
 <style>
     .card {
-        background: #181c24;
+        background: var(--card-bg);
         border-radius: 16px;
         box-shadow: 0 4px 24px 0 rgba(0,0,0,0.13), 0 1.5px 6px 0 rgba(0,0,0,0.10);
         margin-bottom: 28px;
         padding: 0 0 18px 0;
         overflow: hidden;
+        color: var(--text-primary);
     }
     .page-header {
         background: none;
-        border-bottom: 1.5px solid rgba(255,255,255,0.07);
+        border-bottom: 1.5px solid var(--border-color);
         margin-bottom: 28px;
         padding-bottom: 10px;
     }
     .page-title {
         font-size: 2.1rem;
         font-weight: 700;
-        color: #fff;
+        color: var(--text-primary);
         letter-spacing: 0.01em;
     }
     .table {
         width: 100%;
         border-collapse: separate;
         border-spacing: 0;
-        background: #20232b;
+        background: var(--card-bg);
         border-radius: 10px;
         overflow: hidden;
         margin-bottom: 0;
@@ -34,17 +35,18 @@
     .table th, .table td {
         padding: 12px 10px;
         text-align: left;
-        color: #e0e6f0;
-        border-bottom: 1px solid #232733;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
     }
     .table th {
-        background: #232733;
+        background: rgba(0,0,0,0.03);
         font-weight: 700;
         font-size: 1.07em;
         letter-spacing: 0.01em;
+        color: var(--text-secondary);
     }
     .table tr:nth-child(even) td {
-        background: #23273333;
+        background: rgba(0,0,0,0.02);
     }
     .table tr:last-child td {
         border-bottom: none;
@@ -59,19 +61,23 @@
         margin-right: 2px;
         margin-bottom: 2px;
     }
-    .badge-info { background: #3498db22; color: #3498db; }
-    .badge-success { background: #16a34a22; color: #16a34a; }
-    .badge-danger { background: #dc262622; color: #dc2626; }
-    .badge-warning { background: #ffb34722; color: #ffb347; }
+    .badge-info { background: #dbeafe; color: #0c4a6e; }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .dark .badge-info { background: #0c2a4722; color: #60a5fa; }
+    .dark .badge-success { background: #16a34a22; color: #86efac; }
+    .dark .badge-danger { background: #dc262622; color: #fca5a5; }
+    .dark .badge-warning { background: #78350f33; color: #fbbf24; }
     .card h3, .card strong {
         font-size: 1.18rem;
         font-weight: 700;
-        color: #fff;
+        color: var(--text-primary);
         margin: 0 0 2px 0;
         letter-spacing: 0.01em;
     }
     .card .help-text {
-        color: #b0b8c9;
+        color: var(--text-secondary);
         font-size: 0.97em;
         margin-top: 2px;
     }
@@ -90,7 +96,7 @@
     }
     .form-group label {
         font-weight: 600;
-        color: #e0e6f0;
+        color: var(--text-primary);
         margin-bottom: 2px;
         font-size: 1em;
     }

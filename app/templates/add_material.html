@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">Add Material</h1>
+    <div class="help-text">Create a new material for inventory and planning.</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a href="/project/{{ project.id }}/materials" class="btn">← Back to Materials</a>
+  </div>
+</div>
+
+<div class="card card--page" style="max-width:1100px;margin:auto;">
+  <div style="margin-bottom:20px;padding:14px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+    <div>
+      <div style="color:var(--text-secondary);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Project</div>
+      <div style="color:var(--text-primary);font-weight:600;margin-top:4px;">{{ project.name }}</div>
+    </div>
+    <div>
+      <div style="color:var(--text-secondary);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Location</div>
+      <div style="color:var(--text-primary);font-weight:600;margin-top:4px;">{{ project.location }}</div>
+    </div>
+  </div>
+
+  <form method="post" action="/project/{{ project.id }}/materials/add">
+    <div class="form-grid">
+      <div style="grid-column:1/-1;">
+        <label for="material_name">Material Name <span class="required">*</span></label>
+        <input id="material_name" name="material_name" type="text" placeholder="e.g., OPC Cement" required />
+      </div>
+      <div>
+        <label for="material_category">Category <span class="required">*</span></label>
+        <input id="material_category" name="material_category" type="text" placeholder="e.g., Cement" required />
+      </div>
+      <div>
+        <label for="unit">Unit <span class="required">*</span></label>
+        <input id="unit" name="unit" type="text" placeholder="e.g., Bags" required />
+      </div>
+      <div>
+        <label for="material_type">Material Type <span class="required">*</span></label>
+        <select id="material_type" name="material_type" required>
+          <option value="">Select type</option>
+          <option value="Consumable">Consumable</option>
+          <option value="Non-Consumable">Non-Consumable</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:18px;">
+      <a href="/project/{{ project.id }}/materials" class="btn-secondary">Cancel</a>
+      <button class="btn-primary" type="submit">Add Material</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

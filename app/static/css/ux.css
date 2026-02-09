@@ -1,103 +1,248 @@
-/* Stronger fix for calendar icon visibility in dark mode */
-input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) brightness(2) contrast(2);
-    opacity: 1;
-    background-color: #fff;
-    border-radius: 50%;
+/* Minimal UX improvements for InfraCore - Theme-aware */
+
+:root {
+    /* Light mode (default) */
+    --bg-900: #f5f7fa;
+    --bg-800: #ffffff;
+    --surface: #f9fafb;
+    --card-bg: #ffffff;
+    --card-border: #e5e7eb;
+    --text-primary: #111827;
+    --muted-gray: #6b7280;
+    --accent-blue: #2563eb;
+    --accent-green: #16a34a;
+    --danger-red: #dc2626;
+    --warn-amber: #ea580c;
+    --input-bg: #ffffff;
+    --input-border: #d1d5db;
+    --focus-shadow: rgba(37, 99, 235, 0.1);
 }
-input[type="date"]::-webkit-input-placeholder { color: #fff; }
-input[type="date"]::-moz-placeholder { color: #fff; }
-input[type="date"]:-ms-input-placeholder { color: #fff; }
-input[type="date"]::placeholder { color: #fff; }
-input[type="date"]::-ms-expand { color: #fff; background: transparent; }
-input[type="date"]::-ms-clear { display: none; }
-input[type="date"]::-o-calendar-picker-indicator { filter: invert(1); }
-/* Fix calendar icon visibility for input[type=date] in dark mode */
-input[type="date"]::-webkit-calendar-picker-indicator {
+
+.dark {
+    /* Dark mode */
+    --bg-900: #0b1220;
+    --bg-800: #0f1724;
+    --surface: #0f1724;
+    --card-bg: #111827;
+    --card-border: #172033;
+    --text-primary: #ffffff;
+    --muted-gray: #9ca3af;
+    --accent-blue: #1e6fd8;
+    --accent-green: #22c55e;
+    --danger-red: #d64545;
+    --warn-amber: #e3a008;
+    --input-bg: #0f1724;
+    --input-border: #1f2a36;
+}
+
+/* Input date picker - light mode */
+:root input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.2);
+    opacity: 0.8;
+}
+
+/* Input date picker - dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(1) brightness(1.5) contrast(1.2);
     opacity: 1;
 }
-input[type="date"]::-ms-input-placeholder {
-    color: #fff;
-}
-input[type="date"]::-moz-placeholder {
-    color: #fff;
-}
-input[type="date"]::-webkit-input-placeholder {
-    color: #fff;
-}
-input[type="date"]::placeholder {
-    color: #fff;
-}
-/* Minimal UX improvements for InfraCore - non-intrusive overrides */
-:root{
-    /* Core palette (dark theme friendly) */
-    --bg-900:#0b1220; /* page background */
-    --bg-800:#0f1724; /* surfaces */
-    --surface:#0f1724;
-    --card-bg:#111827;
-    --card-border:#172033;
 
-    --text-primary:#ffffff; /* enforce white text (no purple) */
-    --muted-gray:#9ca3af;
-
-    --accent-blue:#1e6fd8; /* primary action */
-    --accent-green:#16a34a; /* success actions */
-    --danger-red:#d64545; /* destructive */
-    --warn-amber:#e3a008; /* caution */
+/* Links and interactive text */
+a, a:visited {
+    color: var(--text-primary);
+    text-decoration: none;
 }
 
-/* Links and interactive text: no purple, use white by default */
-a, a:visited{color:var(--text-primary);text-decoration:none}
-a:hover, a:focus{color:var(--accent-blue);text-decoration:underline}
-.project-link{font-weight:700}
+a:hover, a:focus {
+    color: var(--accent-blue);
+    text-decoration: underline;
+}
 
-/* Dashboard tweaks: ensure KPI clarity and active project highlight */
-.kpi-card, .kpi-grid .kpi-card { color:var(--text-primary) !important }
-.kpi-value { color:var(--text-primary); font-size:26px }
-.kpi-label { color:var(--muted-gray) }
+.project-link {
+    font-weight: 700;
+}
+
+/* Dashboard tweaks */
+.kpi-card, .kpi-grid .kpi-card {
+    color: var(--text-primary) !important;
+}
+
+.kpi-value {
+    color: var(--text-primary);
+    font-size: 26px;
+}
+
+.kpi-label {
+    color: var(--muted-gray);
+}
 
 /* Active project box */
-.card .active-project { border-left:4px solid var(--accent-blue);padding-left:12px }
-
-/* Delayed items */
-.status-DELAYED, tr.status-DELAYED { background: rgba(214,69,69,0.08) !important; color:var(--text-primary); font-weight:700 }
-.status-DELAYED .table-progress-bar { background: var(--danger-red) }
-
-/* Container improvements */
-.container{padding:20px}
-.card{background:var(--card-bg);border:1px solid var(--card-border);padding:18px;border-radius:8px}
-.page-title{margin-bottom:16px;font-size:22px;color:var(--text-primary);font-weight:700}
-
-/* Sectioning */
-.form-section{padding:14px 0;margin-bottom:18px;border-left:4px solid #172033;padding-left:14px}
-.section-title{font-size:16px;margin:8px 0;color:var(--text-primary);font-weight:700}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-
-/* Labels and helpers */
-label{display:block;font-weight:600;margin-bottom:6px;color:var(--text-primary)}
-label .required{color:var(--danger-red);margin-left:6px}
-.helper{display:block;font-size:12px;color:var(--muted-gray);margin-top:6px}
-.help-text{font-size:12px;color:var(--muted-gray);margin-top:6px}
-
-/* Inputs larger and touch-friendly */
-input[type="text"], input[type="number"], input[type="date"], select, textarea{
-    width:100%;padding:10px;border:1px solid #1f2a36;border-radius:6px;font-size:14px;background:transparent;color:var(--text-primary)
+.card .active-project {
+    border-left: 4px solid var(--accent-blue);
+    padding-left: 12px;
 }
 
-::placeholder{color:#64748b}
+/* Delayed items */
+.status-DELAYED, tr.status-DELAYED {
+    background: rgba(214, 69, 69, 0.08) !important;
+    color: var(--text-primary);
+    font-weight: 700;
+}
 
-select:disabled, input:disabled, textarea:disabled{opacity:0.6;cursor:not-allowed}
+.status-DELAYED .table-progress-bar {
+    background: var(--danger-red);
+}
+
+/* Container improvements */
+.container {
+    padding: 20px;
+}
+
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    padding: 18px;
+    border-radius: 8px;
+}
+
+.page-title {
+    margin-bottom: 16px;
+    font-size: 22px;
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+/* Sectioning */
+.form-section {
+    padding: 14px 0;
+    margin-bottom: 18px;
+    border-left: 4px solid var(--card-border);
+    padding-left: 14px;
+}
+
+.section-title {
+    font-size: 16px;
+    margin: 8px 0;
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+/* Labels and helpers */
+label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+}
+
+label .required {
+    color: var(--danger-red);
+    margin-left: 6px;
+}
+
+.helper {
+    display: block;
+    font-size: 12px;
+    color: var(--muted-gray);
+    margin-top: 6px;
+}
+
+.help-text {
+    font-size: 12px;
+    color: var(--muted-gray);
+    margin-top: 6px;
+}
+
+/* Inputs larger and touch-friendly */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+
+::placeholder {
+    color: var(--muted-gray);
+}
+
+select:disabled,
+input:disabled,
+textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 
 /* Action buttons */
-.btn-primary{background:var(--accent-blue);color:var(--text-primary);padding:9px 14px;border-radius:6px;border:none;box-shadow:0 1px 0 rgba(0,0,0,0.2)}
-.btn-secondary{background:#374151;color:var(--text-primary);padding:9px 14px;border-radius:6px;border:1px solid #1f2937}
-.btn-warning{background:var(--warn-amber);color:var(--text-primary);padding:9px 14px;border-radius:6px;border:none}
-.btn-danger{background:var(--danger-red);color:var(--text-primary);padding:9px 14px;border-radius:6px;border:none}
-.btn-muted{background:#475569;color:var(--text-primary);padding:9px 14px;border-radius:6px;border:none}
+.btn-primary {
+    background: var(--accent-blue);
+    color: #fff;
+    padding: 9px 14px;
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
 
-/* Action color semantics for Manage Projects */
-.action-view{background:var(--accent-blue);color:var(--text-primary)}
+.btn-secondary {
+    background: #e5e7eb;
+    color: #111827;
+    padding: 9px 14px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+}
+
+.dark .btn-secondary {
+    background: #374151;
+    color: #fff;
+    border: 1px solid #1f2937;
+}
+
+.btn-warning {
+    background: var(--warn-amber);
+    color: #fff;
+    padding: 9px 14px;
+    border-radius: 6px;
+    border: none;
+}
+
+.btn-danger {
+    background: var(--danger-red);
+    color: #fff;
+    padding: 9px 14px;
+    border-radius: 6px;
+    border: none;
+}
+
+.btn-muted {
+    background: #d1d5db;
+    color: #111827;
+    padding: 9px 14px;
+    border-radius: 6px;
+    border: none;
+}
+
+.dark .btn-muted {
+    background: #475569;
+    color: #fff;
+}
+
+/* Action color semantics */
+.action-view {
+    background: var(--accent-blue);
+    color: #fff;
+}
 .action-edit{background:#6b7280;color:var(--text-primary)}
 .action-archive{background:var(--warn-amber);color:var(--text-primary)}
 .action-delete{background:var(--danger-red);color:var(--text-primary)}
@@ -106,12 +251,12 @@ select:disabled, input:disabled, textarea:disabled{opacity:0.6;cursor:not-allowe
 
 /* Table tweaks */
 .table{width:100%;border-collapse:collapse;background:transparent}
-.table th, .table td{padding:12px;border-bottom:1px solid #172033;text-align:left;color:var(--text-primary)}
+.table th, .table td{padding:12px;border-bottom:1px solid var(--border-color);text-align:left;color:var(--text-primary)}
 .table thead th{font-weight:700;color:var(--text-primary)}
 
 /* Badges */
-.badge{padding:4px 8px;border-radius:6px;font-size:12px;color:var(--text-primary);background:#111827}
-.badge-info{background:#062f4a;color:var(--accent-blue);color:var(--text-primary)}
+.badge{padding:4px 8px;border-radius:6px;font-size:12px;color:var(--text-primary);background:var(--card-bg)}
+.badge-info{background:var(--input-border);color:var(--accent-blue);color:var(--text-primary)}
 
 /* Smooth reveal for conditional sections */
 #road_type_wrap{transition:all 220ms ease;overflow:hidden}
@@ -119,7 +264,7 @@ select:disabled, input:disabled, textarea:disabled{opacity:0.6;cursor:not-allowe
 .visible-expanded{max-height:600px;opacity:1;padding-top:10px;margin-top:8px}
 
 /* Progress bar (dashboard) - minimal) */
-.progress{background:#0b1220;border-radius:8px;height:12px;overflow:hidden;border:1px solid #172033}
+.progress{background:var(--input-border);border-radius:8px;height:12px;overflow:hidden;border:1px solid var(--border-color)}
 .progress > i{display:block;height:100%;background:var(--accent-blue)}
 
 /* Confirm dialogs fallback spacing */

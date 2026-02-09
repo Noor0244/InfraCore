@@ -47,7 +47,7 @@ table {
 }
 
 th {
-    background: rgba(0,0,0,0.05);
+    background: var(--hover-bg);
     text-align: left;
 }
 

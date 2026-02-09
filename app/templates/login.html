@@ -3,91 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>Login – InfraCore</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:400,500,600,700&display=swap">
     <link rel="stylesheet" href="/static/css/login_modern.css">
 </head>
 <body>
-<div class="login-card">
-    <div class="login-title">InfraCore</div>
-    <div class="login-subtitle">Construction ERP Login</div>
-
-    {% if request.state.flashes %}
-        {% for msg, category in request.state.flashes %}
-            <div class="flash">{{ msg }}</div>
-        {% endfor %}
-    {% endif %}
-
-    <form method="post" action="/login" autocomplete="off" id="loginForm">
-        <input type="hidden" name="next" value="{{ next or '' }}">
-        <div class="form-group">
-            <label for="usernameField">Username</label>
-            <div class="input-icon-group">
-                <span class="input-icon">
-                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5zm0 2c-3.314 0-10 1.657-10 5v3h20v-3c0-3.343-6.686-5-10-5z" fill="#b0b8c1"/></svg>
-                </span>
-                <input type="text" name="username" id="usernameField" required autocomplete="off" autocapitalize="off" spellcheck="false" autofocus aria-label="Username">
+<div class="login-container">
+    <div class="login-card">
+        <div class="logo-container">
+            <div class="logo-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                    <defs>
+                        <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#1976d2;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#1565c0;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="48" height="48" rx="10" fill="url(#logoGradient)"/>
+                    <circle cx="24" cy="24" r="8" fill="white" opacity="0.9"/>
+                    <circle cx="24" cy="24" r="5" fill="white"/>
+                </svg>
             </div>
         </div>
 
-        <div class="form-group">
-            <label for="passwordField">Password</label>
-            <div class="input-icon-group">
-                <span class="input-icon">
-                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M12 17a2 2 0 100-4 2 2 0 000 4zm6-7V7a6 6 0 10-12 0v3a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2v-7a2 2 0 00-2-2zm-8-3a4 4 0 118 0v3H6V7z" fill="#b0b8c1"/></svg>
-                </span>
-                <input type="password" name="password" id="passwordField" required autocomplete="new-password" aria-label="Password">
-                <button type="button" class="toggle-password" id="togglePassword" aria-label="Show password">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" stroke="currentColor" stroke-width="1.5"/>
-                        <circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.5"/>
-                    </svg>
-                </button>
-            </div>
+        <div class="login-header">
+            <h1 class="login-title">InfraCore</h1>
+            <p class="login-subtitle">Construction ERP Platform</p>
         </div>
 
-        <button class="login-btn" type="submit" id="loginBtn">
-            <span id="loginBtnText">Login</span>
-            <span class="spinner" id="loginSpinner" style="display:none"></span>
-        </button>
-    </form>
+        {% if request.state.flashes %}
+            {% for msg, category in request.state.flashes %}
+                <div class="flash flash-{{ category or 'error' }}">
+                    <span class="flash-icon">⚠️</span>
+                    {{ msg }}
+                </div>
+            {% endfor %}
+        {% endif %}
 
-    <div class="footer-text" style="margin-top:16px">
-        <a href="/forgot-password" class="forgot-link">Forgot password?</a>
+        <form method="post" action="/login" autocomplete="off" id="loginForm" class="login-form">
+            <input type="hidden" name="next" value="{{ next or '' }}">
+            
+            <div class="form-group">
+                <label for="usernameField" class="form-label">Username</label>
+                <div class="input-wrapper">
+                    <span class="input-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </span>
+                    <input 
+                        type="text" 
+                        name="username" 
+                        id="usernameField" 
+                        class="form-input"
+                        placeholder="Enter your username"
+                        required 
+                        autocomplete="username"
+                        autocapitalize="off" 
+                        spellcheck="false" 
+                        autofocus 
+                        aria-label="Username">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="passwordField" class="form-label">Password</label>
+                <div class="input-wrapper">
+                    <span class="input-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </span>
+                    <input 
+                        type="password" 
+                        name="password" 
+                        id="passwordField" 
+                        class="form-input"
+                        placeholder="Enter your password"
+                        required 
+                        autocomplete="current-password"
+                        aria-label="Password">
+                    <button 
+                        type="button" 
+                        class="toggle-password" 
+                        id="togglePassword" 
+                        aria-label="Show password"
+                        tabindex="-1">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-icon">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-closed-icon" style="display:none;">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <button class="login-btn" type="submit" id="loginBtn" aria-label="Login to your account">
+                <span id="loginBtnText">Sign In</span>
+                <span class="spinner" id="loginSpinner" style="display:none" aria-hidden="true"></span>
+            </button>
+        </form>
+
+        <div class="divider"></div>
+
+        <div class="footer-links">
+            <a href="/forgot-password" class="footer-link">Forgot password?</a>
+        </div>
+
+        <div class="footer">
+            © 2026 InfraCore ERP. All rights reserved.
+        </div>
     </div>
 
-    <div class="footer-text" style="margin-top:12px;opacity:0.85">
-        Local dev default: <strong>admin</strong> / <strong>1234</strong>
-    </div>
 
-    <div class="footer-text">
-        © InfraCore ERP
-    </div>
 </div>
+
 <script>
 (function(){
-// Submit spinner
-document.getElementById('loginForm').onsubmit = function() {
-    document.getElementById('loginBtnText').style.display = 'none';
-    document.getElementById('loginSpinner').style.display = 'inline-block';
-    document.getElementById('loginBtn').disabled = true;
-};
+    // ===== AUTOMATIC THEME MANAGEMENT =====
+    // Syncs with system/browser theme preference in real-time
+    
+    const html = document.documentElement;
+    
+    // Function to apply theme immediately
+    function applyTheme(isDark) {
+        const theme = isDark ? 'dark' : 'light';
+        html.setAttribute('data-theme', theme);
+        localStorage.setItem('theme-preference', theme);
+    }
+    
+    // Get the media query for dark mode preference
+    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    // Apply theme on page load
+    applyTheme(darkModeQuery.matches);
+    
+    // Listen for system theme changes (works in real-time without refresh)
+    darkModeQuery.addEventListener('change', (e) => {
+        applyTheme(e.matches);
+    });
+    
+    // Also handle legacy browsers with addListener
+    if (darkModeQuery.addListener) {
+        darkModeQuery.addListener((e) => {
+            applyTheme(e.matches);
+        });
+    }
+
+    // ===== FORM HANDLING =====
+    document.getElementById('loginForm').onsubmit = function() {
+        document.getElementById('loginBtnText').style.display = 'none';
+        document.getElementById('loginSpinner').style.display = 'inline-block';
+        document.getElementById('loginBtn').disabled = true;
+    };
+
+    // ===== PASSWORD VISIBILITY TOGGLE =====
     const toggle = document.getElementById('togglePassword');
     const field = document.getElementById('passwordField');
-    const userField = document.getElementById('usernameField');
+    
     if(toggle && field){
-        toggle.addEventListener('click', function(){
+        toggle.addEventListener('click', function(e){
+            e.preventDefault();
             const isPassword = field.type === 'password';
             field.type = isPassword ? 'text' : 'password';
             toggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
         });
     }
-    if(userField){
-        userField.value = '';
-    }
-    if(field){
-        field.value = '';
-    }
+
+    // ===== CLEAR FIELDS ON LOAD =====
+    const userField = document.getElementById('usernameField');
+    if(userField) userField.value = '';
+    if(field) field.value = '';
 })();
 </script>
 </body>
