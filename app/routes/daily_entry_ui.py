@@ -107,12 +107,22 @@ def execution_project_select(
             .all()
         )
 
+    today = date.today()
+    planned_rows = (
+        db.query(ProjectActivity.project_id, func.count(ProjectActivity.id))
+        .filter(ProjectActivity.start_date <= today, ProjectActivity.end_date >= today)
+        .group_by(ProjectActivity.project_id)
+        .all()
+    )
+    planned_today_counts = {int(pid): int(cnt or 0) for pid, cnt in planned_rows}
+
     return templates.TemplateResponse(
         "daily_execution_projects.html",
         {
             "request": request,
             "user": user,
             "projects": projects,
+            "planned_today_counts": planned_today_counts,
         }
     )
 
@@ -135,7 +145,7 @@ def daily_execution_page(
         return RedirectResponse("/execution", status_code=302)
 
     # Access guard: keep execution scoped to visible projects
-    if user.get("role") != "admin":
+    if user.get("role") not in {"admin", "superadmin"}:
         is_owner = (project.created_by == user.get("id"))
         is_member = (
             db.query(ProjectUser)
@@ -171,6 +181,19 @@ def daily_execution_page(
         .order_by(ProjectActivity.end_date.asc())
         .all()
     )
+
+    planned_today = []
+    planned_today_map: dict[int, float] = {}
+    for pa in planned:
+        if pa.start_date and pa.end_date and pa.start_date <= report_date <= pa.end_date:
+            planned_today.append(pa)
+            try:
+                duration_days = (pa.end_date - pa.start_date).days + 1
+            except Exception:
+                duration_days = 1
+            if duration_days <= 0:
+                duration_days = 1
+            planned_today_map[int(pa.activity_id)] = float(pa.planned_quantity or 0) / float(duration_days)
 
     activity_def_count = (
         db.query(func.count(Activity.id))
@@ -315,6 +338,8 @@ def daily_execution_page(
             "prev_date": report_date - timedelta(days=1),
             "next_date": report_date + timedelta(days=1),
             "planned": planned,
+            "planned_today": planned_today,
+            "planned_today_json": json.dumps(planned_today_map),
             "activity_def_count": int(activity_def_count),
             "cum_before": cum_before,
             "executed_today": executed_today,
@@ -390,7 +415,12 @@ async def save_daily_work_report(
             ppe_compliance_percent = None
 
     action = (_s("action", 20) or "save").lower()
-    status = "Submitted" if action == "submit" else "Draft"
+    if action == "approve":
+        status = "Approved"
+    elif action == "submit":
+        status = "Submitted"
+    else:
+        status = "Draft"
 
     existing = (
         db.query(DailyWorkReport)
@@ -462,6 +492,9 @@ async def save_daily_work_report(
     report.status = status
     report.prepared_by_user_id = user.get("id")
     report.prepared_by_name = user.get("username")
+    if status == "Approved":
+        report.checked_by = user.get("username")
+        report.approved_by = user.get("username")
 
     db.flush()  # ensure report.id
 

@@ -25,6 +25,9 @@
     details > summary { cursor: pointer; font-weight: 700; }
     .btn-danger { background: #d64545; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; }
     .btn-sm { padding: 6px 10px; font-size: 12px; }
+    .btn-approve-activity { background: linear-gradient(135deg, #4f8cff 0%, #3a6fd8 100%); color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; transition: all 160ms ease; }
+    .btn-approve-activity:hover { opacity: 0.9; box-shadow: 0 2px 8px rgba(79,140,255,0.3); }
+
 </style>
 
 <h1 class="page-title">Daily Work Execution (DPR) — {{ project.name }}</h1>
@@ -136,6 +139,43 @@
         </div>
 
         <div id="dprGated">
+
+            <div class="form-section" id="plannedTodaySection">
+                <div class="section-title">Today's Planned Work</div>
+                <div class="help-text">Auto-calculated from the activity schedule for the selected date.</div>
+                {% if planned_today and planned_today|length > 0 %}
+                    <table class="dpr-table" style="margin-top:10px;">
+                        <thead>
+                            <tr>
+                                <th style="width:40%">Activity</th>
+                                <th>Planned Today</th>
+                                <th>Unit</th>
+                                <th>Plan Window</th>
+                                <th style="width:140px">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pa in planned_today %}
+                                {% set days = (pa.end_date - pa.start_date).days + 1 %}
+                                {% set per_day = (pa.planned_quantity / (days if days > 0 else 1)) %}
+                                <tr>
+                                    <td><strong>{{ pa.activity.name }}</strong></td>
+                                    <td>{{ "%.3f"|format(per_day) }}</td>
+                                    <td>{{ pa.unit }}</td>
+                                    <td>{{ pa.start_date }} → {{ pa.end_date }}</td>
+                                    <td><button type="button" class="btn-approve-activity" data-activity-id="{{ pa.activity_id }}" style="padding:5px 10px; font-size:12px;">Approve</button></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="help-text" style="margin-top:8px;">No planned activities for this date.</div>
+                {% endif %}
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                    <button id="applyPlannedBtn" type="button" class="btn-secondary">Use Today's Plan</button>
+                    <button id="approvePlannedBtn" type="submit" name="action" value="approve" class="btn-success">Approve as Planned</button>
+                </div>
+            </div>
 
             <div class="form-section">
                 <div class="section-title">Planned vs Executed (Activities)</div>
@@ -493,6 +533,7 @@
 
 {% block scripts %}
     <script id="amMapJson" type="application/json">{{ activity_material_map_json | safe }}</script>
+    <script id="plannedTodayJson" type="application/json">{{ planned_today_json | safe }}</script>
     <script src="/static/js/activity_units.js"></script>
     <script src="/static/js/daily_execution.js"></script>
 {% endblock %}

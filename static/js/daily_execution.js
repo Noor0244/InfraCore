@@ -32,6 +32,15 @@
     AM_MAP = {};
   }
 
+  // Planned today map (activity_id -> planned quantity today)
+  let PLANNED_TODAY = {};
+  try {
+    const el = qs('#plannedTodayJson');
+    PLANNED_TODAY = el ? JSON.parse(el.textContent || '{}') : {};
+  } catch (e) {
+    PLANNED_TODAY = {};
+  }
+
   const headerRequired = [
     '#report_date',
     '#weather',
@@ -208,6 +217,56 @@
     const totalMatEl = qs('#summary_total_mat');
     if (totalMatEl) totalMatEl.textContent = totalMat.toFixed(3);
   }
+
+  function applyPlannedToday(onlyIfEmpty) {
+    const entries = Object.entries(PLANNED_TODAY || {});
+    if (!entries.length) return;
+    entries.forEach(([activityId, qty]) => {
+      const input = qs(`input[name="act_exec_${activityId}"]`);
+      if (!input) return;
+      const current = toNum(input.value);
+      if (onlyIfEmpty && current > 0) return;
+      const next = Number(qty || 0);
+      input.value = Number.isFinite(next) ? next.toFixed(3) : '0.000';
+    });
+    recomputeActivitiesAndMaterials();
+  }
+
+  function wirePlannedTodayActions() {
+    const applyBtn = qs('#applyPlannedBtn');
+    const approveBtn = qs('#approvePlannedBtn');
+    const hasPlanned = Object.keys(PLANNED_TODAY || {}).length > 0;
+    if (applyBtn) applyBtn.disabled = !hasPlanned;
+    if (approveBtn) approveBtn.disabled = !hasPlanned;
+
+    if (applyBtn) {
+      applyBtn.addEventListener('click', () => applyPlannedToday(false));
+    }
+    if (approveBtn) {
+      approveBtn.addEventListener('click', () => applyPlannedToday(true));
+    }
+
+    // Individual activity approval buttons
+    const activityApproveButtons = qsa('button.btn-approve-activity');
+    activityApproveButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const activityId = btn.dataset.activityId;
+        if (!activityId) return;
+        
+        // Fill only this activity with its planned quantity
+        const qty = PLANNED_TODAY[activityId];
+        if (qty !== undefined) {
+          const input = qs(`input[name="act_exec_${activityId}"]`);
+          if (input) {
+            input.value = Number.isFinite(qty) ? Number(qty).toFixed(3) : '0.000';
+            recomputeActivitiesAndMaterials();
+          }
+        }
+      });
+    });
+  }
+
 
   // Dynamic rows helpers
   function addRow(tableId, rowHtml) {
@@ -421,6 +480,7 @@
   });
 
   wireDynamicTables();
+  wirePlannedTodayActions();
 
   form.addEventListener('submit', (e) => {
     const ok = headerComplete();

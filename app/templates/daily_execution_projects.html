@@ -94,8 +94,11 @@
                         </div>
                     </div>
 
-                    <div class="proj-cta">
-                        <span class="go">Open DPR</span>
+                    <div class="proj-cta" style="display:flex; align-items:center; gap:10px;">
+                        <span class="badge" style="background: rgba(79, 140, 255, 0.15); color: #93c5fd;">
+                            Today’s plan: {{ planned_today_counts.get(p.id, 0) }} activities
+                        </span>
+                        <span class="go" style="padding: 6px 12px; border-radius: 8px; background: linear-gradient(135deg, #4f8cff 0%, #3a6fd8 100%); color: #fff;">Open DPR</span>
                         <span class="arrow">→</span>
                     </div>
                 </a>
