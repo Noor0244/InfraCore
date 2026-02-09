@@ -13,7 +13,7 @@ class MaterialVendor(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    material_id = Column(Integer, ForeignKey("materials.id"), nullable=False, index=True)
+    material_id = Column(Integer, ForeignKey("materials.id"), nullable=True, index=True)
 
     # Basic Information
     vendor_name = Column(String(200), nullable=False)

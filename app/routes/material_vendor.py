@@ -98,9 +98,14 @@ async def set_material_stretches(material_id: int, request: Request, db: Session
 # Get current vendors linked to a material (with full details)
 @router.get("/material/{material_id}/vendors")
 def get_material_vendors(material_id: int, db: Session = Depends(get_db)):
-    vendors = db.query(MaterialVendor).filter(MaterialVendor.material_id == material_id).all()
+    # Get ALL vendors in the system
+    all_vendors = db.query(MaterialVendor).order_by(MaterialVendor.vendor_name.asc()).all()
+    
+    # Get vendor IDs already linked to this material
+    linked_vendor_ids = [vendor.id for vendor in all_vendors if vendor.material_id == material_id]
+    
     return {
-        "vendor_ids": [vendor.id for vendor in vendors],
+        "vendor_ids": linked_vendor_ids,
         "vendors": [
             {
                 "id": vendor.id,
@@ -110,7 +115,7 @@ def get_material_vendors(material_id: int, db: Session = Depends(get_db)):
                 "lead_time_days": vendor.lead_time_days,
                 "min_order_qty": vendor.min_order_qty
             }
-            for vendor in vendors
+            for vendor in all_vendors
         ]
     }
 
@@ -121,14 +126,10 @@ async def set_material_vendors(material_id: int, request: Request, db: Session =
     vendor_ids = data.get("vendor_ids", [])
     
     try:
-        # First, clear all vendors currently linked to this material
-        db.query(MaterialVendor).filter(MaterialVendor.material_id == material_id).delete()
-        
-        # Add new vendor links
+        # Link selected vendors to this material without deleting any vendor records
         for vendor_id in vendor_ids:
             vendor = db.query(MaterialVendor).filter(MaterialVendor.id == vendor_id).first()
             if vendor:
-                # Update the material_id for this vendor
                 vendor.material_id = material_id
                 db.add(vendor)
         
@@ -187,45 +188,52 @@ async def add_vendor(request: Request, db: Session = Depends(get_db)):
         connector = "&" if "?" in target else "?"
         return RedirectResponse(f"{target}{connector}error=At+least+one+material+must+be+supplied", status_code=303)
     
-    # Create vendor entry for each material supplied
+    # Create ONE vendor entry (not per material)
     try:
-        for idx, material_id in enumerate(materials_supplied):
-            if not material_id:
-                continue
-                
-            new_vendor = MaterialVendor(
-                # Basic Information
-                vendor_name=vendor_name,
-                vendor_type=vendor_type,
-                contact_person=vendor_contact,
-                email=vendor_email,
-                phone=form.get("phone"),  # If available
-                vendor_location=vendor_location,
-                service_area=service_area,
-                vendor_priority=vendor_priority,
-                reliability_rating=reliability_rating,
-                
-                # Commercial Details
-                payment_terms=payment_terms,
-                credit_period=int(credit_period) if credit_period else None,
-                gst_number=gst_number,
-                gst_percentage=float(gst_percentage) if gst_percentage else 18.0,
-                
-                # Material Specific Details
-                material_id=int(material_id),
-                unit_price=float(unit_prices[idx]) if idx < len(unit_prices) and unit_prices[idx] else None,
-                per_unit_quantity=float(per_unit_quantities[idx]) if idx < len(per_unit_quantities) and per_unit_quantities[idx] else None,
-                lead_time_days=int(lead_times[idx]) if idx < len(lead_times) and lead_times[idx] else 0,
-                min_order_qty=float(supply_capacities[idx]) if idx < len(supply_capacities) and supply_capacities[idx] else None,
-                supply_capacity=float(supply_capacities[idx]) if idx < len(supply_capacities) and supply_capacities[idx] else None,
-                
-                # Contract Details
-                contract_start_date=datetime.fromisoformat(contract_start_date) if contract_start_date else None,
-                contract_end_date=datetime.fromisoformat(contract_end_date) if contract_end_date else None,
-                
-                is_active=True
-            )
-            db.add(new_vendor)
+        # Get the first non-empty material ID for initial material_id
+        first_material_id = None
+        for material_id in materials_supplied:
+            if material_id:
+                first_material_id = int(material_id)
+                break
+        if not first_material_id:
+            target = return_to or "/material_vendor"
+            connector = "&" if "?" in target else "?"
+            return RedirectResponse(f"{target}{connector}error=Please+select+a+material", status_code=303)
+        
+        new_vendor = MaterialVendor(
+            # Basic Information
+            vendor_name=vendor_name,
+            vendor_type=vendor_type,
+            contact_person=vendor_contact,
+            email=vendor_email,
+            phone=form.get("phone"),
+            vendor_location=vendor_location,
+            service_area=service_area,
+            vendor_priority=vendor_priority,
+            reliability_rating=reliability_rating,
+            
+            # Commercial Details
+            payment_terms=payment_terms,
+            credit_period=int(credit_period) if credit_period else None,
+            gst_number=gst_number,
+            gst_percentage=float(gst_percentage) if gst_percentage else 18.0,
+            
+            # Material Specific Details (set to first material)
+            material_id=first_material_id,
+            unit_price=float(unit_prices[0]) if unit_prices and unit_prices[0] else None,
+            per_unit_quantity=float(per_unit_quantities[0]) if per_unit_quantities and per_unit_quantities[0] else None,
+            lead_time_days=int(lead_times[0]) if lead_times and lead_times[0] else 0,
+            min_order_qty=float(supply_capacities[0]) if supply_capacities and supply_capacities[0] else None,
+            supply_capacity=float(supply_capacities[0]) if supply_capacities and supply_capacities[0] else None,
+            
+            # Contract Details
+            contract_start_date=datetime.fromisoformat(contract_start_date) if contract_start_date else None,
+            contract_end_date=datetime.fromisoformat(contract_end_date) if contract_end_date else None,
+            
+            is_active=True
+        )
+        db.add(new_vendor)
         
         db.commit()
         target = return_to or "/material_vendor"
