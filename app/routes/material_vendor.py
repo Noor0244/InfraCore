@@ -10,6 +10,7 @@ from app.models.activity import Activity
 from app.models.road_stretch import RoadStretch
 from app.models.material_activity import MaterialActivity
 from app.models.material_stretch import MaterialStretch
+from app.models.planned_material import PlannedMaterial
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -94,6 +95,89 @@ async def set_material_stretches(material_id: int, request: Request, db: Session
         db.add(MaterialStretch(material_id=material_id, stretch_id=sid))
     db.commit()
     return JSONResponse({"success": True, "stretch_ids": stretch_ids})
+
+# Auto-assign planned materials and stretch links from a reference stretch
+@router.post("/project/{project_id}/stretches/{reference_stretch_id}/auto-assign-materials")
+def auto_assign_materials_from_stretch(project_id: int, reference_stretch_id: int, db: Session = Depends(get_db)):
+    from decimal import Decimal
+
+    reference_stretch = db.query(RoadStretch).filter(
+        RoadStretch.id == reference_stretch_id,
+        RoadStretch.project_id == project_id
+    ).first()
+    if not reference_stretch:
+        return JSONResponse({"success": False, "error": "Reference stretch not found."}, status_code=404)
+
+    if not reference_stretch.length_m or reference_stretch.length_m <= 0:
+        return JSONResponse({"success": False, "error": "Reference stretch length is invalid."}, status_code=400)
+
+    ref_planned = db.query(PlannedMaterial).filter(
+        PlannedMaterial.project_id == project_id,
+        PlannedMaterial.stretch_id == reference_stretch_id
+    ).all()
+
+    ref_material_links = db.query(MaterialStretch).filter(
+        MaterialStretch.stretch_id == reference_stretch_id
+    ).all()
+
+    if not ref_planned and not ref_material_links:
+        return JSONResponse({"success": False, "error": "No reference data found for this stretch."}, status_code=400)
+
+    target_stretches = db.query(RoadStretch).filter(
+        RoadStretch.project_id == project_id,
+        RoadStretch.id != reference_stretch_id
+    ).all()
+
+    ref_len = Decimal(reference_stretch.length_m)
+    created = 0
+    updated = 0
+    links_created = 0
+
+    for target in target_stretches:
+        if not target.length_m or target.length_m <= 0:
+            continue
+        ratio = Decimal(target.length_m) / ref_len
+
+        for ref in ref_planned:
+            planned_qty = (ref.planned_quantity or Decimal("0")) * ratio
+            existing = db.query(PlannedMaterial).filter(
+                PlannedMaterial.project_id == project_id,
+                PlannedMaterial.stretch_id == target.id,
+                PlannedMaterial.material_id == ref.material_id
+            ).first()
+            if existing:
+                existing.planned_quantity = planned_qty
+                existing.unit = ref.unit
+                existing.allowed_units = ref.allowed_units
+                updated += 1
+            else:
+                db.add(PlannedMaterial(
+                    project_id=project_id,
+                    material_id=ref.material_id,
+                    stretch_id=target.id,
+                    unit=ref.unit,
+                    allowed_units=ref.allowed_units,
+                    planned_quantity=planned_qty
+                ))
+                created += 1
+
+        for link in ref_material_links:
+            exists = db.query(MaterialStretch).filter(
+                MaterialStretch.material_id == link.material_id,
+                MaterialStretch.stretch_id == target.id
+            ).first()
+            if not exists:
+                db.add(MaterialStretch(material_id=link.material_id, stretch_id=target.id))
+                links_created += 1
+
+    db.commit()
+    return JSONResponse({
+        "success": True,
+        "message": "Auto-assignment completed.",
+        "materials_created": created,
+        "materials_updated": updated,
+        "links_created": links_created
+    })
 
 # Get current vendors linked to a material (with full details)
 @router.get("/material/{material_id}/vendors")

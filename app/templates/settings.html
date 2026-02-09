@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div style="max-width: 980px;">
+<div class="settings-page" style="max-width: 980px;">
     <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap: wrap;">
         <h1 style="margin: 0;">Settings</h1>
         <div style="opacity: 0.85; font-size: 0.95rem;">
@@ -72,6 +72,22 @@
         More settings can be added here later (roles, defaults, UI preferences).
     </div>
 </div>
+
+<style>
+    .settings-page .form-grid { align-items: end; }
+    .settings-page input,
+    .settings-page select {
+        min-height: 40px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--card) 92%, transparent);
+        border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+    }
+    .settings-page .btn-primary,
+    .settings-page .btn-secondary {
+        min-height: 40px;
+        padding: 9px 16px;
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}
