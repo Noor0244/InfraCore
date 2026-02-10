@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.activity import Activity
 from app.models.activity_material import ActivityMaterial
+from app.models.material_activity import MaterialActivity
 from app.models.activity_progress import ActivityProgress
 from app.models.material import Material
 from app.models.material_stock import MaterialStock
@@ -401,6 +402,7 @@ async def amp_save(
     end_date: str = Form(...),
     material_id: int | None = Form(None),
     required_qty: float | None = Form(None),
+    quantity: float | None = Form(None),
     vendor_id: int | None = Form(None),
     unlock_override: str | None = Form(None),
     unlock_reason: str | None = Form(None),
@@ -585,6 +587,10 @@ async def amp_save(
                     mapping.expected_delivery_date = expected
                     mapping.is_material_risk = False
                     mapping.updated_at = datetime.utcnow()
+                    if quantity is not None:
+                        mapping.quantity = float(quantity)
+                    else:
+                        mapping.quantity = float(rq)
                     db.add(mapping)
                     log_action(
                         db=db,
@@ -609,10 +615,31 @@ async def amp_save(
                         is_material_risk=False,
                         updated_at=datetime.utcnow(),
                         created_at=datetime.utcnow(),
+                        quantity=float(quantity) if quantity is not None else float(rq),
                     )
                     db.add(mapping)
 
                 saved_mapping_id = int(getattr(mapping, "id", 0) or 0) or None
+
+                # Keep MaterialActivity quantity in sync for the Material Master modal.
+                mat_link = (
+                    db.query(MaterialActivity)
+                    .filter(
+                        MaterialActivity.activity_id == int(activity_id),
+                        MaterialActivity.material_id == int(material_id),
+                    )
+                    .first()
+                )
+                if mat_link:
+                    mat_link.quantity = float(rq)
+                else:
+                    db.add(
+                        MaterialActivity(
+                            activity_id=int(activity_id),
+                            material_id=int(material_id),
+                            quantity=float(rq),
+                        )
+                    )
 
                 # Stock / reorder hint
                 stock = (

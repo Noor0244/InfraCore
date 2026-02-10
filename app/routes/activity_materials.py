@@ -12,6 +12,8 @@ from datetime import datetime
 from app.db.session import SessionLocal
 from app.models.activity_material import ActivityMaterial
 from app.models.activity import Activity
+from app.models.project_activity import ProjectActivity
+from app.models.stretch_activity import StretchActivity
 from app.models.material import Material
 from app.models.project_material_vendor import ProjectMaterialVendor
 from app.models.road_stretch import RoadStretch as Stretch
@@ -142,8 +144,15 @@ def get_project_stretches(project_id: int, db: Session = Depends(get_db)):
 
 @router.get("/api/stretches/{stretch_id}/activities")
 def get_stretch_activities(stretch_id: int, db: Session = Depends(get_db)):
-    acts = db.query(Activity).filter(Activity.stretch_id == stretch_id).all()
-    return [ {"id": a.id, "name": a.activity_name} for a in acts ]
+    rows = (
+        db.query(Activity.id, Activity.name)
+        .join(ProjectActivity, ProjectActivity.activity_id == Activity.id)
+        .join(StretchActivity, StretchActivity.project_activity_id == ProjectActivity.id)
+        .filter(StretchActivity.stretch_id == stretch_id)
+        .order_by(Activity.name)
+        .all()
+    )
+    return [{"id": rid, "name": name} for rid, name in rows]
 
 @router.get("/api/activity/{activity_id}/materials")
 def get_activity_materials(activity_id: int, db: Session = Depends(get_db)):

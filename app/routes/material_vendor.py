@@ -57,23 +57,62 @@ def add_vendor_page(request: Request, db: Session = Depends(get_db)):
         },
     )
 
+
+@router.get("/project/{project_id}/materials/linker/{material_id}", response_class=HTMLResponse)
+def material_linker_page(
+    request: Request,
+    project_id: int,
+    material_id: int,
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    material = db.query(Material).filter(Material.id == material_id).first()
+    user = _resolve_user(request)
+    if not project or not material:
+        return RedirectResponse("/projects", status_code=302)
+
+    activities = db.query(Activity).filter(Activity.project_id == project_id).all()
+    stretches = db.query(RoadStretch).filter(RoadStretch.project_id == project_id).all()
+    materials = db.query(Material).filter(Material.is_active == True).order_by(Material.name.asc()).all()
+    if material and all(int(m.id) != int(material.id) for m in materials):
+        materials = materials + [material]
+
+    return templates.TemplateResponse(
+        "material_linker.html",
+        {
+            "request": request,
+            "user": user,
+            "project": project,
+            "material": material,
+            "materials": materials,
+            "activities": activities,
+            "stretches": stretches,
+        },
+    )
+
 # --- AJAX endpoints for Material–Activity and Material–Stretch linking ---
 # Get current activities linked to a material
 @router.get("/material/{material_id}/activities")
 def get_material_activities(material_id: int, db: Session = Depends(get_db)):
     links = db.query(MaterialActivity).filter(MaterialActivity.material_id == material_id).all()
-    return {"activity_ids": [link.activity_id for link in links]}
+    return {
+        "activity_ids": [link.activity_id for link in links],
+        "activity_quantities": {str(link.activity_id): (float(link.quantity) if link.quantity is not None else None) for link in links},
+    }
 
 # Update activities linked to a material (replace all)
 @router.post("/material/{material_id}/activities")
 async def set_material_activities(material_id: int, request: Request, db: Session = Depends(get_db)):
     data = await request.json()
     activity_ids = data.get("activity_ids", [])
+    activity_quantities = data.get("activity_quantities", {}) or {}
     # Remove old links
     db.query(MaterialActivity).filter(MaterialActivity.material_id == material_id).delete()
     # Add new links
     for aid in activity_ids:
-        db.add(MaterialActivity(material_id=material_id, activity_id=aid))
+        qty = activity_quantities.get(str(aid))
+        qty_value = float(qty) if qty is not None and str(qty).strip() != "" else None
+        db.add(MaterialActivity(material_id=material_id, activity_id=aid, quantity=qty_value))
     db.commit()
     return JSONResponse({"success": True, "activity_ids": activity_ids})
 

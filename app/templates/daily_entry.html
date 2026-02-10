@@ -27,6 +27,20 @@
     .btn-sm { padding: 6px 10px; font-size: 12px; }
     .btn-approve-activity { background: linear-gradient(135deg, #4f8cff 0%, #3a6fd8 100%); color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; transition: all 160ms ease; }
     .btn-approve-activity:hover { opacity: 0.9; box-shadow: 0 2px 8px rgba(79,140,255,0.3); }
+    .btn-update-activity { background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%); color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; transition: all 160ms ease; }
+    .btn-update-activity:hover { opacity: 0.9; box-shadow: 0 2px 8px rgba(255,165,0,0.3); }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-overlay.active { display: flex; }
+    .modal-content { background: #1a2332; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .modal-content .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
+    .modal-content .form-group { margin-bottom: 16px; }
+    .modal-content .form-group label { display: block; font-size: 13px; margin-bottom: 6px; opacity: 0.9; }
+    .modal-content .form-group input, .modal-content .form-group textarea { width: 100%; padding: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; background: rgba(255,255,255,0.04); color: #fff; font-size: 13px; }
+    .modal-content .form-group textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+    .modal-content .modal-footer { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+    .modal-content .btn-modal-cancel { background: rgba(255,255,255,0.1); color: #fff; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; }
+    .modal-content .btn-modal-save { background: linear-gradient(135deg, #4f8cff 0%, #3a6fd8 100%); color: #fff; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; }
+
 
 </style>
 
@@ -151,7 +165,7 @@
                                 <th>Planned Today</th>
                                 <th>Unit</th>
                                 <th>Plan Window</th>
-                                <th style="width:140px">Action</th>
+                                <th style="width:180px">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -163,7 +177,10 @@
                                     <td>{{ "%.3f"|format(per_day) }}</td>
                                     <td>{{ pa.unit }}</td>
                                     <td>{{ pa.start_date }} → {{ pa.end_date }}</td>
-                                    <td><button type="button" class="btn-approve-activity" data-activity-id="{{ pa.activity_id }}" style="padding:5px 10px; font-size:12px;">Approve</button></td>
+                                    <td style="display:flex; gap:6px;">
+                                        <button type="button" class="btn-approve-activity" data-activity-id="{{ pa.activity_id }}" style="padding:5px 10px; font-size:12px;">Approve</button>
+                                        <button type="button" class="btn-update-activity" data-activity-id="{{ pa.activity_id }}" data-activity-name="{{ pa.activity.name }}" style="padding:5px 10px; font-size:12px;">Update</button>
+                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -523,6 +540,37 @@
                 <button class="btn-success" type="submit" name="action" value="submit">Submit for Review</button>
             </div>
 
+        </div>
+
+        <!-- Modal for updating activity information -->
+        <div id="updateActivityModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-title">Update Activity Status</div>
+                <div class="form-group">
+                    <label>Activity Name:</label>
+                    <div style="padding: 10px; background: rgba(255,255,255,0.04); border-radius: 6px;" id="modalActivityName"></div>
+                </div>
+                <div class="form-group">
+                    <label for="modalDelayReason">Reason for Delay/Change:</label>
+                    <input type="text" id="modalDelayReason" placeholder="e.g., Weather, Resource shortage, etc." />
+                </div>
+                <div class="form-group">
+                    <label for="modalCompleteDate">Complete Date:</label>
+                    <input type="text" id="modalCompleteDate" placeholder="DD/MM/YYYY" maxlength="10" />
+                </div>
+                <div class="form-group">
+                    <label for="modalUpdateRemarks">Additional Remarks:</label>
+                    <textarea id="modalUpdateRemarks" placeholder="Provide details about the delay or any changes needed..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="modalNewQuantity">New Planned Quantity (optional):</label>
+                    <input type="number" id="modalNewQuantity" placeholder="Leave empty to keep original" step="0.001" />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modal-cancel" id="modalCancelBtn">Cancel</button>
+                    <button type="button" class="btn-modal-save" id="modalSaveBtn">Save Update</button>
+                </div>
+            </div>
         </div>
 
     </form>

@@ -5,14 +5,16 @@
 # --------------------------------------------------
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Form
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.db.session import get_db
 from app.models.activity import Activity
 from app.models.project import Project
 from app.models.project_user import ProjectUser
+from app.models.project_activity import ProjectActivity
 from app.utils.audit_logger import log_action, model_to_dict
 from app.utils.id_codes import generate_next_activity_code
 
@@ -144,3 +146,81 @@ def create_activity(
         f"/activity-material-planning/{project_id}",
         status_code=302
     )
+
+
+# ==================================================
+# UPDATE ACTIVITY END DATE
+# ==================================================
+@router.post("/api/activities/{activity_id}/update-end-date")
+async def update_activity_end_date(
+    activity_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+
+    # Get the request body
+    try:
+        body = await request.json()
+    except:
+        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
+
+    project_id = body.get("project_id")
+    new_end_date_str = body.get("new_end_date")
+    reason = body.get("reason", "")
+    remarks = body.get("remarks", "")
+
+    if not project_id or not new_end_date_str:
+        return JSONResponse({"success": False, "error": "Missing project_id or new_end_date"}, status_code=400)
+
+    # Parse the date
+    try:
+        new_end_date = datetime.strptime(new_end_date_str, "%Y-%m-%d").date()
+    except:
+        return JSONResponse({"success": False, "error": "Invalid date format. Use YYYY-MM-DD"}, status_code=400)
+
+    # Check access
+    if not require_project_access(db, user, project_id):
+        return JSONResponse({"success": False, "error": "Access denied"}, status_code=403)
+
+    # Update ProjectActivity
+    project_activity = (
+        db.query(ProjectActivity)
+        .filter(
+            ProjectActivity.activity_id == activity_id,
+            ProjectActivity.project_id == project_id
+        )
+        .first()
+    )
+
+    if not project_activity:
+        return JSONResponse({"success": False, "error": "Activity not found in this project"}, status_code=404)
+
+    # Store old value for audit
+    old_end_date = project_activity.end_date
+
+    # Update the end date
+    project_activity.end_date = new_end_date
+
+    db.commit()
+
+    # Log the action
+    log_action(
+        db=db,
+        request=request,
+        action="UPDATE",
+        entity_type="ProjectActivity",
+        entity_id=project_activity.id,
+        description=f"Activity end date updated from {old_end_date} to {new_end_date}. Reason: {reason}",
+        old_value={"end_date": str(old_end_date)},
+        new_value={"end_date": str(new_end_date), "reason": reason, "remarks": remarks},
+    )
+
+    return JSONResponse({
+        "success": True,
+        "message": "Activity end date updated successfully",
+        "new_end_date": str(new_end_date),
+        "old_end_date": str(old_end_date)
+    })

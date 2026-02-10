@@ -265,6 +265,133 @@
         }
       });
     });
+
+    // Individual activity update buttons
+    const activityUpdateButtons = qsa('button.btn-update-activity');
+    activityUpdateButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const activityId = btn.dataset.activityId;
+        const activityName = btn.dataset.activityName;
+        const modal = qs('#updateActivityModal');
+        const modalTitle = qs('#modalActivityName');
+        const reasonInput = qs('#modalDelayReason');
+        const completeDateInput = qs('#modalCompleteDate');
+        const remarksInput = qs('#modalUpdateRemarks');
+        const qtyInput = qs('#modalNewQuantity');
+        const saveBtn = qs('#modalSaveBtn');
+        const cancelBtn = qs('#modalCancelBtn');
+
+        if (modal && modalTitle) {
+          modalTitle.textContent = activityName || 'Activity';
+          reasonInput.value = '';
+          completeDateInput.value = '';
+          remarksInput.value = '';
+          qtyInput.value = '';
+          modal.classList.add('active');
+
+          // Add date formatting to the date input
+          completeDateInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, ''); // Remove all non-digits
+            if (value.length > 0) {
+              if (value.length <= 2) {
+                e.target.value = value;
+              } else if (value.length <= 4) {
+                e.target.value = value.slice(0, 2) + '/' + value.slice(2);
+              } else {
+                e.target.value = value.slice(0, 2) + '/' + value.slice(2, 4) + '/' + value.slice(4, 8);
+              }
+            }
+          }, false);
+
+          // Save handler
+          saveBtn.onclick = () => {
+            const reason = reasonInput.value.trim();
+            let completeDate = completeDateInput.value.trim();
+            const remarks = remarksInput.value.trim();
+            const newQty = qtyInput.value.trim();
+
+            // Convert DD/MM/YYYY to YYYY-MM-DD format
+            if (completeDate && completeDate.includes('/')) {
+              const parts = completeDate.split('/');
+              if (parts.length === 3) {
+                const day = parts[0].padStart(2, '0');
+                const month = parts[1].padStart(2, '0');
+                const year = parts[2];
+                completeDate = `${year}-${month}-${day}`;
+              }
+            }
+
+            // Update activity end date if complete date is provided
+            if (completeDate) {
+              const projectId = document.querySelector('input[name="project_id"]')?.value;
+              if (projectId && activityId) {
+                fetch(`/projects/api/activities/${activityId}/update-end-date`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    new_end_date: completeDate,
+                    project_id: projectId,
+                    reason: reason,
+                    remarks: remarks
+                  })
+                })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.success) {
+                    console.log('Activity end date updated:', data);
+                  }
+                })
+                .catch(err => console.error('Error updating activity:', err));
+              }
+            }
+
+            // Store update info (can be used for submit)
+            const updateData = {
+              activityId: activityId,
+              reason: reason,
+              completeDate: completeDate,
+              remarks: remarks,
+              newQuantity: newQty ? parseFloat(newQty) : null
+            };
+            
+            // Store in window or form data
+            if (!window.ACTIVITY_UPDATES) window.ACTIVITY_UPDATES = {};
+            window.ACTIVITY_UPDATES[activityId] = updateData;
+
+            // Update the remarks field for this activity if it exists
+            const remarksField = qs(`textarea[name="act_remarks_${activityId}"]`);
+            if (remarksField && remarks) {
+              remarksField.value = remarks;
+            }
+
+            // If new quantity provided, update execution field
+            if (newQty) {
+              const execInput = qs(`input[name="act_exec_${activityId}"]`);
+              if (execInput) {
+                execInput.value = Number(newQty).toFixed(3);
+                recomputeActivitiesAndMaterials();
+              }
+            }
+
+            // Close modal
+            modal.classList.remove('active');
+          };
+
+          // Cancel handler
+          cancelBtn.onclick = () => {
+            modal.classList.remove('active');
+          };
+
+          // Close on outside click
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+              modal.classList.remove('active');
+            }
+          });
+        }
+      });
+    });
   }
 
 

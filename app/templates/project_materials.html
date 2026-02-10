@@ -7,9 +7,9 @@
     <div style="opacity:0.8;font-size:13px">Project Type: <span class="badge">{{ project.project_type or '—' }}</span></div>
   </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap">
-    <!-- Overview button removed -->
     <a href="/projects/{{ project.id }}/activity-materials" class="btn">Activity → Material Map</a>
     <a href="/execution/{{ project.id }}" class="btn">Daily Entry</a>
+    <!-- <a href="/project/{{ project.id }}/materials/linker/1" class="btn btn-primary" style="background:#4f8cff;">MS Link</a> -->
   </div>
 </div>
 
@@ -20,7 +20,7 @@
       <div class="help-text">These are the project’s material register items (used for planning, stock, daily entry unit dropdowns).</div>
     </div>
   </div>
-
+  <!-- The rest of the planned materials table and add forms remain unchanged -->
   {% if can_edit %}
   <div style="margin-top:14px;display:grid;grid-template-columns:1.2fr 0.8fr;gap:12px">
     <div style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
@@ -38,7 +38,6 @@
         <div class="help-text" style="margin-top:8px">No additional preset materials to add for this classification.</div>
       {% endif %}
     </div>
-
     <div style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02)">
       <div style="font-weight:600;margin-bottom:8px">Add custom</div>
       <form method="post" action="/projects/{{ project.id }}/materials/add" style="display:flex;flex-direction:column;gap:8px">
@@ -52,7 +51,6 @@
     </div>
   </div>
   {% endif %}
-
   <div style="margin-top:14px">
     {% if planned_materials and planned_materials|length > 0 %}
       <table class="table" style="margin:0">

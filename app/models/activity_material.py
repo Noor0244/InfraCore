@@ -16,6 +16,9 @@ class ActivityMaterial(Base):
     # Example: 1.25 ton of aggregate per 1 km of GSB
     consumption_rate = Column(Float, nullable=False)
 
+    # Quantity of material for this activity
+    quantity = Column(Float, nullable=True)
+
     # ---------------- Lead time & vendor planning (optional) ----------------
     vendor_id = Column(Integer, ForeignKey("material_vendors.id"), nullable=True)
 
