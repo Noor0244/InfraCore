@@ -22,9 +22,11 @@ from app.utils.material_lead_time import (
 from app.utils.audit_logger import log_action, model_to_dict
 from app.utils.flash import flash
 from app.utils.id_codes import generate_next_code
+from app.utils.template_filters import register_template_filters
 
 router = APIRouter(prefix="/material-master", tags=["Material Master"])
 templates = Jinja2Templates(directory="app/templates")
+register_template_filters(templates)
 
 
 def _guard_master_editor(request: Request) -> dict | None:

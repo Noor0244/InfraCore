@@ -550,7 +550,7 @@
                     <td>{{ row.activity_name }}</td>
                     <td>{{ row.material_name }}</td>
                     <td>{{ row.predicted_qty }}</td>
-                    <td>{{ row.unit }}</td>
+                    <td>{{ row.unit|unit_sup }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -696,7 +696,7 @@
                 {% for s in alerts.procurement_snapshot %}
                     <span class="pill" title="{{ s.status_label }}{% if s.earliest_order_by %} | Order-by: {{ s.earliest_order_by }}{% endif %}">
                         {% if s.material_code %}{{ s.material_code }} — {% endif %}{{ s.material_name }}:
-                        <strong>{{ "%.3f"|format(s.total_to_order_qty or 0) }}</strong> {{ s.unit }}
+                        <strong>{{ "%.3f"|format(s.total_to_order_qty or 0) }}</strong> {{ s.unit|unit_sup }}
                         {% if s.earliest_order_by %}<span class="meta">(by {{ s.earliest_order_by }})</span>{% endif %}
                         {% if s.status_kind == 'LATE' %}<span class="badge badge-danger" style="margin-left:6px">Late</span>{% endif %}
                         {% if s.status_kind == 'DUE' %}<span class="badge badge-warning" style="margin-left:6px">Due</span>{% endif %}
@@ -752,7 +752,7 @@
                         <td>
                             {% if r.material_code %}<span class="badge">{{ r.material_code }}</span>{% endif %}
                             {{ r.material_name }}
-                            <div class="meta">Unit: {{ r.unit }}</div>
+                            <div class="meta">Unit: {{ r.unit|unit_sup }}</div>
                         </td>
                         <td style="text-align:right">{{ r.required_qty }}</td>
                         <td style="text-align:right">{{ r.available_qty }}</td>

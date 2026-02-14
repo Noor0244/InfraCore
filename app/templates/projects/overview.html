@@ -97,7 +97,7 @@
                         <div style="max-height: 240px; overflow: auto; margin-top: 8px;">
                             <ol style="margin: 0 0 0 18px;">
                                 {% for m in preset_snapshot.material_defs %}
-                                    <li>{{ m.name }} <span style="color:#666;">({{ m.unit }})</span></li>
+                                    <li>{{ m.name }} <span style="color:#666;">({{ m.unit|unit_sup }})</span></li>
                                 {% endfor %}
                             </ol>
                         </div>

@@ -237,6 +237,12 @@ table tbody tr:hover{
   opacity: 0.85;
 }
 
+.unit-text sup{
+  font-size: 0.75em;
+  line-height: 0;
+  vertical-align: super;
+}
+
 @media (max-width: 900px){
   .container{ padding: 16px; }
   .card--page{ max-width: 100%; }

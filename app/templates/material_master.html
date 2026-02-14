@@ -34,7 +34,7 @@
           <strong>{{ m.name }}</strong>
           {% if m.category %}<div class="meta">{{ m.category }}</div>{% endif %}
         </td>
-        <td>{{ m.unit }}</td>
+        <td>{{ m.unit|unit_sup }}</td>
         <td>
           <form method="post" action="/material-master/materials/update" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="hidden" name="material_id" value="{{ m.id }}" />

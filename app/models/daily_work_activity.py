@@ -37,6 +37,8 @@ class DailyWorkActivity(Base):
     executed_today_hours = Column(Float, nullable=False, default=0.0)
     remarks = Column(String(2000), nullable=True)
 
+    approval_status = Column(String(20), nullable=True, default="Changed")
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     report = relationship("DailyWorkReport", back_populates="activity_rows")

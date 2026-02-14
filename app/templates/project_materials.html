@@ -67,7 +67,7 @@
           <tr>
             <td>
               <strong>{{ pm.name }}</strong>
-              <div class="meta">Base: {{ pm.unit or '—' }}</div>
+              <div class="meta">Base: {{ (pm.unit or '—')|unit_sup }}</div>
             </td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap">

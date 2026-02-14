@@ -7,6 +7,7 @@ from app.models.material_stock import MaterialStock
 from app.models.project import Project
 from datetime import datetime
 from app.utils.flash import flash
+from app.utils.template_filters import register_template_filters
 from fastapi.templating import Jinja2Templates
 
 router = APIRouter(
@@ -14,6 +15,7 @@ router = APIRouter(
     tags=["Material Stock"]
 )
 templates = Jinja2Templates(directory="app/templates")
+register_template_filters(templates)
 
 def get_db():
     db = SessionLocal()
@@ -59,12 +61,35 @@ def current_stock_page(request: Request, db: Session = Depends(get_db)):
     if not project_id:
         project_id = request.session.get("project_id")
     user = request.session.get("user")
-    projects = db.query(Project).order_by(Project.name.asc()).all()
+    projects = db.query(Project).filter(Project.is_active == True).order_by(Project.name.asc()).all()
+    
+    # Get project details and stretches
+    project = None
+    stretches = []
+    if project_id:
+        from app.models.road_stretch import RoadStretch
+        project = db.query(Project).filter(Project.id == int(project_id)).first()
+        stretches = db.query(RoadStretch).filter(RoadStretch.project_id == int(project_id)).order_by(RoadStretch.sequence_no.asc()).all()
+    
     if project_id:
         stocks = db.query(MaterialStock).filter(MaterialStock.project_id == int(project_id)).all()
+        # PROJECT-SPECIFIC: Only show materials that are added to this project
+        from app.models.planned_material import PlannedMaterial
+        project_material_ids = (
+            db.query(PlannedMaterial.material_id)
+            .filter(PlannedMaterial.project_id == int(project_id))
+            .distinct()
+            .subquery()
+        )
+        materials = (
+            db.query(Material)
+            .filter(Material.id.in_(project_material_ids))
+            .order_by(Material.name.asc())
+            .all()
+        )
     else:
         stocks = db.query(MaterialStock).all()
-    materials = db.query(Material).all()
+        materials = db.query(Material).all()
     # Prepare stock data for template
     stock_data = []
     for s in stocks:
@@ -83,6 +108,8 @@ def current_stock_page(request: Request, db: Session = Depends(get_db)):
             "stocks": stock_data,
             "materials": materials,
             "project_id": project_id,
+            "project": project,
+            "stretches": stretches,
             "projects": projects,
             "user": user,
         }
@@ -91,9 +118,35 @@ def current_stock_page(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/add")
 def add_stock(request: Request, db: Session = Depends(get_db), project_id: int = Form(...), material_id: int = Form(...), quantity: float = Form(...), unit: str = Form(...), location: str = Form(None)):
-    stock = MaterialStock(project_id=project_id, material_id=material_id, quantity_available=quantity, location=location, last_updated=datetime.utcnow())
-    db.add(stock)
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    
+    # Check if stock already exists for this material
+    existing = db.query(MaterialStock).filter(
+        MaterialStock.project_id == project_id,
+        MaterialStock.material_id == material_id
+    ).first()
+    
+    if existing:
+        # Update existing stock
+        existing.quantity_available = float(existing.quantity_available or 0) + quantity
+        existing.last_updated = datetime.utcnow()
+        flash(request, f"Stock updated: added {quantity} {unit}", "success")
+    else:
+        # Create new stock entry
+        stock = MaterialStock(
+            project_id=project_id,
+            material_id=material_id,
+            quantity_available=quantity,
+            location=location,
+            last_updated=datetime.utcnow()
+        )
+        db.add(stock)
+        flash(request, f"Stock added: {quantity} {unit}", "success")
+    
     db.commit()
+    return RedirectResponse(f"/stock/current?project_id={project_id}", status_code=303)
     flash(request, "Stock added successfully!", "success")
     return RedirectResponse(f"/stock/current?project_id={project_id}", status_code=302)
 

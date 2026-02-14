@@ -37,6 +37,9 @@ async def dashboard(
     material_id: int | None = None,
     db: Session = Depends(get_db)
 ):
+    # Ensure shared filters are available (safe to call per-request).
+    register_template_filters(templates)
+
     # Ensure all dashboard context variables are always defined
     alerts = None
     dash_view = "project"
@@ -145,15 +148,31 @@ async def dashboard(
         if stretch_id_eff:
             inventory_prediction_data = inv_service.predict_material_requirements(project.id, stretch_id_eff)
             procurement_schedule = proc_service.plan_procurement(project.id, stretch_id_eff)
+        # PROJECT-SPECIFIC: Only query materials that are added to this project
+        from app.models.planned_material import PlannedMaterial
+        project_material_ids = (
+            db.query(PlannedMaterial.material_id)
+            .filter(PlannedMaterial.project_id == project.id)
+            .distinct()
+            .subquery()
+        )
+        project_materials = (
+            db.query(Material)
+            .filter(
+                Material.is_active == True,
+                Material.id.in_(project_material_ids)
+            )
+            .all()
+        )
         # Real-time inventory for all materials in project
         inventory_status = {
             m.id: inv_service.get_live_inventory(project.id, m.id)
-            for m in db.query(Material).filter(Material.is_active == True).all()
+            for m in project_materials
         }
         # Buffer/alert simulation for all materials
         buffer_alerts = {
             m.id: inv_service.simulate_buffer_alerts(project.id, m.id)
-            for m in db.query(Material).filter(Material.is_active == True).all()
+            for m in project_materials
         }
 
     return templates.TemplateResponse(

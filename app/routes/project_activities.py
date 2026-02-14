@@ -19,6 +19,8 @@ from app.utils.road_classification import get_presets_for_engineering_type
 from app.utils.project_type_presets import get_presets_for_project_type
 from app.utils.id_codes import generate_next_activity_code
 from app.utils.template_filters import register_template_filters
+from app.utils.activity_units import display_to_hours, normalize_display_unit, normalize_hours_per_day
+from app.utils.dates import parse_date_ddmmyyyy_or_iso
 
 router = APIRouter(prefix="/projects", tags=["Project Activities"])
 templates = Jinja2Templates(directory="app/templates")
@@ -118,6 +120,13 @@ def create_activity_for_project(
     request: Request,
     name: str = Form(...),
     is_standard: str = Form("false"),  # 👈 FIXED (string)
+    planned_quantity: float = Form(...),
+    unit: str = Form(...),
+    start_date: str = Form(...),
+    end_date: str = Form(...),
+    planned_time_display: float = Form(0.0),
+    display_unit: str = Form("hours"),
+    hours_per_day: float = Form(8.0),
     db: Session = Depends(get_db),
 ):
     user = request.session.get("user")
@@ -148,7 +157,37 @@ def create_activity_for_project(
     # Assign human-friendly project-scoped code
     activity.code = generate_next_activity_code(db, Activity, project_id=project_id, code_attr="code", width=6, project_width=6)
 
+    du = normalize_display_unit(display_unit)
+    hpd = normalize_hours_per_day(hours_per_day, default=8.0)
+    try:
+        start_date_obj = parse_date_ddmmyyyy_or_iso(start_date)
+        end_date_obj = parse_date_ddmmyyyy_or_iso(end_date)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid start/end date")
+
+    planned_hours = 0.0
+    try:
+        planned_hours = float(display_to_hours(planned_time_display or 0, du, hpd) or 0)
+    except Exception:
+        planned_hours = 0.0
+
+    activity.planned_quantity_hours = float(planned_hours or 0.0)
+    activity.display_unit = du
+    activity.hours_per_day = float(hpd)
+
     db.add(activity)
+    db.commit()
+    db.refresh(activity)
+
+    plan = ProjectActivity(
+        project_id=project_id,
+        activity_id=activity.id,
+        planned_quantity=float(planned_quantity),
+        unit=str(unit or "").strip(),
+        start_date=start_date_obj,
+        end_date=end_date_obj,
+    )
+    db.add(plan)
     db.commit()
 
     log_action(

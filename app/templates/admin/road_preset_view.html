@@ -61,7 +61,7 @@
             {% if m.is_core %}<span class="badge" style="background:#7c2d12;color:#ffedd5;padding:2px 8px;border-radius:999px">CORE</span>{% endif %}
             {% if not m.is_active %}<span class="badge" style="background:#3f3f46;color:#e5e7eb;padding:2px 8px;border-radius:999px">Disabled</span>{% endif %}
           </div>
-          <div class="help-text">Code: {{ m.material_code }} • Unit: {{ m.unit or 'unit' }}{% if m.default_spec %} • Spec: {{ m.default_spec }}{% endif %}</div>
+          <div class="help-text">Code: {{ m.material_code }} • Unit: {{ (m.unit or 'unit')|unit_sup }}{% if m.default_spec %} • Spec: {{ m.default_spec }}{% endif %}</div>
         </div>
       {% endfor %}
     </div>

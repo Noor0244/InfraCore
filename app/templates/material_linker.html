@@ -1,11 +1,278 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+  .linker-page {
+    --ink: #e6edf7;
+    --muted: #9bb0c9;
+    --accent: #15c3b2;
+    --accent-2: #f2a93b;
+    --card: rgba(10, 16, 32, 0.78);
+    --card-border: rgba(88, 120, 160, 0.2);
+    --line: rgba(120, 150, 190, 0.2);
+    font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
+    color: var(--ink);
+    position: relative;
+    padding: 22px 24px 40px;
+  }
+
+  .linker-page::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 120% at 10% 10%, rgba(21, 195, 178, 0.18), transparent 50%),
+      radial-gradient(120% 140% at 90% 0%, rgba(242, 169, 59, 0.16), transparent 55%),
+      radial-gradient(120% 140% at 30% 90%, rgba(66, 120, 255, 0.12), transparent 55%);
+    pointer-events: none;
+  }
+
+  .linker-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 22px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .page-title {
+    font-size: 26px;
+    letter-spacing: 0.3px;
+    margin-bottom: 8px;
+  }
+
+  .linker-subtitle {
+    color: var(--muted);
+    max-width: 760px;
+    line-height: 1.6;
+  }
+
+  .linker-badge {
+    background: rgba(21, 195, 178, 0.14);
+    color: #c8fffb;
+    border: 1px solid rgba(21, 195, 178, 0.35);
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .linker-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 18px 35px rgba(3, 12, 30, 0.45);
+    position: relative;
+    z-index: 1;
+  }
+
+  .linker-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 22px;
+  }
+
+  .linker-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .linker-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .linker-section-title {
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .linker-count {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .linker-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .linker-field label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  .stretch-select,
+  .material-select,
+  .activity-filter {
+    width: 100%;
+    background: rgba(10, 20, 40, 0.65);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--ink);
+    font-size: 14px;
+    outline: none;
+  }
+
+  .stretch-select:focus,
+  .material-select:focus,
+  .activity-filter:focus,
+  .activity-qty:focus {
+    border-color: rgba(21, 195, 178, 0.7);
+    box-shadow: 0 0 0 3px rgba(21, 195, 178, 0.18);
+  }
+
+  .linker-summary {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .linker-pill {
+    border-radius: 999px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .linker-activities {
+    display: grid;
+    gap: 12px;
+  }
+
+  .select-card--activity {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(5, 12, 28, 0.55);
+    transition: transform 0.15s ease, border-color 0.2s ease;
+  }
+
+  .select-card--activity:hover {
+    transform: translateY(-1px);
+    border-color: rgba(21, 195, 178, 0.5);
+  }
+
+  .select-card--activity input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+  }
+
+  .select-card__text {
+    font-size: 14px;
+  }
+
+  .select-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .activity-qty {
+    width: 110px;
+    background: rgba(8, 16, 34, 0.7);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    color: var(--ink);
+    font-size: 13px;
+  }
+
+  .activity-unit-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .activity-unit-select,
+  .activity-unit-custom {
+    background: rgba(8, 16, 34, 0.7);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 6px 8px;
+    color: var(--ink);
+    font-size: 12px;
+    outline: none;
+  }
+
+  .activity-unit-select {
+    min-width: 70px;
+  }
+
+  .activity-unit-custom {
+    width: 78px;
+  }
+
+  .linker-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .btn-save {
+    background: linear-gradient(120deg, var(--accent), #2dd4bf);
+    color: #05151b;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    box-shadow: 0 10px 24px rgba(21, 195, 178, 0.35);
+  }
+
+  .linker-warning {
+    color: #f8d08f;
+    font-size: 13px;
+    display: none;
+  }
+
+  #assignQuantitiesBtn,
+  #assignQuantitiesModal {
+    display: none !important;
+  }
+
+  @media (max-width: 980px) {
+    .linker-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
 <div class="linker-page">
   <div class="linker-header">
-    <h1 class="page-title">Material–Stretch & Activity Linking</h1>
-    <div class="linker-subtitle" style="font-size:16px; color:#a5b4fc; margin-bottom:18px;">
-      Select a stretch, then choose a material, and link it to one or more activities. Assign quantities for each activity as needed. Click <b>Save Links</b> to save your changes.
+    <div>
+      <h1 class="page-title">Material-Stretch and Activity Linking</h1>
+      <div class="linker-subtitle">
+        Select a stretch, choose a material, then assign it to activities with quantities. Use Save Links to persist your choices.
+      </div>
     </div>
+    <div class="linker-badge">Project {{ project.id }}</div>
   </div>
   <form id="stretchActivityForm" class="linker-card">
     <div class="linker-grid">
@@ -14,19 +281,28 @@
           <div class="linker-section-title">Select Stretch</div>
           <span class="linker-count"><span id="stretchCount">0</span> selected</span>
         </div>
-        <select id="stretchSelect" class="stretch-select" aria-label="Select stretch">
-          <option value="">Select a stretch</option>
-          {% for s in stretches %}
-            <option value="{{ s.id }}">{{ s.stretch_name }}</option>
-          {% endfor %}
-        </select>
+        <div class="linker-field">
+          <label for="stretchSelect">Stretch</label>
+          <select id="stretchSelect" class="stretch-select" aria-label="Select stretch">
+            <option value="">Select a stretch</option>
+            {% for s in stretches %}
+              <option value="{{ s.id }}">{{ s.stretch_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
         <input type="hidden" id="stretchSelectedId" value="">
-        <div class="linker-section-title" style="margin-top:18px;">Material</div>
-        <select id="materialSelect" class="material-select" aria-label="Select material">
-          {% for m in materials %}
-            <option value="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" {% if m.id == material.id %}selected{% endif %}>{{ m.name }}</option>
-          {% endfor %}
-        </select>
+        <div class="linker-field">
+          <label for="materialSelect">Material</label>
+          <select id="materialSelect" class="material-select" aria-label="Select material">
+            {% for m in materials %}
+              <option value="{{ m.id }}" data-name="{{ m.name }}" data-unit="{{ m.unit }}" data-standard-unit="{{ m.get_standard_unit() or '' }}" data-allowed-units='{{ m.get_allowed_units() | tojson }}' {% if m.id == material.id %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="linker-summary">
+          <span class="linker-pill">Material: <strong id="materialNameText">{{ material.name }}</strong></span>
+          <span class="linker-pill">Unit: <strong id="materialUnitText">{{ (material.get_standard_unit() or material.unit)|unit_sup }}</strong></span>
+        </div>
       </section>
       <section class="linker-section" id="activitySection" style="display:none;">
         <div class="linker-section-header">
@@ -37,368 +313,487 @@
         <input id="activityFilter" class="activity-filter" type="search" placeholder="Filter activities..." autocomplete="off" style="display:none;">
         <div class="linker-activities modal-grid modal-grid--activity modal-grid--activity-compact" id="activitiesList" style="display:none;">
         </div>
-        <button type="button" id="assignQuantitiesBtn" class="btn-primary" style="display:none; margin-top: 16px;">Assign Quantities</button>
-        <div id="assignQuantitiesModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.45); z-index:1000; align-items:center; justify-content:center;">
-          <div class="modal-content" style="background:#181f3a; border-radius:14px; padding:32px; min-width:340px; max-width:90vw; box-shadow:0 8px 32px rgba(0,0,0,0.25);">
-            <h2 style="color:#e2e8f0; font-size:20px; margin-bottom:18px;">Assign Material & Quantity</h2>
-            <form id="assignQuantitiesForm">
-              <script>
-              let currentMaterialId = {{ material.id }};
-              let currentMaterialUnit = "{{ material.unit }}";
-              let currentMaterialActivityIds = [];
-              let currentMaterialActivityQty = {};
+        <div class="linker-actions">
+          <div>
+            <div class="linker-warning" id="stretchActivityModalWarning"></div>
+            <div class="linker-summary">
+              <span class="linker-pill">Stretch selected: <strong id="summaryStretchCount">0</strong></span>
+              <span class="linker-pill">Activities selected: <strong id="summaryActivityCount">0</strong></span>
+            </div>
+          </div>
+          <button type="submit" id="stretchActivitySubmit" class="btn-primary btn-save">Save Links</button>
+        </div>
+      </section>
+    </div>
+  </form>
+  <script>
+    let currentMaterialId = {{ material.id }};
+    let currentMaterialUnit = "{{ material.unit }}";
+    let currentMaterialStandardUnit = "{{ material.get_standard_unit() or material.unit }}";
+    let currentMaterialAllowedUnits = {{ material.get_allowed_units() | tojson }};
+    let currentMaterialActivityIds = [];
+    let currentMaterialActivityQty = {};
+    let currentMaterialActivityUnits = {};
+    let pendingStateByMaterial = {};
 
-              function showAssignQuantitiesButton() {
-                const checked = document.querySelectorAll('#stretchActivityForm input[name="activities"]:checked').length;
-                const btn = document.getElementById('assignQuantitiesBtn');
-                if (btn) btn.style.display = checked > 0 ? '' : 'none';
-              }
-
-              function getStretchSelectionId() {
-                const select = document.getElementById('stretchSelect');
-                const input = document.getElementById('stretchSelectedId');
-                const rawValue = select && select.value ? select.value : (input ? input.value : '');
-                const value = rawValue ? parseInt(rawValue) : null;
-                return Number.isNaN(value) ? null : value;
-              }
-
-              function setStretchSelection(id, name) {
-                const select = document.getElementById('stretchSelect');
-                const input = document.getElementById('stretchSelectedId');
-                if (select) select.value = id ? String(id) : '';
-                if (input) input.value = id ? String(id) : '';
-                updateStretchCount();
-              }
-
-              function updateStretchCount() {
-                const selectedId = getStretchSelectionId();
-                const count = selectedId ? 1 : 0;
-                const stretchCountEl = document.getElementById('stretchCount');
-                if (stretchCountEl) stretchCountEl.textContent = count;
-                toggleActivitiesEnabled(canShowActivities());
-                if (canShowActivities()) {
-                  loadStretchActivities();
-                } else {
-                  renderActivities([]);
-                }
-              }
-
-              function updateActivityCount() {
-                const count = document.querySelectorAll('#stretchActivityForm input[name="activities"]:checked').length;
-                const activityCountEl = document.getElementById('activityCount');
-                if (activityCountEl) activityCountEl.textContent = count;
-              }
-
-              function toggleActivitiesEnabled(enabled) {
-                const section = document.getElementById('activitySection');
-                const hint = document.getElementById('activityGateHint');
-                const submitBtn = document.getElementById('stretchActivitySubmit');
-                const activitiesList = document.getElementById('activitiesList');
-                const activityFilter = document.getElementById('activityFilter');
-                if (!section) return;
-                if (enabled) {
-                  section.style.display = '';
-                  section.classList.remove('is-disabled');
-                  if (hint) hint.style.display = 'none';
-                  if (submitBtn) submitBtn.disabled = false;
-                  if (activitiesList) activitiesList.style.display = '';
-                  if (activityFilter) activityFilter.style.display = '';
-                } else {
-                  section.style.display = 'none';
-                  section.classList.add('is-disabled');
-                  if (hint) hint.style.display = 'block';
-                  if (submitBtn) submitBtn.disabled = true;
-                  if (activitiesList) activitiesList.style.display = 'none';
-                  if (activityFilter) activityFilter.style.display = 'none';
-                  document.querySelectorAll('#stretchActivityForm input[name="activities"]').forEach(cb => cb.checked = false);
-                  updateActivityCount();
-                  showAssignQuantitiesButton();
-                }
-              }
-
-              function canShowActivities() {
-                return Boolean(currentMaterialId) && Boolean(getStretchSelectionId());
-              }
-
-              function renderActivities(activities) {
-                const list = document.getElementById('activitiesList');
-                if (!list) return;
-                list.innerHTML = '';
-
-                if (!activities || activities.length === 0) {
-                  list.innerHTML = '<div style="color:#94a3b8; font-size:13px; padding:12px 0; text-align:center;">No activities found for this stretch.</div>';
-                  return;
-                }
-
-                activities.forEach(act => {
-                  const id = act.id;
-                  const name = act.name || act.activity_name || '';
-                  const safeName = String(name);
-                  list.insertAdjacentHTML('beforeend',
-                    `<label class="select-card select-card--activity" data-activity-name="${safeName.toLowerCase()}">
-                      <input type="checkbox" name="activities" value="${id}" onchange="updateActivityCount(); showAssignQuantitiesButton();">
-                      <span class="select-card__text">${safeName}</span>
-                    </label>`
-                  );
-                });
-
-                applyCurrentMaterialActivities();
-              }
-
-              function applyCurrentMaterialActivities() {
-                const ids = (currentMaterialActivityIds || []).map(id => parseInt(id));
-                document.querySelectorAll('#stretchActivityForm input[name="activities"]').forEach(cb => {
-                  cb.checked = ids.includes(parseInt(cb.value));
-                });
-                updateActivityCount();
-                showAssignQuantitiesButton();
-              }
-
-              function loadStretchActivities() {
-                const stretchId = getStretchSelectionId();
-                if (!stretchId) {
-                  renderActivities([]);
-                  return;
-                }
-                fetch(`/activity-materials/api/stretches/${stretchId}/activities`)
-                  .then(r => r.json())
-                  .then(data => {
-                    renderActivities(data || []);
-                  })
-                  .catch(() => {
-                    renderActivities([]);
-                  });
-              }
-
-              function loadCurrentLinks() {
-                fetch(`/material/${currentMaterialId}/stretches`).then(r => r.json()).then(data => {
-                  const ids = (data.stretch_ids || []).map(id => parseInt(id));
-                  const existingSelection = getStretchSelectionId();
-                  if (!existingSelection && ids.length > 0) {
-                    const targetId = ids[0];
-                    const stretchSelect = document.getElementById('stretchSelect');
-                    if (stretchSelect) {
-                      const targetOption = Array.from(stretchSelect.options).find(opt => parseInt(opt.value || '0') === targetId);
-                      const label = targetOption ? targetOption.textContent : '';
-                      setStretchSelection(targetId, label);
-                    }
-                  }
-                  updateStretchCount();
-                });
-
-                fetch(`/material/${currentMaterialId}/activities`).then(r => r.json()).then(data => {
-                  const activityIds = data.activity_ids || [];
-                  const qtyMap = data.activity_quantities || {};
-                  currentMaterialActivityIds = activityIds;
-                  currentMaterialActivityQty = qtyMap || {};
-                  updateActivityCount();
-                  applyCurrentMaterialActivities();
-                });
-              }
-
-              function bindStretchSelect() {
-                const stretchSelect = document.getElementById('stretchSelect');
-                if (!stretchSelect) return;
-                stretchSelect.addEventListener('change', () => {
-                  const id = parseInt(stretchSelect.value || '0');
-                  setStretchSelection(id || null, stretchSelect.selectedOptions[0]?.textContent || '');
-                });
-              }
-
-              function bindActivityFilter() {
-                const activityFilter = document.getElementById('activityFilter');
-                if (!activityFilter) return;
-                activityFilter.addEventListener('input', () => {
-                  const q = String(activityFilter.value || '').toLowerCase().trim();
-                  document.querySelectorAll('#stretchActivityForm .select-card--activity').forEach(card => {
-                    const name = String(card.getAttribute('data-activity-name') || '').toLowerCase();
-                    card.style.display = (!q || name.includes(q)) ? '' : 'none';
-                  });
-                });
-              }
-
-              function bindForm() {
-                const form = document.getElementById('stretchActivityForm');
-                if (!form) return;
-                form.addEventListener('submit', (e) => {
-                  e.preventDefault();
-                  const stretches = [];
-                  const selectedId = getStretchSelectionId();
-                  if (selectedId) stretches.push(selectedId);
-
-                  const activities = Array.from(document.querySelectorAll('#stretchActivityForm input[name="activities"]:checked')).map(cb => parseInt(cb.value));
-                  const activityQuantities = {};
-
-                  if (stretches.length === 0) {
-                    const warn = document.getElementById('stretchActivityModalWarning');
-                    warn.textContent = 'Please select a stretch first.';
-                    warn.style.display = 'block';
-                    return;
-                  }
-
-                  const warn = document.getElementById('stretchActivityModalWarning');
-                  warn.style.display = 'none';
-
-                  const submitBtn = document.getElementById('stretchActivitySubmit');
-                  const originalText = submitBtn.textContent;
-                  submitBtn.disabled = true;
-                  submitBtn.textContent = 'Saving...';
-
-                  fetch(`/material/${currentMaterialId}/stretches`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ stretch_ids: stretches })
-                  })
-                  .then(r => r.json())
-                  .then(() => {
-                    return fetch(`/material/${currentMaterialId}/activities`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ activity_ids: activities, activity_quantities: activityQuantities })
-                    });
-                  })
-                  .then(r => r.json())
-                  .then(() => {
-                    window.location.href = `/project/{{ project.id }}/materials`;
-                  })
-                  .catch(() => {
-                    const warn = document.getElementById('stretchActivityModalWarning');
-                    warn.textContent = 'Error saving links. Please try again.';
-                    warn.style.display = 'block';
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = originalText;
-                  });
-                });
-              }
-
-              document.addEventListener('DOMContentLoaded', () => {
-                const materialSelect = document.getElementById('materialSelect');
-                const assignBtn = document.getElementById('assignQuantitiesBtn');
-                const closeAssignModal = document.getElementById('closeAssignQuantitiesModal');
-                const assignForm = document.getElementById('assignQuantitiesForm');
-
-                if (materialSelect) {
-                  materialSelect.addEventListener('change', () => {
-                    const opt = materialSelect.selectedOptions[0];
-                    if (!opt) return;
-                    const mid = opt.value;
-                    if (!mid) return;
-
-                    currentMaterialId = parseInt(mid);
-                    currentMaterialUnit = opt.getAttribute('data-unit') || '';
-
-                    history.replaceState(null, '', `/project/{{ project.id }}/materials/linker/${mid}`);
-                    loadCurrentLinks();
-                  });
-                }
-
-                if (assignBtn) {
-                  assignBtn.addEventListener('click', () => {
-                    const modal = document.getElementById('assignQuantitiesModal');
-                    if (!modal) return;
-                    modal.style.display = 'flex';
-                    const list = document.getElementById('assignQuantitiesList');
-                    if (!list) return;
-                    list.innerHTML = '';
-                    document.querySelectorAll('#stretchActivityForm input[name="activities"]:checked').forEach(cb => {
-                      const aid = cb.value;
-                      const name = cb.closest('.select-card').querySelector('.select-card__text').textContent;
-                      list.insertAdjacentHTML('beforeend',
-                        `<div style='margin-bottom:12px;'><label style='color:#e2e8f0;'>${name} <input type='number' step='0.01' min='0' name='qty_${aid}' placeholder='Enter quantity' style='margin-left:10px; width:120px; padding:6px 10px; border-radius:8px; border:1.5px solid #4f8cff; background:#232b4a; color:#e2e8f0; font-size:14px; font-weight:600;'></label></div>`
-                      );
-                    });
-                  });
-                }
-
-                if (closeAssignModal) {
-                  closeAssignModal.addEventListener('click', () => {
-                    const modal = document.getElementById('assignQuantitiesModal');
-                    if (modal) modal.style.display = 'none';
-                  });
-                }
-
-                if (assignForm) {
-                  assignForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const modal = document.getElementById('assignQuantitiesModal');
-                    if (modal) modal.style.display = 'none';
-                  });
-                }
-
-                bindStretchSelect();
-                bindActivityFilter();
-                bindForm();
-                loadCurrentLinks();
-              });
-              </script>
-      warn.style.display = 'block';
+    function showAssignQuantitiesButton() {
       return;
     }
 
-    const warn = document.getElementById('stretchActivityModalWarning');
-    warn.style.display = 'none';
-
-    const submitBtn = document.getElementById('stretchActivitySubmit');
-    const originalText = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving...';
-
-    fetch(`/material/${currentMaterialId}/stretches`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stretch_ids: stretches })
-    })
-    .then(r => r.json())
-    .then(() => {
-      return fetch(`/material/${currentMaterialId}/activities`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activity_ids: activities, activity_quantities: activityQuantities })
+    function captureCurrentState() {
+      if (!currentMaterialId) return;
+      const stretchId = getStretchSelectionId();
+      if (!stretchId) return;
+      const activities = Array.from(document.querySelectorAll('#stretchActivityForm input[name="activities"]:checked'))
+        .map(cb => parseInt(cb.value));
+      const activityQuantities = {};
+      document.querySelectorAll('#stretchActivityForm .activity-qty').forEach(input => {
+        const aid = input.getAttribute('data-activity-id');
+        if (!aid) return;
+        const raw = String(input.value || '').trim();
+        activityQuantities[String(aid)] = raw === '' ? null : raw;
       });
-    })
-    .then(r => r.json())
-    .then(() => {
-      window.location.href = `/project/{{ project.id }}/materials`;
-    })
-    .catch(() => {
-      const warn = document.getElementById('stretchActivityModalWarning');
-      warn.textContent = 'Error saving links. Please try again.';
-      warn.style.display = 'block';
-      submitBtn.disabled = false;
-      submitBtn.textContent = originalText;
-    });
-  });
-}
+      const activityUnits = {};
+      document.querySelectorAll('#stretchActivityForm .activity-unit-select').forEach(select => {
+        const aid = select.getAttribute('data-activity-id');
+        if (!aid) return;
+        const selected = String(select.value || '').trim();
+        if (selected === '__custom__') {
+          const customInput = document.querySelector(`.activity-unit-custom[data-activity-id="${aid}"]`);
+          const customValue = customInput ? String(customInput.value || '').trim() : '';
+          activityUnits[String(aid)] = customValue === '' ? null : customValue;
+        } else {
+          activityUnits[String(aid)] = selected === '' ? null : selected;
+        }
+      });
+      const materialKey = String(currentMaterialId);
+      const stretchKey = String(stretchId);
+      if (!pendingStateByMaterial[materialKey]) {
+        pendingStateByMaterial[materialKey] = {};
+      }
+      pendingStateByMaterial[materialKey][stretchKey] = {
+        activityIds: activities,
+        activityQuantities,
+        activityUnits,
+      };
+    }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const materialSelect = document.getElementById('materialSelect');
-  if (materialSelect) {
-    materialSelect.addEventListener('change', () => {
-      const opt = materialSelect.selectedOptions[0];
-      if (!opt) return;
-      const mid = opt.value;
-      if (!mid) return;
+    function applyPendingState(materialId) {
+      const stretchId = getStretchSelectionId();
+      if (!stretchId) return false;
+      const materialKey = String(materialId);
+      const stretchKey = String(stretchId);
+      const pendingForMaterial = pendingStateByMaterial[materialKey];
+      if (!pendingForMaterial || !pendingForMaterial[stretchKey]) {
+        return false;
+      }
+      const pending = pendingForMaterial[stretchKey];
+      currentMaterialActivityIds = pending.activityIds || [];
+      currentMaterialActivityQty = pending.activityQuantities || {};
+      currentMaterialActivityUnits = pending.activityUnits || {};
+      return true;
+    }
 
-      currentMaterialId = parseInt(mid);
-      currentMaterialUnit = opt.getAttribute('data-unit') || '';
+    function getStretchSelectionId() {
+      const select = document.getElementById('stretchSelect');
+      const input = document.getElementById('stretchSelectedId');
+      const rawValue = select && select.value ? select.value : (input ? input.value : '');
+      const value = rawValue ? parseInt(rawValue) : null;
+      return Number.isNaN(value) ? null : value;
+    }
 
-      const nameText = document.getElementById('materialNameText');
-      const unitText = document.getElementById('materialUnitText');
-      if (nameText) nameText.textContent = opt.getAttribute('data-name') || opt.textContent.trim();
-      if (unitText) unitText.textContent = currentMaterialUnit || '-';
+    function setStretchSelection(id, name) {
+      const select = document.getElementById('stretchSelect');
+      const input = document.getElementById('stretchSelectedId');
+      if (select) select.value = id ? String(id) : '';
+      if (input) input.value = id ? String(id) : '';
+      updateStretchCount();
+    }
 
-      document.querySelectorAll('.activity-qty-unit').forEach(span => {
-        span.textContent = currentMaterialUnit || '';
+    function updateStretchCount() {
+      const selectedId = getStretchSelectionId();
+      const count = selectedId ? 1 : 0;
+      const stretchCountEl = document.getElementById('stretchCount');
+      const summaryStretchCount = document.getElementById('summaryStretchCount');
+      if (stretchCountEl) stretchCountEl.textContent = count;
+      if (summaryStretchCount) summaryStretchCount.textContent = count;
+      toggleActivitiesEnabled(canShowActivities());
+      if (canShowActivities()) {
+        loadStretchActivities();
+      } else {
+        renderActivities([]);
+      }
+    }
+
+    function updateActivityCount() {
+      const count = document.querySelectorAll('#stretchActivityForm input[name="activities"]:checked').length;
+      const activityCountEl = document.getElementById('activityCount');
+      const summaryActivityCount = document.getElementById('summaryActivityCount');
+      if (activityCountEl) activityCountEl.textContent = count;
+      if (summaryActivityCount) summaryActivityCount.textContent = count;
+    }
+
+    function toggleActivitiesEnabled(enabled) {
+      const section = document.getElementById('activitySection');
+      const hint = document.getElementById('activityGateHint');
+      const submitBtn = document.getElementById('stretchActivitySubmit');
+      const activitiesList = document.getElementById('activitiesList');
+      const activityFilter = document.getElementById('activityFilter');
+      if (!section) return;
+      if (enabled) {
+        section.style.display = '';
+        section.classList.remove('is-disabled');
+        if (hint) hint.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+        if (activitiesList) activitiesList.style.display = '';
+        if (activityFilter) activityFilter.style.display = '';
+      } else {
+        section.style.display = 'none';
+        section.classList.add('is-disabled');
+        if (hint) hint.style.display = 'block';
+        if (submitBtn) submitBtn.disabled = true;
+        if (activitiesList) activitiesList.style.display = 'none';
+        if (activityFilter) activityFilter.style.display = 'none';
+        document.querySelectorAll('#stretchActivityForm input[name="activities"]').forEach(cb => cb.checked = false);
+        updateActivityCount();
+        showAssignQuantitiesButton();
+      }
+    }
+
+    function canShowActivities() {
+      return Boolean(currentMaterialId) && Boolean(getStretchSelectionId());
+    }
+
+    function renderActivities(activities) {
+      const list = document.getElementById('activitiesList');
+      if (!list) return;
+      list.innerHTML = '';
+
+      if (!activities || activities.length === 0) {
+        list.innerHTML = '<div style="color:#94a3b8; font-size:13px; padding:12px 0; text-align:center;">No activities found for this stretch.</div>';
+        return;
+      }
+
+      const unitOptions = buildUnitOptions();
+      const unitOptionsHtml = unitOptions
+        .map(unit => {
+          const display = escapeUnitHtml(formatUnitDisplayText(unit));
+          return `<option value="${escapeUnitHtml(unit)}">${display}</option>`;
+        })
+        .join('');
+
+      activities.forEach(act => {
+        const id = act.id;
+        const name = act.name || act.activity_name || '';
+        const safeName = String(name);
+        list.insertAdjacentHTML('beforeend',
+          `<label class="select-card select-card--activity" data-activity-name="${safeName.toLowerCase()}">
+            <input type="checkbox" name="activities" value="${id}" onchange="updateActivityCount(); showAssignQuantitiesButton();">
+            <span class="select-card__text">${safeName}</span>
+            <span class="select-card__meta">
+              <input type="number" class="activity-qty" data-activity-id="${id}" step="0.01" min="0" placeholder="Qty" />
+              <span class="activity-unit-wrap">
+                <select class="activity-unit-select" data-activity-id="${id}">
+                  ${unitOptionsHtml}
+                  <option value="__custom__">Custom...</option>
+                </select>
+                <input type="text" class="activity-unit-custom" data-activity-id="${id}" placeholder="Unit" style="display:none;" />
+              </span>
+            </span>
+          </label>`
+        );
       });
 
-      history.replaceState(null, '', `/project/{{ project.id }}/materials/linker/${mid}`);
+      bindActivityUnitInputs();
+      applyCurrentMaterialActivities();
+    }
+
+    function buildUnitOptions() {
+      const units = [];
+      const addUnit = (value) => {
+        const normalized = String(value || '').trim();
+        if (!normalized) return;
+        if (!units.includes(normalized)) units.push(normalized);
+      };
+      addUnit(currentMaterialStandardUnit);
+      addUnit(currentMaterialUnit);
+      (currentMaterialAllowedUnits || []).forEach(addUnit);
+      return units;
+    }
+
+    function bindActivityUnitInputs() {
+      document.querySelectorAll('#stretchActivityForm .activity-unit-select').forEach(select => {
+        select.addEventListener('change', () => {
+          const aid = select.getAttribute('data-activity-id');
+          const customInput = document.querySelector(`.activity-unit-custom[data-activity-id="${aid}"]`);
+          if (!customInput) return;
+          if (select.value === '__custom__') {
+            customInput.style.display = '';
+            customInput.focus();
+          } else {
+            customInput.style.display = 'none';
+            customInput.value = '';
+          }
+        });
+      });
+    }
+
+    function applyCurrentMaterialActivities() {
+      const ids = (currentMaterialActivityIds || []).map(id => parseInt(id));
+      document.querySelectorAll('#stretchActivityForm input[name="activities"]').forEach(cb => {
+        cb.checked = ids.includes(parseInt(cb.value));
+      });
+      document.querySelectorAll('#stretchActivityForm .activity-qty').forEach(input => {
+        const aid = input.getAttribute('data-activity-id');
+        const qty = currentMaterialActivityQty ? currentMaterialActivityQty[String(aid)] : null;
+        input.value = qty !== null && qty !== undefined ? qty : '';
+      });
+      const unitOptions = buildUnitOptions();
+      document.querySelectorAll('#stretchActivityForm .activity-unit-select').forEach(select => {
+        const aid = select.getAttribute('data-activity-id');
+        const unit = currentMaterialActivityUnits ? currentMaterialActivityUnits[String(aid)] : null;
+        const customInput = document.querySelector(`.activity-unit-custom[data-activity-id="${aid}"]`);
+        if (unit && unitOptions.includes(unit)) {
+          select.value = unit;
+          if (customInput) {
+            customInput.style.display = 'none';
+            customInput.value = '';
+          }
+        } else if (unit) {
+          select.value = '__custom__';
+          if (customInput) {
+            customInput.style.display = '';
+            customInput.value = unit;
+          }
+        } else if (currentMaterialStandardUnit || currentMaterialUnit) {
+          const defaultUnit = currentMaterialStandardUnit || currentMaterialUnit;
+          select.value = unitOptions.includes(defaultUnit) ? defaultUnit : (unitOptions[0] || '__custom__');
+          if (customInput) {
+            customInput.style.display = select.value === '__custom__' ? '' : 'none';
+            customInput.value = select.value === '__custom__' ? (defaultUnit || '') : '';
+          }
+        }
+      });
+      updateActivityCount();
+      showAssignQuantitiesButton();
+    }
+
+    function loadStretchActivities() {
+      const stretchId = getStretchSelectionId();
+      if (!stretchId) {
+        renderActivities([]);
+        return;
+      }
+      fetch(`/activity-materials/api/stretches/${stretchId}/activities`)
+        .then(r => r.json())
+        .then(data => {
+          renderActivities(data || []);
+        })
+        .catch(() => {
+          renderActivities([]);
+        });
+    }
+
+    function loadCurrentLinks() {
+      fetch(`/material/${currentMaterialId}/stretches`).then(r => r.json()).then(data => {
+        const ids = (data.stretch_ids || []).map(id => parseInt(id));
+        const existingSelection = getStretchSelectionId();
+        if (!existingSelection && ids.length > 0) {
+          const targetId = ids[0];
+          const stretchSelect = document.getElementById('stretchSelect');
+          if (stretchSelect) {
+            const targetOption = Array.from(stretchSelect.options).find(opt => parseInt(opt.value || '0') === targetId);
+            const label = targetOption ? targetOption.textContent : '';
+            setStretchSelection(targetId, label);
+          }
+        }
+        updateStretchCount();
+      });
+
+      fetch(`/material/${currentMaterialId}/activities`).then(r => r.json()).then(data => {
+        const activityIds = data.activity_ids || [];
+        const qtyMap = data.activity_quantities || {};
+        const unitMap = data.activity_units || {};
+        currentMaterialActivityIds = activityIds;
+        currentMaterialActivityQty = qtyMap || {};
+        currentMaterialActivityUnits = unitMap || {};
+        updateActivityCount();
+        applyCurrentMaterialActivities();
+      });
+    }
+
+    function bindStretchSelect() {
+      const stretchSelect = document.getElementById('stretchSelect');
+      if (!stretchSelect) return;
+      stretchSelect.addEventListener('change', () => {
+        captureCurrentState();
+        const id = parseInt(stretchSelect.value || '0');
+        setStretchSelection(id || null, stretchSelect.selectedOptions[0]?.textContent || '');
+      });
+    }
+
+    function bindActivityFilter() {
+      const activityFilter = document.getElementById('activityFilter');
+      if (!activityFilter) return;
+      activityFilter.addEventListener('input', () => {
+        const q = String(activityFilter.value || '').toLowerCase().trim();
+        document.querySelectorAll('#stretchActivityForm .select-card--activity').forEach(card => {
+          const name = String(card.getAttribute('data-activity-name') || '').toLowerCase();
+          card.style.display = (!q || name.includes(q)) ? '' : 'none';
+        });
+      });
+    }
+
+    function bindForm() {
+      const form = document.getElementById('stretchActivityForm');
+      if (!form) return;
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const stretches = [];
+        const selectedId = getStretchSelectionId();
+        if (selectedId) stretches.push(selectedId);
+
+        const activities = Array.from(document.querySelectorAll('#stretchActivityForm input[name="activities"]:checked')).map(cb => parseInt(cb.value));
+        const activityQuantities = {};
+        document.querySelectorAll('#stretchActivityForm .activity-qty').forEach(input => {
+          const aid = input.getAttribute('data-activity-id');
+          if (!aid) return;
+          const raw = String(input.value || '').trim();
+          activityQuantities[String(aid)] = raw === '' ? null : raw;
+        });
+        const activityUnits = {};
+        document.querySelectorAll('#stretchActivityForm .activity-unit-select').forEach(select => {
+          const aid = select.getAttribute('data-activity-id');
+          if (!aid) return;
+          const selected = String(select.value || '').trim();
+          if (selected === '__custom__') {
+            const customInput = document.querySelector(`.activity-unit-custom[data-activity-id="${aid}"]`);
+            const customValue = customInput ? String(customInput.value || '').trim() : '';
+            activityUnits[String(aid)] = customValue === '' ? null : customValue;
+          } else {
+            activityUnits[String(aid)] = selected === '' ? null : selected;
+          }
+        });
+
+        if (stretches.length === 0) {
+          const warn = document.getElementById('stretchActivityModalWarning');
+          warn.textContent = 'Please select a stretch first.';
+          warn.style.display = 'block';
+          return;
+        }
+
+        const warn = document.getElementById('stretchActivityModalWarning');
+        warn.style.display = 'none';
+
+        const submitBtn = document.getElementById('stretchActivitySubmit');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+
+        fetch(`/material/${currentMaterialId}/stretches`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stretch_ids: stretches })
+        })
+        .then(r => r.json())
+        .then(() => {
+          return fetch(`/material/${currentMaterialId}/activities`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activity_ids: activities, activity_quantities: activityQuantities, activity_units: activityUnits })
+          });
+        })
+        .then(r => r.json())
+        .then(() => {
+          pendingStateByMaterial = {};
+          window.location.href = `/project/{{ project.id }}/materials`;
+        })
+        .catch(() => {
+          const warn = document.getElementById('stretchActivityModalWarning');
+          warn.textContent = 'Error saving links. Please try again.';
+          warn.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        });
+      });
+    }
+
+    function escapeUnitHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatUnitHtml(value) {
+      const safe = escapeUnitHtml(value).trim();
+      if (!safe) return '';
+      const formatted = safe.replace(/(\d+)/g, '<sup>$1</sup>');
+      return `<span class="unit-text">${formatted}</span>`;
+    }
+
+    function formatUnitDisplayText(value) {
+      const text = String(value || '').trim();
+      if (!text) return '';
+      const supMap = {
+        '0': '⁰',
+        '1': '¹',
+        '2': '²',
+        '3': '³',
+        '4': '⁴',
+        '5': '⁵',
+        '6': '⁶',
+        '7': '⁷',
+        '8': '⁸',
+        '9': '⁹'
+      };
+      return text.replace(/\d/g, (d) => supMap[d] || d);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const materialSelect = document.getElementById('materialSelect');
+
+      if (materialSelect) {
+        materialSelect.addEventListener('change', () => {
+          captureCurrentState();
+          const opt = materialSelect.selectedOptions[0];
+          if (!opt) return;
+          const mid = opt.value;
+          if (!mid) return;
+
+          currentMaterialId = parseInt(mid);
+          currentMaterialUnit = opt.getAttribute('data-unit') || '';
+          currentMaterialStandardUnit = opt.getAttribute('data-standard-unit') || currentMaterialUnit;
+          try {
+            currentMaterialAllowedUnits = JSON.parse(opt.getAttribute('data-allowed-units') || '[]');
+          } catch (err) {
+            currentMaterialAllowedUnits = [];
+          }
+
+          const nameText = document.getElementById('materialNameText');
+          const unitText = document.getElementById('materialUnitText');
+          if (nameText) nameText.textContent = opt.getAttribute('data-name') || opt.textContent.trim();
+          if (unitText) {
+            const displayUnit = currentMaterialStandardUnit || currentMaterialUnit || '-';
+            unitText.innerHTML = formatUnitHtml(displayUnit) || escapeUnitHtml(displayUnit);
+          }
+
+          history.replaceState(null, '', `/project/{{ project.id }}/materials/linker/${mid}`);
+          if (!applyPendingState(currentMaterialId)) {
+            loadCurrentLinks();
+          } else {
+            loadStretchActivities();
+          }
+        });
+      }
+
+      bindStretchSelect();
+      bindActivityFilter();
+      bindForm();
       loadCurrentLinks();
     });
-  }
-  bindStretchDropdown();
-  bindActivityFilter();
-  bindForm();
-  loadCurrentLinks();
-});
-</script>
+  </script>
+</div>
 {% endblock %}

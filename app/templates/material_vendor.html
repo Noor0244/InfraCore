@@ -882,8 +882,44 @@
             <span>MS Link</span>
         </span>
         {% endif %}
+        <button type="button" id="autoDistributeBtn" class="btn-primary" style="padding: 14px 28px; font-size: 16px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(79, 140, 255, 0.4), 0 0 30px rgba(79, 140, 255, 0.2);" title="Auto distribute materials across stretches">
+            <span style="font-size: 18px;">🧮</span>
+            <span>Auto Distribute Materials</span>
+        </button>
         <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(79, 140, 255, 0.2), transparent); margin-left: 16px;"></div>
     </div>
+
+    <!-- All Materials Section - Dropdown Style -->
+    <details class="collapsible-section">
+        <summary>
+            <span>All Materials ({{ planned_material_rows|length }})</span>
+            <span class="chevron">▼</span>
+        </summary>
+        <div class="section-body">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--text-secondary);font-size:12px;">
+                <span title="Materials added to this project" style="cursor:help;color:#4f8cff;">&#9432;</span>
+                <span>Remove a material from this project if needed</span>
+            </div>
+            {% if planned_material_rows|length > 0 %}
+            <div style="display:grid;gap:10px;max-height:260px;overflow:auto;padding-right:6px;">
+                {% for pm in planned_material_rows %}
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid rgba(79, 140, 255, 0.2);background: rgba(15, 23, 42, 0.55);">
+                    <div>
+                        <div style="font-weight:600;color:var(--text-primary);">{{ pm.name }}</div>
+                        <div style="font-size:12px;color:var(--text-secondary);">Unit: {{ (pm.unit or '—')|unit_sup }}</div>
+                    </div>
+                    <form method="post" action="/projects/{{ project.id }}/materials/remove" onsubmit="return confirm('Remove this material from the project?')">
+                        <input type="hidden" name="planned_material_id" value="{{ pm.planned_material_id }}" />
+                        <button class="btn-danger btn-sm" type="submit">Remove</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="padding:12px 0;color:var(--text-secondary);">No materials added to this project yet.</div>
+            {% endif %}
+        </div>
+    </details>
 
     <!-- All Vendors Section - Card Based UI -->
     <details class="collapsible-section">
@@ -1487,6 +1523,47 @@
             </div>
         </div>
 
+        <!-- Auto Distribute Materials Modal -->
+        <div id="autoDistributeModal" class="modal" style="display:none;">
+            <div class="modal-content" style="max-width: 640px; max-height: 90vh; overflow-y: auto;">
+                <span class="close" onclick="closeAutoDistributeModal()">&times;</span>
+                <h3 style="margin-top: 0; margin-bottom: 20px; color: #4f8cff;">
+                    🧮 Auto Distribute Materials
+                </h3>
+                <div style="background: rgba(79, 140, 255, 0.05); border-left: 4px solid #4f8cff; padding: 12px 16px; border-radius: 8px; margin-bottom: 18px;">
+                    <p style="margin: 0; color: #cbd5e1; font-size: 13px;">
+                        Uses the reference stretch quantities to scale other stretches by length.
+                    </p>
+                </div>
+                <form id="autoDistributeForm">
+                    <div style="display:grid; gap: 14px;">
+                        <div>
+                            <label for="autoDistributeStretch" style="display:block;margin-bottom:6px;font-weight:600;">Reference Stretch</label>
+                            <select id="autoDistributeStretch" required>
+                                <option value="">Select reference stretch</option>
+                                {% for s in all_stretches %}
+                                    <option value="{{ s.id }}">{{ s.stretch_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="autoDistributeWastage" style="display:block;margin-bottom:6px;font-weight:600;">Wastage % (optional)</label>
+                            <input id="autoDistributeWastage" type="number" step="0.01" min="0" value="0" placeholder="0">
+                        </div>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#cbd5e1;">
+                            <input id="autoDistributeOverwrite" type="checkbox" style="width:16px;height:16px;">
+                            Overwrite existing stretch quantities
+                        </label>
+                    </div>
+                    <div class="modal-warning" id="autoDistributeWarning" style="display:none; margin-top: 14px;"></div>
+                    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top: 18px;">
+                        <button type="button" onclick="closeAutoDistributeModal()" style="background: #64748b; border: none; border-radius: 8px; padding: 10px 20px; color: #fff; font-weight: 500; cursor: pointer;">Cancel</button>
+                        <button type="submit" class="btn-primary" id="autoDistributeSubmit">Run Distribution</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Stretch & Activity Modal - Improved UI -->
         <div id="stretchActivityModal" class="modal" style="display:none;">
             <div class="modal-content modal-content--linker">
@@ -1642,6 +1719,7 @@
         </style>
 
         <script>
+        const currentProjectId = {{ project.id if project else 'null' }};
         let currentMaterialId = null;
         let currentMaterialUnit = "";
         function openVendorModal(materialId, materialName) {
@@ -1661,7 +1739,8 @@
             }
             
             // Fetch vendors linked to this material only
-            fetch(`/material/${materialId}/vendors`)
+            const fetchUrl = `/material/${materialId}/vendors${currentProjectId ? '?project_id=' + currentProjectId : ''}`;
+            fetch(fetchUrl)
                 .then(r => r.json())
                 .then(data => {
                     const linkedIds = Array.isArray(data.vendor_ids) ? data.vendor_ids : [];
@@ -1695,6 +1774,28 @@
                 modal.classList.remove('show');
             }
             currentMaterialId = null;
+        }
+
+        function openAutoDistributeModal() {
+            const modal = document.getElementById('autoDistributeModal');
+            if (modal) {
+                modal.classList.add('show');
+                const warning = document.getElementById('autoDistributeWarning');
+                if (warning) warning.style.display = 'none';
+            }
+        }
+
+        function closeAutoDistributeModal() {
+            const modal = document.getElementById('autoDistributeModal');
+            const form = document.getElementById('autoDistributeForm');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+            if (form) {
+                form.reset();
+                const wastage = document.getElementById('autoDistributeWastage');
+                if (wastage) wastage.value = '0';
+            }
         }
         function openStretchActivityModal(materialId, materialName, materialUnit) {
             const modal = document.getElementById('stretchActivityModal');
@@ -1872,6 +1973,10 @@
                 stretchGateSelect.addEventListener('change', updateStretchGateState);
                 updateStretchGateState();
             }
+            const autoDistributeBtn = document.getElementById('autoDistributeBtn');
+            if (autoDistributeBtn) {
+                autoDistributeBtn.addEventListener('click', openAutoDistributeModal);
+            }
             const activityFilter = document.getElementById('activityFilter');
             if (activityFilter) {
                 activityFilter.addEventListener('input', () => {
@@ -1903,37 +2008,68 @@
                     });
                 });
             }
-            const autoAssignBtn = document.getElementById('autoAssignBtn');
-            if (autoAssignBtn) {
-                autoAssignBtn.addEventListener('click', function() {
-                    const selectedStretchId = getSelectedStretchId();
-                    if (!selectedStretchId) {
-                        showNotification('Please select a stretch first.', 'error');
+            const autoDistributeForm = document.getElementById('autoDistributeForm');
+            if (autoDistributeForm) {
+                autoDistributeForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const stretchSel = document.getElementById('autoDistributeStretch');
+                    const wastageInput = document.getElementById('autoDistributeWastage');
+                    const overwriteInput = document.getElementById('autoDistributeOverwrite');
+                    const warning = document.getElementById('autoDistributeWarning');
+                    const submitBtn = document.getElementById('autoDistributeSubmit');
+
+                    const referenceStretchId = stretchSel ? parseInt(stretchSel.value || '0') : 0;
+                    if (!referenceStretchId) {
+                        if (warning) {
+                            warning.textContent = 'Please select a reference stretch.';
+                            warning.style.display = 'block';
+                        }
                         return;
                     }
-                    autoAssignBtn.disabled = true;
-                    const originalText = autoAssignBtn.textContent;
-                    autoAssignBtn.textContent = 'Auto-assigning...';
-                    fetch(`/project/{{ project.id }}/stretches/${selectedStretchId}/auto-assign-materials`, {
+
+                    const wastagePercent = wastageInput ? String(wastageInput.value || '0').trim() : '0';
+                    const overwriteExisting = !!(overwriteInput && overwriteInput.checked);
+
+                    if (warning) warning.style.display = 'none';
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Distributing...';
+                    }
+
+                    fetch(`/project/{{ project.id }}/stretches/auto-distribute-materials`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({})
+                        body: JSON.stringify({
+                            reference_stretch_id: referenceStretchId,
+                            wastage_percent: wastagePercent,
+                            overwrite_existing: overwriteExisting
+                        })
                     })
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            showNotification(data.message || 'Auto-assignment completed.', 'success');
+                            showNotification(data.message || 'Auto distribution completed.', 'success');
                             setTimeout(() => location.reload(), 800);
                         } else {
-                            showNotification(data.error || 'Auto-assignment failed.', 'error');
-                            autoAssignBtn.disabled = false;
-                            autoAssignBtn.textContent = originalText;
+                            if (warning) {
+                                warning.textContent = data.error || 'Auto distribution failed.';
+                                warning.style.display = 'block';
+                            }
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = 'Run Distribution';
+                            }
                         }
                     })
                     .catch(err => {
-                        showNotification(err.message || 'Auto-assignment failed.', 'error');
-                        autoAssignBtn.disabled = false;
-                        autoAssignBtn.textContent = originalText;
+                        if (warning) {
+                            warning.textContent = err.message || 'Auto distribution failed.';
+                            warning.style.display = 'block';
+                        }
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Run Distribution';
+                        }
                     });
                 });
             }
@@ -1956,7 +2092,10 @@
                 fetch(`/material/${currentMaterialId}/vendors`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vendor_ids: selected })
+                    body: JSON.stringify({ 
+                        vendor_ids: selected,
+                        project_id: currentProjectId 
+                    })
                 }).then(r => r.json()).then(data => {
                     if (data.success) {
                         showNotification('Vendors updated successfully!', 'success');

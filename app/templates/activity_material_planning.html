@@ -98,7 +98,7 @@
             <td class="amp-col-date"><span class="amp-small">{{ pa.end_date|ddmmyyyy if pa and pa.end_date else '—' }}</span></td>
             <td class="amp-col-qty">
               {% if pa %}
-                <span class="amp-small"><strong>{{ pa.planned_quantity }}</strong> <span class="amp-muted">{{ pa.unit }}</span></span>
+                <span class="amp-small"><strong>{{ pa.planned_quantity }}</strong> <span class="amp-muted">{{ pa.unit|unit_sup }}</span></span>
               {% else %}
                 <span class="amp-small amp-muted">—</span>
               {% endif %}
@@ -193,7 +193,7 @@
                     <strong>{{ m.name }}</strong>
                     {% if m.category %}<div class="meta">{{ m.category }}</div>{% endif %}
                   </td>
-                  <td><span class="amp-small">{{ m.unit }}</span></td>
+                  <td><span class="amp-small">{{ m.unit|unit_sup }}</span></td>
                   <td>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                       <form class="mm-update-form" method="post" action="/material-master/materials/update" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0">

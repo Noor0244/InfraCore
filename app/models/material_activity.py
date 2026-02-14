@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, Float, ForeignKey, UniqueConstraint, String
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -11,6 +11,7 @@ class MaterialActivity(Base):
     activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False, index=True)
 
     quantity = Column(Float, nullable=True)
+    unit = Column(String(50), nullable=True)
 
     material = relationship("Material", back_populates="activities_link")
     activity = relationship("Activity", back_populates="materials_link")

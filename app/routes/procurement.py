@@ -116,8 +116,36 @@ def procurement_page(project_id: int, request: Request, db: Session = Depends(ge
 
     request.session["last_project_id"] = int(project_id)
 
-    materials = db.query(Material).filter(Material.is_active == True).order_by(Material.name.asc()).all()  # noqa: E712
-    vendors = db.query(MaterialVendor).order_by(MaterialVendor.is_active.desc(), MaterialVendor.vendor_name.asc()).all()
+    # PROJECT-SPECIFIC: Only show materials that are added to this project
+    project_material_ids = (
+        db.query(ProjectMaterialVendor.material_id)
+        .filter(ProjectMaterialVendor.project_id == int(project_id))
+        .distinct()
+        .subquery()
+    )
+    materials = (
+        db.query(Material)
+        .filter(
+            Material.is_active == True,
+            Material.id.in_(project_material_ids)
+        )
+        .order_by(Material.name.asc())
+        .all()
+    )
+    
+    # PROJECT-SPECIFIC: Only show vendors that are linked to this project
+    project_vendor_ids = (
+        db.query(ProjectMaterialVendor.vendor_id)
+        .filter(ProjectMaterialVendor.project_id == int(project_id))
+        .distinct()
+        .subquery()
+    )
+    vendors = (
+        db.query(MaterialVendor)
+        .filter(MaterialVendor.id.in_(project_vendor_ids))
+        .order_by(MaterialVendor.is_active.desc(), MaterialVendor.vendor_name.asc())
+        .all()
+    )
 
     vendors_by_material: dict[str, list[dict[str, object]]] = {}
     for v in vendors:

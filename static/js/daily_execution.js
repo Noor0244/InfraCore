@@ -41,6 +41,19 @@
     PLANNED_TODAY = {};
   }
 
+  // Materials map (id -> name/unit)
+  let MATERIALS = {};
+  try {
+    const el = qs('#materialsJson');
+    const list = el ? JSON.parse(el.textContent || '[]') : [];
+    MATERIALS = (Array.isArray(list) ? list : []).reduce((acc, m) => {
+      acc[String(m.id)] = m;
+      return acc;
+    }, {});
+  } catch (e) {
+    MATERIALS = {};
+  }
+
   const headerRequired = [
     '#report_date',
     '#weather',
@@ -218,6 +231,97 @@
     if (totalMatEl) totalMatEl.textContent = totalMat.toFixed(3);
   }
 
+  function renderPlannedMaterials() {
+    const body = qs('#plannedMaterialsBody');
+    if (!body) return;
+
+    const rows = [];
+    const plannedEntries = Object.entries(PLANNED_TODAY || {});
+    if (!plannedEntries.length || !AM_MAP || Object.keys(AM_MAP).length === 0) {
+      body.innerHTML = '<tr><td colspan="5" style="opacity:0.7; padding:10px;">No planned materials for this date yet.</td></tr>';
+      return;
+    }
+
+    plannedEntries.forEach(([activityId, plannedQty]) => {
+      const actRow = qs(`tr[data-activity-id="${activityId}"]`);
+      const actName = actRow ? (actRow.getAttribute('data-activity-name') || 'Activity') : 'Activity';
+      const planned = toNum(plannedQty);
+      const mats = AM_MAP[activityId] || [];
+      if (!mats.length) {
+        rows.push({
+          activity: actName,
+          material: 'No materials linked',
+          qty: 0,
+          unit: '—',
+          note: 'Link materials to this activity'
+        });
+        return;
+      }
+
+      mats.forEach(m => {
+        const matId = String(m.material_id);
+        const rate = toNum(m.rate);
+        const qty = planned * rate;
+        const info = MATERIALS[matId] || {};
+        rows.push({
+          activity: actName,
+          material: info.name || `Material #${matId}`,
+          qty: qty,
+          unit: info.unit || '—',
+          note: rate ? `Rate ${rate} per unit` : 'Rate not set'
+        });
+      });
+    });
+
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="5" style="opacity:0.7; padding:10px;">No planned materials for this date yet.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = rows.map(r => `
+      <tr>
+        <td>${r.activity}</td>
+        <td>${r.material}</td>
+        <td>${Number.isFinite(r.qty) ? r.qty.toFixed(3) : '0.000'}</td>
+        <td>${r.unit}</td>
+        <td>${r.note}</td>
+      </tr>
+    `).join('');
+  }
+
+  function setRowLocked(row, locked) {
+    if (!row) return;
+    qsa('input.activity-executed, input.activity-executed-time, select.activity-time-unit, input.activity-remarks, textarea.activity-remarks', row)
+      .forEach(el => { el.disabled = locked; });
+  }
+
+  function setApprovalStatus(activityId, status) {
+    const row = qs(`tr[data-activity-id="${activityId}"]`);
+    if (!row) return;
+    row.dataset.approvalStatus = status;
+
+    const statusInputs = qsa(`input[name="act_status_${activityId}"]`, row);
+    statusInputs.forEach(input => { input.value = status; });
+
+    qsa(`.approval-badge[data-activity-id="${activityId}"]`).forEach(badge => {
+      badge.textContent = status;
+    });
+
+    const approveBtn = qs(`button.btn-approve-activity[data-activity-id="${activityId}"]`);
+    if (approveBtn) approveBtn.disabled = (status === 'Approved');
+
+    setRowLocked(row, status === 'Approved');
+  }
+
+  function initApprovalStatus() {
+    qsa('tr[data-activity-id]').forEach(row => {
+      const status = row.dataset.approvalStatus || 'Changed';
+      if (status === 'Approved') {
+        setRowLocked(row, true);
+      }
+    });
+  }
+
   function applyPlannedToday(onlyIfEmpty) {
     const entries = Object.entries(PLANNED_TODAY || {});
     if (!entries.length) return;
@@ -230,6 +334,7 @@
       input.value = Number.isFinite(next) ? next.toFixed(3) : '0.000';
     });
     recomputeActivitiesAndMaterials();
+    renderPlannedMaterials();
   }
 
   function wirePlannedTodayActions() {
@@ -253,16 +358,18 @@
         e.preventDefault();
         const activityId = btn.dataset.activityId;
         if (!activityId) return;
-        
-        // Fill only this activity with its planned quantity
-        const qty = PLANNED_TODAY[activityId];
-        if (qty !== undefined) {
-          const input = qs(`input[name="act_exec_${activityId}"]`);
-          if (input) {
-            input.value = Number.isFinite(qty) ? Number(qty).toFixed(3) : '0.000';
-            recomputeActivitiesAndMaterials();
-          }
-        }
+        setApprovalStatus(activityId, 'Approved');
+      });
+    });
+
+    // Unlock (admin only)
+    const unlockButtons = qsa('button.btn-unlock-activity');
+    unlockButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const activityId = btn.dataset.activityId;
+        if (!activityId) return;
+        setApprovalStatus(activityId, 'Changed');
       });
     });
 
@@ -587,7 +694,10 @@
   });
 
   qsa('input.activity-executed, input.activity-executed-time, select.activity-time-unit, input.activity-remarks, textarea.activity-remarks, input.mat-issued, input.mat-consumed').forEach(el => {
-    el.addEventListener('input', recomputeActivitiesAndMaterials);
+    el.addEventListener('input', () => {
+      recomputeActivitiesAndMaterials();
+      renderPlannedMaterials();
+    });
   });
 
   qsa('select.activity-time-unit').forEach(el => {
@@ -595,6 +705,7 @@
       const row = el.closest('tr[data-activity-id]');
       if (!row || !window.ActivityUnits) {
         recomputeActivitiesAndMaterials();
+        renderPlannedMaterials();
         return;
       }
       const unit = window.ActivityUnits.normalizeUnit(el.value);
@@ -603,6 +714,7 @@
       const input = qs('input.activity-executed-time', row);
       if (input) input.value = window.ActivityUnits.hoursToDisplay(execHours, unit, hoursPerDay).toFixed(3);
       recomputeActivitiesAndMaterials();
+      renderPlannedMaterials();
     });
   });
 
@@ -631,4 +743,6 @@
   setGatedEnabled(headerComplete());
   recomputeActivitiesAndMaterials();
   serializeDynamic();
+  renderPlannedMaterials();
+  initApprovalStatus();
 })();

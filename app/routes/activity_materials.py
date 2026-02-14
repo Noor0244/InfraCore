@@ -144,15 +144,66 @@ def get_project_stretches(project_id: int, db: Session = Depends(get_db)):
 
 @router.get("/api/stretches/{stretch_id}/activities")
 def get_stretch_activities(stretch_id: int, db: Session = Depends(get_db)):
+    stretch = db.query(Stretch).filter(Stretch.id == stretch_id).first()
+    if not stretch:
+        return []
+
     rows = (
-        db.query(Activity.id, Activity.name)
-        .join(ProjectActivity, ProjectActivity.activity_id == Activity.id)
-        .join(StretchActivity, StretchActivity.project_activity_id == ProjectActivity.id)
+        db.query(StretchActivity, ProjectActivity, Activity)
+        .outerjoin(ProjectActivity, ProjectActivity.id == StretchActivity.project_activity_id)
+        .outerjoin(Activity, Activity.id == ProjectActivity.activity_id)
         .filter(StretchActivity.stretch_id == stretch_id)
-        .order_by(Activity.name)
+        .order_by(StretchActivity.id.asc())
         .all()
     )
-    return [{"id": rid, "name": name} for rid, name in rows]
+
+    activity_by_id: dict[int, str] = {}
+    missing_names: list[str] = []
+
+    for sa, pa, act in rows:
+        if act and act.id:
+            activity_by_id[int(act.id)] = str(act.name or sa.name or "").strip()
+        else:
+            name = str(getattr(sa, "name", "") or "").strip()
+            if name:
+                missing_names.append(name)
+
+    if not activity_by_id and not missing_names:
+        fallback_rows = (
+            db.query(Activity.id, Activity.name)
+            .join(ProjectActivity, ProjectActivity.activity_id == Activity.id)
+            .filter(
+                ProjectActivity.project_id == int(stretch.project_id),
+                Activity.is_active == True,
+            )
+            .order_by(Activity.name.asc())
+            .all()
+        )
+        return [
+            {"id": int(aid), "name": str(name or "").strip()}
+            for aid, name in fallback_rows
+            if str(name or "").strip()
+        ]
+
+    if missing_names:
+        fallback_rows = (
+            db.query(Activity.id, Activity.name)
+            .filter(
+                Activity.project_id == int(stretch.project_id),
+                Activity.name.in_(missing_names),
+                Activity.is_active == True,
+            )
+            .order_by(Activity.name.asc())
+            .all()
+        )
+        for aid, name in fallback_rows:
+            activity_by_id.setdefault(int(aid), str(name or "").strip())
+
+    return [
+        {"id": aid, "name": name}
+        for aid, name in sorted(activity_by_id.items(), key=lambda r: r[1].lower())
+        if name
+    ]
 
 @router.get("/api/activity/{activity_id}/materials")
 def get_activity_materials(activity_id: int, db: Session = Depends(get_db)):

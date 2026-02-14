@@ -12,7 +12,7 @@
     <tr>
         <td>{{ row.get("material","") }}</td>
         <td>{{ row.get("quantity","") }}</td>
-        <td>{{ row.get("unit","") }}</td>
+        <td>{{ row.get("unit","")|unit_sup }}</td>
     </tr>
     {% endfor %}
 </table>

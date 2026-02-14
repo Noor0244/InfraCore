@@ -296,7 +296,7 @@
           <td>{% if row.promised_lead_time_days is not none %}{{ row.promised_lead_time_days }}d{% else %}—{% endif %}</td>
           <td>{{ (row.delivered_date|ddmmyyyy) if row.delivered_date else '—' }}</td>
           <td>{% if row.actual_lead_time_days is not none %}{{ row.actual_lead_time_days }}d{% else %}—{% endif %}</td>
-          <td style="text-align:right">{% if row.quantity is not none %}{{ row.quantity }}{% else %}—{% endif %} {% if row.unit %}<span class="meta">{{ row.unit }}</span>{% endif %}</td>
+          <td style="text-align:right">{% if row.quantity is not none %}{{ row.quantity }}{% else %}—{% endif %} {% if row.unit %}<span class="meta">{{ row.unit|unit_sup }}</span>{% endif %}</td>
           <td style="max-width: 380px">{{ row.notes or '' }}</td>
         </tr>
         {% endfor %}

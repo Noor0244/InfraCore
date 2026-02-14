@@ -221,12 +221,14 @@ def daily_execution_page(
     executed_today = {}
     executed_today_hours = {}
     remarks_today = {}
+    approval_status_by_activity = {}
     if report:
         for r in db.query(DailyWorkActivity).filter(DailyWorkActivity.report_id == report.id).all():
             executed_today[int(r.activity_id)] = float(r.executed_today or 0)
             executed_today_hours[int(r.activity_id)] = float(getattr(r, "executed_today_hours", 0.0) or 0.0)
             if r.remarks:
                 remarks_today[int(r.activity_id)] = r.remarks
+            approval_status_by_activity[int(r.activity_id)] = str(getattr(r, "approval_status", "Changed") or "Changed")
     else:
         day_rows = (
             db.query(DailyEntry)
@@ -322,6 +324,15 @@ def daily_execution_page(
         )
         material_stock = {int(s.material_id): float(s.quantity_available or 0) for s in stock_rows}
 
+    materials_json = json.dumps([
+        {
+            "id": int(m.id),
+            "name": str(m.name or ""),
+            "unit": str(m.unit or ""),
+        }
+        for m in materials
+    ])
+
     existing_materials = {}
     if report:
         for mr in report.material_rows:
@@ -344,8 +355,10 @@ def daily_execution_page(
             "cum_before": cum_before,
             "executed_today": executed_today,
             "remarks_today": remarks_today,
+            "approval_status_by_activity": approval_status_by_activity,
             "progress_by_activity": progress_by_activity,
             "activity_material_map_json": json.dumps(activity_material_map),
+            "materials_json": materials_json,
             "materials": materials,
             "material_stock": material_stock,
             "existing_materials": existing_materials,
@@ -616,6 +629,8 @@ async def save_daily_work_report(
             planned_start = pa.start_date
             planned_end = pa.end_date
 
+        approval_status = _s(f"act_status_{aid}", 20) or "Changed"
+
         report_row = DailyWorkActivity(
             report_id=report.id,
             project_id=project_id,
@@ -630,6 +645,7 @@ async def save_daily_work_report(
             hours_per_day=float(act_hpd),
             executed_today_hours=float(exec_hours or 0.0),
             remarks=remarks or None,
+            approval_status=approval_status,
         )
         db.add(report_row)
 

@@ -84,20 +84,27 @@
     </div>
 
     {% if not planned or planned|length == 0 %}
-        <p style="opacity:0.7; margin-top: 14px;">
-            {% if activity_def_count and activity_def_count > 0 %}
-                Activities exist but are not planned yet.
-            {% else %}
-                No activities exist for this project yet.
-            {% endif %}
-        </p>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 10px;">
-            <a class="btn-primary" href="/activity-material-planning/{{ project.id }}">Go to Activity & Materials</a>
-            <a class="btn-secondary" href="/projects/{{ project.id }}/activities/new">Add Activity</a>
+        <div class="card" style="margin-top:14px; padding:16px;">
+            <div style="font-weight:700; margin-bottom:8px;">Setup Checklist</div>
+            <p style="opacity:0.8; margin:0 0 10px 0;">
+                {% if activity_def_count and activity_def_count > 0 %}
+                    Activities exist but are not planned yet.
+                {% else %}
+                    No activities exist for this project yet.
+                {% endif %}
+            </p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <a class="btn-primary" href="/projects/{{ project.id }}/activities/new">Add Activity</a>
+                <a class="btn-secondary" href="/project-activity-plan/{{ project.id }}">Plan Activities</a>
+                <a class="btn-secondary" href="/activity-material-planning/{{ project.id }}">Activity & Materials</a>
+                <a class="btn-secondary" href="/project/{{ project.id }}/materials">Materials & Vendors</a>
+                <a class="btn-secondary" href="/stock/current?project_id={{ project.id }}">Current Stock</a>
+            </div>
         </div>
     {% else %}
 
     <form id="dprForm" method="post" action="/execution/{{ project.id }}" enctype="multipart/form-data">
+        <input type="hidden" name="project_id" value="{{ project.id }}">
 
         <div class="form-section">
             <div class="section-title">Daily Header <span class="required">*</span></div>
@@ -157,6 +164,7 @@
             <div class="form-section" id="plannedTodaySection">
                 <div class="section-title">Today's Planned Work</div>
                 <div class="help-text">Auto-calculated from the activity schedule for the selected date.</div>
+                {% set can_unlock = user and (user["role"] in ["admin", "superadmin"]) %}
                 {% if planned_today and planned_today|length > 0 %}
                     <table class="dpr-table" style="margin-top:10px;">
                         <thead>
@@ -166,25 +174,53 @@
                                 <th>Unit</th>
                                 <th>Plan Window</th>
                                 <th style="width:180px">Actions</th>
+                                <th style="width:140px">Approval</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for pa in planned_today %}
                                 {% set days = (pa.end_date - pa.start_date).days + 1 %}
                                 {% set per_day = (pa.planned_quantity / (days if days > 0 else 1)) %}
-                                <tr>
+                                {% set ap_status = approval_status_by_activity.get(pa.activity_id, "Changed") %}
+                                <tr data-activity-id="{{ pa.activity_id }}" data-activity-name="{{ pa.activity.name }}">
                                     <td><strong>{{ pa.activity.name }}</strong></td>
                                     <td>{{ "%.3f"|format(per_day) }}</td>
-                                    <td>{{ pa.unit }}</td>
+                                    <td>{{ pa.unit|unit_sup }}</td>
                                     <td>{{ pa.start_date }} → {{ pa.end_date }}</td>
                                     <td style="display:flex; gap:6px;">
                                         <button type="button" class="btn-approve-activity" data-activity-id="{{ pa.activity_id }}" style="padding:5px 10px; font-size:12px;">Approve</button>
                                         <button type="button" class="btn-update-activity" data-activity-id="{{ pa.activity_id }}" data-activity-name="{{ pa.activity.name }}" style="padding:5px 10px; font-size:12px;">Update</button>
                                     </td>
+                                    <td>
+                                        <span class="pill approval-badge" data-activity-id="{{ pa.activity_id }}">{{ ap_status }}</span>
+                                        {% if can_unlock %}
+                                            <button type="button" class="btn-secondary btn-sm btn-unlock-activity" data-activity-id="{{ pa.activity_id }}" style="margin-left:6px;">Unlock</button>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
+                    <details open style="margin-top:12px;">
+                        <summary>Planned Materials (by Activity)</summary>
+                        <div class="help-text">Auto-calculated from planned quantities and activity consumption rates.</div>
+                        <table class="dpr-table" style="margin-top:10px;">
+                            <thead>
+                                <tr>
+                                    <th style="width:30%">Activity</th>
+                                    <th style="width:30%">Material</th>
+                                    <th>Planned Qty</th>
+                                    <th>Unit</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="plannedMaterialsBody">
+                                <tr>
+                                    <td colspan="5" style="opacity:0.7; padding:10px;">Loading planned materials…</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </details>
                 {% else %}
                     <div class="help-text" style="margin-top:8px;">No planned activities for this date.</div>
                 {% endif %}
@@ -212,6 +248,7 @@
                             <th>Cumulative (time)</th>
                             <th>Balance (time)</th>
                             <th>Status</th>
+                            <th>Approval</th>
                             <th style="width:22%">Remarks</th>
                         </tr>
                     </thead>
@@ -222,6 +259,7 @@
                             {% set cum = (cum_before.get(pa.activity_id, 0) or 0) %}
                             {% set ex = (executed_today.get(pa.activity_id, 0) or 0) %}
                             {% set t = (time_by_activity_id.get(pa.activity_id) if time_by_activity_id is defined else None) %}
+                            {% set ap_status = approval_status_by_activity.get(pa.activity_id, "Changed") %}
                             <tr
                                 data-activity-id="{{ pa.activity_id }}"
                                 data-planned="{{ pa.planned_quantity }}"
@@ -231,13 +269,15 @@
                                 data-cum-other-hours="{{ (t.cum_before_hours if t else 0) }}"
                                 data-display-unit="{{ (t.display_unit if t else 'hours') }}"
                                 data-hours-per-day="{{ (t.hours_per_day if t else 8) }}"
+                                data-approval-status="{{ ap_status }}"
                             >
                                 <td>
                                     <strong>{{ pa.activity.name }}</strong>
                                     <div class="meta">Plan: {{ pa.start_date }} → {{ pa.end_date }}</div>
                                     <input type="hidden" name="activity_ids" value="{{ pa.activity_id }}">
+                                    <input type="hidden" name="act_status_{{ pa.activity_id }}" value="{{ ap_status }}">
                                 </td>
-                                <td>{{ "%.3f"|format(pa.planned_quantity) }} {{ pa.unit }}</td>
+                                <td>{{ "%.3f"|format(pa.planned_quantity) }} {{ pa.unit|unit_sup }}</td>
                                 <td>{{ "%.3f"|format(cum) }}</td>
                                 <td><input class="activity-executed" name="act_exec_{{ pa.activity_id }}" type="number" min="0" step="0.001" value="{{ ex }}"></td>
                                 <td class="cell-cumulative">{{ "%.3f"|format(cum + ex) }}</td>
@@ -272,6 +312,9 @@
                                 <td class="cell-time-cumulative">{{ "%.3f"|format((t.cum_after_display if t else 0)) }}</td>
                                 <td class="cell-time-balance">{{ "%.3f"|format((t.balance_display if t else 0)) }}</td>
                                 <td class="cell-status">—</td>
+                                <td>
+                                    <span class="pill approval-badge" data-activity-id="{{ pa.activity_id }}">{{ ap_status }}</span>
+                                </td>
                                 <td><input class="activity-remarks" name="act_rem_{{ pa.activity_id }}" type="text" value="{{ remarks_today.get(pa.activity_id,'') }}" placeholder="Required if 0 / delayed"></td>
                             </tr>
                         {% endfor %}
@@ -295,32 +338,43 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for m in materials %}
-                            {% set stock = (material_stock.get(m.id, 0) or 0) %}
-                            {% set exr = existing_materials.get(m.id) %}
-                            {% set selected_unit = (exr.unit if exr and exr.unit else m.get_standard_unit()) %}
-                            <tr data-material-id="{{ m.id }}" data-stock="{{ stock }}">
-                                <td>
-                                    <strong>{{ m.name }}</strong>
-                                    <div class="meta">Base unit: {{ m.unit }}</div>
-                                    <input type="hidden" name="material_ids" value="{{ m.id }}">
-                                    <input class="mat-planned-hidden" type="hidden" name="mat_planned_{{ m.id }}" value="{{ exr.planned_today if exr else 0 }}">
+                        {% if materials and materials|length > 0 %}
+                            {% for m in materials %}
+                                {% set stock = (material_stock.get(m.id, 0) or 0) %}
+                                {% set exr = existing_materials.get(m.id) %}
+                                {% set selected_unit = (exr.unit if exr and exr.unit else m.get_standard_unit()) %}
+                                <tr data-material-id="{{ m.id }}" data-stock="{{ stock }}">
+                                    <td>
+                                        <strong>{{ m.name }}</strong>
+                                        <div class="meta">Base unit: {{ m.unit|unit_sup }}</div>
+                                        <input type="hidden" name="material_ids" value="{{ m.id }}">
+                                        <input class="mat-planned-hidden" type="hidden" name="mat_planned_{{ m.id }}" value="{{ exr.planned_today if exr else 0 }}">
+                                    </td>
+                                    <td>{{ "%.3f"|format(stock) }}</td>
+                                    <td class="cell-mat-planned">0.000</td>
+                                    <td>
+                                        {% set allowed = m.get_allowed_units() %}
+                                        <select name="mat_unit_{{ m.id }}">
+                                            {% for u in allowed %}
+                                                <option value="{{ u }}" {% if selected_unit==u %}selected{% endif %}>{{ u }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td><input class="mat-issued" name="mat_issued_{{ m.id }}" type="number" min="0" step="0.001" value="{{ exr.issued_today if exr else 0 }}"></td>
+                                    <td><input class="mat-consumed" name="mat_consumed_{{ m.id }}" type="number" min="0" step="0.001" value="{{ exr.consumed_today if exr else 0 }}"></td>
+                                    <td><input name="mat_source_{{ m.id }}" type="text" value="{{ exr.source if exr and exr.source else '' }}" placeholder="Plant / Quarry / Store"></td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="7" style="opacity:0.8; padding:12px;">
+                                    No materials are linked to activities yet.
+                                    <a href="/activity-material-planning/{{ project.id }}">Link materials</a>
+                                    or update
+                                    <a href="/stock/current?project_id={{ project.id }}">stock</a>.
                                 </td>
-                                <td>{{ "%.3f"|format(stock) }}</td>
-                                <td class="cell-mat-planned">0.000</td>
-                                <td>
-                                    {% set allowed = m.get_allowed_units() %}
-                                    <select name="mat_unit_{{ m.id }}">
-                                        {% for u in allowed %}
-                                            <option value="{{ u }}" {% if selected_unit==u %}selected{% endif %}>{{ u }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </td>
-                                <td><input class="mat-issued" name="mat_issued_{{ m.id }}" type="number" min="0" step="0.001" value="{{ exr.issued_today if exr else 0 }}"></td>
-                                <td><input class="mat-consumed" name="mat_consumed_{{ m.id }}" type="number" min="0" step="0.001" value="{{ exr.consumed_today if exr else 0 }}"></td>
-                                <td><input name="mat_source_{{ m.id }}" type="text" value="{{ exr.source if exr and exr.source else '' }}" placeholder="Plant / Quarry / Store"></td>
                             </tr>
-                        {% endfor %}
+                        {% endif %}
                     </tbody>
                 </table>
             </details>
@@ -582,6 +636,7 @@
 {% block scripts %}
     <script id="amMapJson" type="application/json">{{ activity_material_map_json | safe }}</script>
     <script id="plannedTodayJson" type="application/json">{{ planned_today_json | safe }}</script>
+    <script id="materialsJson" type="application/json">{{ materials_json | safe }}</script>
     <script src="/static/js/activity_units.js"></script>
     <script src="/static/js/daily_execution.js"></script>
 {% endblock %}

@@ -1,42 +1,109 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="page-title">Current Stock</h1>
-<form method="get" action="/stock/current" style="margin-bottom:18px;max-width:400px">
-  <label for="project_id">Select Project:</label>
-  <select name="project_id" id="project_id" onchange="this.form.submit()" style="margin-left:8px">
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 class="page-title">📦 Current Stock</h1>
+    <div class="help-text">Track material inventory for your project</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    {% if project %}
+    <a href="/project/{{ project.id }}/materials" class="btn">Material & Vendor Management</a>
+    {% endif %}
+    <a href="/dashboard" class="btn">← Dashboard</a>
+  </div>
+</div>
+
+<form method="get" action="/stock/current" style="margin-bottom:18px;max-width:500px">
+  <label for="project_id" style="font-weight:600;margin-bottom:8px;display:block">Select Project:</label>
+  <select name="project_id" id="project_id" onchange="this.form.submit()" style="width:100%;padding:10px;border-radius:8px">
     <option value="">-- All Projects --</option>
     {% for p in projects %}
       <option value="{{ p.id }}" {% if project_id and (p.id == project_id or p.id == project_id|int) %}selected{% endif %}>{{ p.name }}</option>
     {% endfor %}
   </select>
 </form>
+
+{% if project %}
+<div class="card" style="margin-bottom:16px;background:linear-gradient(135deg, rgba(79, 140, 255, 0.05) 0%, rgba(79, 140, 255, 0.02) 100%);border:1px solid rgba(79, 140, 255, 0.2)">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+    <div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;font-weight:600">PROJECT</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text-primary)">{{ project.name }}</div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;font-weight:600">LOCATION</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text-primary)">{{ project.city or 'N/A' }}</div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;font-weight:600">STRETCHES</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text-primary)">{{ stretches|length }} stretches</div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;font-weight:600">MATERIALS</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text-primary)">{{ materials|length }} materials</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card" style="margin-top:14px">
-  <h3>Material Stock</h3>
-  <button type="button" class="btn" style="float:right;margin-top:-36px;margin-right:4px" onclick="document.getElementById('addStockModal').style.display='block'">+ Add Stock</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h3 style="margin:0">Material Stock Inventory</h3>
+    {% if project_id and materials|length > 0 %}
+    <button type="button" class="btn-primary" onclick="document.getElementById('addStockModal').style.display='flex'">+ Add Stock</button>
+    {% endif %}
+  </div>
+  
+  {% if not project_id %}
+  <div style="text-align:center;padding:40px;opacity:0.7">
+    <p style="font-size:18px;margin-bottom:8px">📋 Select a project to view stock</p>
+    <p style="font-size:14px;color:var(--text-secondary)">Choose a project from the dropdown above</p>
+  </div>
+  {% elif materials|length == 0 %}
+  <div style="text-align:center;padding:40px;background:rgba(251, 146, 60, 0.05);border:1px dashed rgba(251, 146, 60, 0.3);border-radius:12px">
+    <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+    <p style="font-size:18px;margin-bottom:8px;font-weight:600">No Materials Added to Project</p>
+    <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px">Add materials to this project first before tracking stock</p>
+    <a href="/project/{{ project.id }}/materials" class="btn-primary">Go to Material & Vendor Management</a>
+  </div>
+  {% else %}
   <table class="table">
     <thead>
       <tr>
         <th>Material</th>
         <th>Quantity</th>
         <th>Unit</th>
+        <th>Location</th>
         <th>Last Updated</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody id="stockTableBody">
+      {% if stocks|length == 0 %}
+      <tr>
+        <td colspan="6" style="text-align:center;padding:40px;opacity:0.7">
+          <div style="font-size:16px;margin-bottom:8px">📦 No stock entries yet</div>
+          <div style="font-size:14px;color:var(--text-secondary)">Click "+ Add Stock" to record initial inventory</div>
+        </td>
+      </tr>
+      {% else %}
       {% for s in stocks %}
       <tr>
-        <td>{{ s.material_name }}</td>
+        <td><strong>{{ s.material_name }}</strong></td>
         <td>{{ s.quantity }}</td>
-        <td>{{ s.unit }}</td>
+        <td>{{ s.unit|unit_sup }}</td>
+        <td>{{ s.location or '-' }}</td>
         <td>{{ s.updated_at.strftime('%d-%m-%Y %H:%M') }}</td>
         <td>
           <button class="btn btn-danger" onclick="removeStock('{{ s.id }}')">Remove</button>
         </td>
       </tr>
       {% endfor %}
+      {% endif %}
     </tbody>
   </table>
+  {% endif %}
 </div>
 <!-- Add Stock Modal -->
 <div id="addStockModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
@@ -45,34 +112,57 @@
     <h3 style="margin-top:0">Add New Stock</h3>
     <form method="post" action="/stock/add" id="addStockForm">
       <input type="hidden" name="project_id" value="{{ project_id }}" />
-      <div style="margin-bottom:10px">
-        <label>Material</label>
-        <select name="material_id" required>
+      <div style="margin-bottom:14px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Material *</label>
+        <select name="material_id" id="materialSelect" required style="width:100%;padding:10px;border-radius:8px" onchange="updateUnit()">
+          <option value="">Select Material</option>
           {% for m in materials %}
-            <option value="{{ m.id }}">{{ m.name }}</option>
+            <option value="{{ m.id }}" data-unit="{{ m.unit }}">{{ m.name }} ({{ m.unit|unit_sup }})</option>
           {% endfor %}
         </select>
       </div>
-      <div style="margin-bottom:10px">
-        <label>Quantity</label>
-        <input name="quantity" type="number" step="0.01" min="0" required style="width:100%" />
+      <div style="margin-bottom:14px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Quantity *</label>
+        <input name="quantity" type="number" step="0.01" min="0.01" required style="width:100%;padding:10px;border-radius:8px" placeholder="Enter quantity" />
       </div>
-      <div style="margin-bottom:10px">
-        <label>Unit</label>
-        <input name="unit" type="text" required style="width:100%" />
+      <div style="margin-bottom:14px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Unit *</label>
+        <input name="unit" id="unitInput" type="text" required style="width:100%;padding:10px;border-radius:8px" placeholder="Auto-filled from material" />
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;margin-bottom:6px;font-weight:600">Location</label>
+        <select name="location" style="width:100%;padding:10px;border-radius:8px">
+          <option value="">Select Location</option>
+          <option value="Site">Site</option>
+          <option value="Store">Store/Yard</option>
+          <option value="Warehouse">Warehouse</option>
+        </select>
       </div>
       <div style="text-align:right">
-        <button type="submit" class="btn-primary">Add Stock</button>
+        <button type="submit" class="btn-primary">Add Stock Entry</button>
       </div>
     </form>
   </div>
 </div>
 <script>
+function updateUnit() {
+  const select = document.getElementById('materialSelect');
+  const unitInput = document.getElementById('unitInput');
+  const selectedOption = select.options[select.selectedIndex];
+  const unit = selectedOption.getAttribute('data-unit');
+  if (unit) {
+    unitInput.value = unit;
+  }
+}
+
 function removeStock(stockId) {
   if (confirm('Are you sure you want to remove this stock entry?')) {
     fetch(`/stock/remove/${stockId}`, { method: 'POST' })
       .then(() => window.location.reload());
   }
 }
+
+// Show modal as flex to center it
+document.getElementById('addStockModal').style.display = 'none';
 </script>
 {% endblock %}

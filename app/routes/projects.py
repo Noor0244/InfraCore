@@ -2747,9 +2747,9 @@ def update_project_form(
     client_authority: str | None = Form(None),
     contractor: str | None = Form(None),
     consultant_pmc: str | None = Form(None),
-    lanes: int = Form(...),
-    road_width: float = Form(...),
-    road_length_km: float = Form(...),
+    lanes: int | None = Form(None),
+    road_width: float | None = Form(None),
+    road_length_km: float | None = Form(None),
     carriageway_width: float | None = Form(None),
     shoulder_type: str | None = Form(None),
     median_type: str | None = Form(None),
@@ -2800,9 +2800,9 @@ def update_project_form(
     project.consultant_pmc = (consultant_pmc or None)
     # Preserve existing road_type and project_type (immutable)
     # Do NOT overwrite `project.project_type` or `project.road_type` from the form.
-    project.lanes = lanes
-    project.road_width = road_width
-    project.road_length_km = road_length_km
+    project.lanes = project.lanes if lanes is None else lanes
+    project.road_width = project.road_width if road_width is None else road_width
+    project.road_length_km = project.road_length_km if road_length_km is None else road_length_km
     project.carriageway_width = carriageway_width
     project.shoulder_type = (shoulder_type or None)
     project.median_type = (median_type or None)
