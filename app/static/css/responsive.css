@@ -1,0 +1,462 @@
+/* ================================================================
+   DYNAMIC DEVICE-RESPONSIVE STYLESHEET
+   Uses CSS variables and selectors for automatic device optimization
+   ================================================================ */
+
+/* ================== CSS VARIABLES BY DEVICE ================== */
+
+/* Default: Large Screen */
+html {
+  --form-column-count: auto-fit;
+  --button-width: auto;
+  --input-height: 38px;
+  --font-size-base: 16px;
+  --padding-base: 20px;
+  --gap-base: 16px;
+  --max-content-width: 1200px;
+  --sidebar-width: 250px;
+  --touch-target-size: 44px;
+}
+
+/* Small Phone (< 380px) */
+html.small-phone {
+  --form-column-count: 1;
+  --button-width: 100%;
+  --input-height: 40px;
+  --font-size-base: 12px;
+  --padding-base: 8px;
+  --gap-base: 4px;
+  --max-content-width: 100%;
+  --sidebar-width: 100%;
+  --touch-target-size: 44px;
+}
+
+/* Phone (380-480px) */
+html.phone {
+  --form-column-count: 1;
+  --button-width: 100%;
+  --input-height: 44px;
+  --font-size-base: 14px;
+  --padding-base: 12px;
+  --gap-base: 8px;
+  --max-content-width: 100%;
+  --sidebar-width: 100%;
+  --touch-target-size: 44px;
+}
+
+/* Large Phone / Phablet (480-768px) */
+html.large-phone {
+  --form-column-count: 1;
+  --button-width: 100%;
+  --input-height: 42px;
+  --font-size-base: 15px;
+  --padding-base: 14px;
+  --gap-base: 10px;
+  --max-content-width: 100%;
+  --sidebar-width: 100%;
+  --touch-target-size: 44px;
+}
+
+/* Tablet (768-1024px) */
+html.tablet {
+  --form-column-count: 2;
+  --button-width: auto;
+  --input-height: 40px;
+  --font-size-base: 15px;
+  --padding-base: 16px;
+  --gap-base: 12px;
+  --max-content-width: 100%;
+  --sidebar-width: 100%;
+  --touch-target-size: 48px;
+}
+
+/* Medium Screen (1024-1280px) */
+html.medium-screen {
+  --form-column-count: auto-fit;
+  --button-width: auto;
+  --input-height: 38px;
+  --font-size-base: 15px;
+  --padding-base: 18px;
+  --gap-base: 14px;
+  --max-content-width: 1000px;
+  --sidebar-width: 240px;
+  --touch-target-size: 44px;
+}
+
+/* Large Screen (1280px+) */
+html.large-screen {
+  --form-column-count: auto-fit;
+  --button-width: auto;
+  --input-height: 38px;
+  --font-size-base: 16px;
+  --padding-base: 20px;
+  --gap-base: 16px;
+  --max-content-width: 1200px;
+  --sidebar-width: 250px;
+  --touch-target-size: 44px;
+}
+
+/* ================== RESPONSIVE CONTAINER ================== */
+
+.container {
+  padding: var(--padding-base);
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ================== RESPONSIVE FORMS ================== */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--form-column-count), minmax(200px, 1fr));
+  gap: var(--gap-base);
+}
+
+input,
+select,
+textarea,
+.form-input {
+  height: var(--input-height);
+  padding: calc(var(--input-height) / 4) calc(var(--padding-base) / 2);
+  font-size: var(--font-size-base);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* ================== RESPONSIVE BUTTONS ================== */
+
+button,
+.btn,
+.btn-primary,
+.btn-secondary,
+[role="button"] {
+  width: var(--button-width);
+  height: var(--touch-target-size);
+  min-height: var(--touch-target-size);
+  padding: 0 var(--padding-base);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+/* ================== RESPONSIVE TYPOGRAPHY ================== */
+
+body {
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+h1 {
+  font-size: calc(var(--font-size-base) * 1.8);
+  margin: calc(var(--gap-base) * 2) 0 var(--gap-base) 0;
+}
+
+h2 {
+  font-size: calc(var(--font-size-base) * 1.5);
+  margin: calc(var(--gap-base) * 1.5) 0 var(--gap-base) 0;
+}
+
+h3 {
+  font-size: calc(var(--font-size-base) * 1.2);
+  margin: var(--gap-base) 0 calc(var(--gap-base) * 0.5) 0;
+}
+
+p {
+  margin: 0 0 var(--gap-base) 0;
+}
+
+/* ================== RESPONSIVE SPACING ================== */
+
+.mb-1 { margin-bottom: var(--gap-base); }
+.mb-2 { margin-bottom: calc(var(--gap-base) * 2); }
+.mb-3 { margin-bottom: calc(var(--gap-base) * 3); }
+
+.p-1 { padding: var(--gap-base); }
+.p-2 { padding: calc(var(--gap-base) * 2); }
+.p-3 { padding: calc(var(--gap-base) * 3); }
+
+.gap-1 { gap: var(--gap-base); }
+.gap-2 { gap: calc(var(--gap-base) * 2); }
+.gap-3 { gap: calc(var(--gap-base) * 3); }
+
+/* ================== RESPONSIVE SIDEBAR ================== */
+
+.sidebar {
+  width: var(--sidebar-width);
+}
+
+/* On small screens, sidebar is full width */
+html.small-phone .sidebar,
+html.phone .sidebar,
+html.large-phone .sidebar,
+html.tablet .sidebar {
+  width: var(--sidebar-width);
+}
+
+/* ================== RESPONSIVE TABLES ================== */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-base);
+}
+
+th, td {
+  padding: calc(var(--padding-base) / 2);
+  text-align: left;
+  border-bottom: 1px solid var(--border, #ddd);
+}
+
+/* Mobile table card layout */
+html.small-phone table,
+html.phone table,
+html.large-phone table {
+  display: block;
+  width: 100%;
+}
+
+html.small-phone thead,
+html.phone thead,
+html.large-phone thead {
+  display: none;
+}
+
+html.small-phone tbody,
+html.phone tbody,
+html.large-phone tbody {
+  display: block;
+}
+
+html.small-phone tr,
+html.phone tr,
+html.large-phone tr {
+  display: block;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  margin-bottom: var(--gap-base);
+  padding: var(--padding-base);
+}
+
+html.small-phone td,
+html.phone td,
+html.large-phone td {
+  display: block;
+  text-align: right;
+  padding-left: 50%;
+  position: relative;
+  padding-right: var(--padding-base);
+  padding-bottom: calc(var(--padding-base) / 2);
+}
+
+html.small-phone td::before,
+html.phone td::before,
+html.large-phone td::before {
+  content: attr(data-label);
+  position: absolute;
+  left: var(--padding-base);
+  font-weight: bold;
+  width: calc(50% - var(--padding-base));
+  text-align: left;
+}
+
+/* ================== RESPONSIVE MODALS ================== */
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+
+html.small-phone .modal-content,
+html.phone .modal-content,
+html.large-phone .modal-content {
+  width: 100%;
+  max-height: 90vh;
+  border-radius: 12px 12px 0 0;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ================== RESPONSIVE LAYOUT ================== */
+
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  gap: 0;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Full-width on mobile */
+html.small-phone .layout,
+html.phone .layout,
+html.large-phone .layout,
+html.tablet .layout {
+  grid-template-columns: 1fr;
+}
+
+/* ================== RESPONSIVE FLEX ================== */
+
+.flex-responsive {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-base);
+}
+
+html.small-phone .flex-responsive {
+  flex-direction: column;
+}
+
+/* ================== RESPONSIVE GRID ================== */
+
+.grid-responsive {
+  display: grid;
+  gap: var(--gap-base);
+}
+
+html.small-phone .grid-responsive {
+  grid-template-columns: 1fr;
+}
+
+html.tablet .grid-responsive {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+html.medium-screen .grid-responsive,
+html.large-screen .grid-responsive {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* ================== TOUCH DEVICE OPTIMIZATIONS ================== */
+
+html.touch-device button,
+html.touch-device [role="button"],
+html.touch-device a[href] {
+  padding: calc(var(--touch-target-size) / 4) var(--padding-base);
+}
+
+html.touch-device input,
+html.touch-device select,
+html.touch-device textarea {
+  font-size: 16px; /* Prevent iOS auto-zoom */
+}
+
+/* ================== HIDE ELEMENTS ON SMALL PHONES ================== */
+
+html.small-phone .hide-on-mobile {
+  display: none !important;
+}
+
+html.phone .hide-on-mobile {
+  display: none !important;
+}
+
+html.tablet .hide-on-tablet {
+  display: none !important;
+}
+
+html.large-screen .hide-on-desktop {
+  display: none !important;
+}
+
+/* ================== SHOW ELEMENTS ON SPECIFIC DEVICES ================== */
+
+.show-on-mobile {
+  display: none;
+}
+
+html.small-phone .show-on-mobile,
+html.phone .show-on-mobile,
+html.large-phone .show-on-mobile {
+  display: block;
+}
+
+.show-on-tablet {
+  display: none;
+}
+
+html.tablet .show-on-tablet {
+  display: block;
+}
+
+.show-on-desktop {
+  display: none;
+}
+
+html.medium-screen .show-on-desktop,
+html.large-screen .show-on-desktop {
+  display: block;
+}
+
+/* ================== LANDSCAPE ORIENTATION OPTIMIZATIONS ================== */
+
+html.landscape {
+  --padding-base: 12px;
+  --gap-base: 8px;
+}
+
+html.landscape .sidebar {
+  display: none;
+}
+
+html.landscape .layout {
+  grid-template-columns: 1fr;
+}
+
+/* ================== HIGH DPI DEVICES ================== */
+
+@media (min-device-pixel-ratio: 2) {
+  body {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+/* ================== ACCESSIBILITY ================== */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  button,
+  input,
+  select,
+  textarea {
+    border-width: 2px;
+  }
+}
+
+/* ================== PRINT ================== */
+
+@media print {
+  .sidebar,
+  .nav,
+  button,
+  .no-print {
+    display: none !important;
+  }
+}

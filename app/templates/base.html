@@ -11,10 +11,15 @@
 
     <!-- Main CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Dynamic Responsive CSS (device-aware) -->
+    <link rel="stylesheet" href="/static/css/responsive.css">
     <!-- Mobile Optimization CSS -->
     <link rel="stylesheet" href="/static/css/mobile.css">
     <!-- UI v2 overrides (modern spacing + polish) -->
     <link rel="stylesheet" href="/static/css/ui_v2.css">
+    
+    <!-- Device Detection Script (loads before rendering) -->
+    <script src="/static/js/device-detector.js"></script>
     <!-- Small helper styles (use theme variables from style.css) -->
     <style>
         a, a:visited { color: var(--text); text-decoration: none; }
