@@ -1,0 +1,26 @@
+{
+  "name": "infracore",
+  "version": "1.0.0",
+  "description": "1) Create/activate the virtual environment (once per terminal):",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Noor0244/InfraCore.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Noor0244/InfraCore/issues"
+  },
+  "homepage": "https://github.com/Noor0244/InfraCore#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.2.3"
+  }
+}
