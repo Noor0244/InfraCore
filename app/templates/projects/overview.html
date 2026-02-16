@@ -2,150 +2,201 @@
 
 {% block content %}
 
-<div class="page-title" style="font-size:2.2rem;font-weight:700;margin-bottom:18px;letter-spacing:0.5px;display:flex;align-items:center;gap:18px;">
-    <span style="color:#4fc3f7;">&#9679;</span>
-    <span>Project Overview</span>
-    <span style="font-size:1.2rem;font-weight:400;color:#aaa;">— {{ project.name }}</span>
-</div>
-
-<div class="card" style="max-width: 1100px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07); margin-bottom: 24px;">
-    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Project Modules</h3>
-    <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px;">
-        <a href="/projects/{{ project.id }}/design-data" class="btn btn-primary">Design Data</a>
-        <!-- Activities button removed as requested -->
-        <!-- Materials and Activity → Material Map buttons removed as requested -->
-        <a href="/project/{{ project.id }}/materials" class="btn btn-primary">Material & Vendor</a>
-        <!-- Documents button removed as requested -->
+<div class="page-title" style="font-size:2.2rem;font-weight:700;margin-bottom:18px;letter-spacing:0.5px;display:flex;align-items:center;gap:18px;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:18px;">
+        <span style="color:#4fc3f7;">&#9679;</span>
+        <span>Project Overview</span>
+        <span style="font-size:1.2rem;font-weight:400;color:#aaa;">— {{ project.name }}</span>
     </div>
-    <p style="margin-top: 10px; color: #888; font-size:0.98rem;">
-        Complete project information step-by-step using the modules above.
-    </p>
+    <a href="/projects/{{ project.id }}/overview-pdf" target="_blank" style="padding:8px 16px;background:#2196f3;color:#fff;text-decoration:none;border-radius:4px;font-size:0.95rem;font-weight:600;display:inline-flex;align-items:center;gap:8px;transition:background 0.2s;">
+        📥 Download PDF
+    </a>
 </div>
 
+<div style="max-width:1100px;margin:-8px 0 18px;color:#cbd5e1;font-size:0.98rem;">
+    <span><b>Project Time:</b> {{ project.planned_start_date|ddmmyyyy }} — {{ project.planned_end_date|ddmmyyyy }}</span>
+    <span style="margin-left:14px"><b>Status:</b> <span style="color:#81c784;font-weight:600;">{{ project.status|capitalize }}</span></span>
+</div>
+
+<!-- BASIC INFORMATION -->
 <div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
     <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Basic Information</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;">
         <div><b>Project Name:</b> <span style="color:#fff">{{ project.name }}</span></div>
-        <div><b>Project Code:</b> <span style="color:#fff">{{ project.project_code or "-" }}</span></div>
-        <div><b>Client / Authority:</b> <span style="color:#fff">{{ project.client_authority or "-" }}</span></div>
-        <div><b>Contractor:</b> <span style="color:#fff">{{ project.contractor or "-" }}</span></div>
-        <div><b>Consultant / PMC:</b> <span style="color:#fff">{{ project.consultant_pmc or "-" }}</span></div>
+        {% if project.project_type %}
+        <div><b>Project Type:</b> <span style="color:#fff">{{ project.project_type|capitalize }}</span></div>
+        {% endif %}
+        {% if project.project_code %}
+        <div><b>Project Code:</b> <span style="color:#fff">{{ project.project_code }}</span></div>
+        {% endif %}
+        {% if project.client_authority %}
+        <div><b>Client / Authority:</b> <span style="color:#fff">{{ project.client_authority }}</span></div>
+        {% endif %}
+        {% if project.contractor %}
+        <div><b>Contractor:</b> <span style="color:#fff">{{ project.contractor }}</span></div>
+        {% endif %}
+        {% if project.consultant_pmc %}
+        <div><b>Consultant / PMC:</b> <span style="color:#fff">{{ project.consultant_pmc }}</span></div>
+        {% endif %}
     </div>
 </div>
 
+<!-- ROAD CHARACTERISTICS -->
 <div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
-    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Road & Location Details</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px;">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Road Characteristics</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;">
+        {% if project.road_type %}
         <div><b>Road Type:</b> <span style="color:#fff">{{ project.road_type }}</span></div>
-        <div><b>Lanes:</b> <span style="color:#fff">{{ project.lanes }}</span></div>
-        <div><b>Road Length (km):</b> <span style="color:#fff">{{ project.road_length_km }}</span></div>
-        <div><b>Chainage:</b> <span style="color:#fff">{{ project.chainage_start or "N/A" }} — {{ project.chainage_end or "N/A" }}</span></div>
-        <div style="grid-column:1/-1"><b>Location:</b> <span style="color:#fff">{{ project.city }}{% if project.district %}, {{ project.district }}{% endif %}{% if project.state %}, {{ project.state }}{% endif %}, {{ project.country }}</span></div>
+        {% endif %}
+        {% if project.road_category %}
+        <div><b>Road Category:</b> <span style="color:#fff">{{ project.road_category }}</span></div>
+        {% endif %}
+        {% if project.road_engineering_type %}
+        <div><b>Engineering Type:</b> <span style="color:#fff">{{ project.road_engineering_type }}</span></div>
+        {% endif %}
+        {% if project.lane_configuration %}
+        <div><b>Lane Configuration:</b> <span style="color:#fff">{{ project.lane_configuration }}</span></div>
+        {% elif project.lanes is not none %}
+        <div><b>Lanes (Count):</b> <span style="color:#fff">{{ project.lanes }}</span></div>
+        {% endif %}
+        {% if project.road_pavement_type %}
+        <div><b>Pavement Type:</b> <span style="color:#fff">{{ project.road_pavement_type|capitalize }}</span></div>
+        {% endif %}
+        {% if project.terrain_type %}
+        <div><b>Terrain Type:</b> <span style="color:#fff">{{ project.terrain_type|capitalize }}</span></div>
+        {% endif %}
+        {% if project.road_construction_type %}
+        <div><b>Construction Type:</b> <span style="color:#fff">{{ project.road_construction_type }}</span></div>
+        {% endif %}
     </div>
 </div>
 
-{% if project.project_type|lower == "road" %}
-<div class="card" style="max-width: 1100px; margin-bottom: 20px;">
-    <h3>Road Preset Snapshot (Read-only)</h3>
-
-    <div style="display:flex; justify-content: flex-end; gap: 10px; margin: 6px 0 12px;">
-        <a class="btn" href="/projects/{{ project.id }}/preset-snapshot.json" download>
-            Download Snapshot (JSON)
-        </a>
+<!-- ROAD DIMENSIONS -->
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Road Dimensions</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;">
+        {% if project.road_length_km is not none %}
+        <div><b>Road Length (km):</b> <span style="color:#fff">{{ project.road_length_km }}</span></div>
+        {% endif %}
+        {% if project.road_width is not none %}
+        <div><b>Road Width (m):</b> <span style="color:#fff">{{ project.road_width }}</span></div>
+        {% endif %}
+        {% if project.carriageway_width %}
+        <div><b>Carriageway Width (m):</b> <span style="color:#fff">{{ project.carriageway_width }}</span></div>
+        {% endif %}
+        {% if project.shoulder_type %}
+        <div><b>Shoulder Type:</b> <span style="color:#fff">{{ project.shoulder_type }}</span></div>
+        {% endif %}
+        {% if project.median_type %}
+        <div><b>Median Type:</b> <span style="color:#fff">{{ project.median_type }}</span></div>
+        {% endif %}
     </div>
+</div>
 
-    <table class="table">
-        <tr>
-            <th>Road Category</th>
-            <td>{{ project.road_category or "-" }}</td>
-        </tr>
-        <tr>
-            <th>Road Engineering Type</th>
-            <td>{{ project.road_engineering_type or "-" }}</td>
-        </tr>
-        <tr>
-            <th>Preset Key</th>
-            <td>{{ preset_snapshot.preset_key or "-" }}</td>
-        </tr>
-        <tr>
-            <th>Selected Activities</th>
-            <td>
-                {% if preset_snapshot.activity_names %}
-                    {{ preset_snapshot.activity_names|length }} activities
-                    <details style="margin-top: 6px;">
-                        <summary style="cursor: pointer;">Show list</summary>
-                        <div style="max-height: 240px; overflow: auto; margin-top: 8px;">
-                            <ol style="margin: 0 0 0 18px;">
-                                {% for a in preset_snapshot.activity_names %}
-                                    <li>{{ a }}</li>
-                                {% endfor %}
-                            </ol>
-                        </div>
-                    </details>
-                {% else %}
-                    -
-                {% endif %}
-            </td>
-        </tr>
-        <tr>
-            <th>Selected Materials</th>
-            <td>
-                {% if preset_snapshot.material_defs %}
-                    {{ preset_snapshot.material_defs|length }} materials
-                    <details style="margin-top: 6px;">
-                        <summary style="cursor: pointer;">Show list</summary>
-                        <div style="max-height: 240px; overflow: auto; margin-top: 8px;">
-                            <ol style="margin: 0 0 0 18px;">
-                                {% for m in preset_snapshot.material_defs %}
-                                    <li>{{ m.name }} <span style="color:#666;">({{ m.unit|unit_sup }})</span></li>
-                                {% endfor %}
-                            </ol>
-                        </div>
-                    </details>
-                {% else %}
-                    -
-                {% endif %}
-            </td>
-        </tr>
-    </table>
-
-    {% if preset_snapshot.mapping_by_activity %}
-        <h4 style="margin-top: 10px;">Activity → Material Map (Preset Codes)</h4>
-        <table class="table">
-            <tr>
-                <th style="width: 220px;">Activity Code</th>
-                <th>Material Codes</th>
-            </tr>
-            {% for act_code, mat_codes in preset_snapshot.mapping_by_activity.items() %}
-                <tr>
-                    <td><code>{{ act_code }}</code></td>
-                    <td>
-                        {% if mat_codes %}
-                            {% for mc in mat_codes %}
-                                <code style="margin-right: 6px;">{{ mc }}</code>
-                            {% endfor %}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                </tr>
-            {% endfor %}
-        </table>
-        <p style="margin-top: 8px; color: #666;">
-            This snapshot is stored at create-time for traceability and admin safety checks.
-        </p>
-    {% endif %}
+<!-- CONCRETE SPECIFICATIONS (if applicable) -->
+{% if project.concrete_pavement_type or project.slab_thickness_mm or project.grade_of_concrete or project.joint_spacing_m or project.dowel_diameter_mm or project.tie_bar_diameter_mm %}
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Concrete Pavement Specifications</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;">
+        {% if project.concrete_pavement_type %}
+        <div><b>Concrete Type:</b> <span style="color:#fff">{{ project.concrete_pavement_type }}</span></div>
+        {% endif %}
+        {% if project.slab_thickness_mm %}
+        <div><b>Slab Thickness (mm):</b> <span style="color:#fff">{{ project.slab_thickness_mm }}</span></div>
+        {% endif %}
+        {% if project.grade_of_concrete %}
+        <div><b>Concrete Grade:</b> <span style="color:#fff">{{ project.grade_of_concrete }}</span></div>
+        {% endif %}
+        {% if project.joint_spacing_m %}
+        <div><b>Joint Spacing (m):</b> <span style="color:#fff">{{ project.joint_spacing_m }}</span></div>
+        {% endif %}
+        {% if project.dowel_diameter_mm %}
+        <div><b>Dowel Diameter (mm):</b> <span style="color:#fff">{{ project.dowel_diameter_mm }}</span></div>
+        {% endif %}
+        {% if project.tie_bar_diameter_mm %}
+        <div><b>Tie Bar Diameter (mm):</b> <span style="color:#fff">{{ project.tie_bar_diameter_mm }}</span></div>
+        {% endif %}
+    </div>
 </div>
 {% endif %}
 
+<!-- CHAINAGE & LOCATION -->
 <div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
-    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Planned Timeline</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 32px;">
-        <div><b>Planned Start Date:</b> <span style="color:#fff">{{ project.planned_start_date|ddmmyyyy }}</span></div>
-        <div><b>Planned End Date:</b> <span style="color:#fff">{{ project.planned_end_date|ddmmyyyy }}</span></div>
-        <div><b>Status:</b> <span style="color:#fff">{{ project.status|capitalize }}</span></div>
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Location & Chainage</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;">
+        {% if project.chainage_start or project.chainage_end %}
+        <div style="grid-column:1/-1"><b>Chainage Range:</b> <span style="color:#fff">{{ project.chainage_start or "N/A" }} — {{ project.chainage_end or "N/A" }}</span></div>
+        {% endif %}
+        <div style="grid-column:1/-1"><b>Location:</b> <span style="color:#fff">
+            {% if project.city %}{{ project.city }}{% endif %}<br/>
+            {% if project.district %}📍 District: {{ project.district }}<br/>{% endif %}
+            {% if project.state %}📍 State: {{ project.state }}<br/>{% endif %}
+            {% if project.country %}📍 Country: {{ project.country }}{% endif %}
+        </span></div>
     </div>
 </div>
+
+<!-- PROJECT TIMELINE -->
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Project Timeline</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;">
+        <div><b>Planned Start Date:</b> <span style="color:#fff">{{ project.planned_start_date|ddmmyyyy }}</span></div>
+        <div><b>Planned End Date:</b> <span style="color:#fff">{{ project.planned_end_date|ddmmyyyy }}</span></div>
+    </div>
+</div>
+
+<!-- ROAD PRESETS & ADDITIONAL INFO -->
+{% if project.road_preset_key or project.road_name %}
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:10px;font-size:1.25rem;font-weight:600;color:#2196f3;">Additional Information</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;">
+        {% if project.road_name %}
+        <div><b>Road Name:</b> <span style="color:#fff">{{ project.road_name }}</span></div>
+        {% endif %}
+        {% if project.road_preset_key %}
+        <div><b>Road Preset:</b> <span style="color:#fff">{{ project.road_preset_key }}</span></div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- STRETCHES -->
+{% if stretches %}
+<div class="card" style="max-width: 1100px; margin-bottom: 24px; box-shadow:0 2px 12px 0 rgba(0,0,0,0.07);">
+    <h3 style="margin-bottom:16px;font-size:1.25rem;font-weight:600;color:#2196f3;">Project Stretches ({{ stretches|length }})</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));gap:16px;">
+        {% for stretch in stretches %}
+        <div style="border:1px solid #2196f3;border-radius:6px;padding:14px;background:rgba(33,150,243,0.05);">
+            <div style="margin-bottom:10px;">
+                <b style="color:#4fc3f7;font-size:1.1rem;">{{ stretch.name or stretch.code or 'Stretch ' ~ stretch.sequence_no }}</b>
+                {% if stretch.code %}
+                <span style="color:#888;font-size:0.9rem;margin-left:8px;">({{ stretch.code }})</span>
+                {% endif %}
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
+                {% if stretch.planned_start_date %}
+                <div><b style="color:#cbd5e1;">Start Date:</b><br/><span style="color:#fff;font-size:0.95rem;">{{ stretch.planned_start_date|ddmmyyyy }}</span></div>
+                {% endif %}
+                {% if stretch.planned_end_date %}
+                <div><b style="color:#cbd5e1;">End Date:</b><br/><span style="color:#fff;font-size:0.95rem;">{{ stretch.planned_end_date|ddmmyyyy }}</span></div>
+                {% endif %}
+            </div>
+
+            {% if stretch.length_m %}
+            <div style="margin-bottom:8px;"><b style="color:#cbd5e1;">Length:</b> <span style="color:#fff;">{{ stretch.length_m }} m</span></div>
+            {% endif %}
+
+            <div style="background:rgba(255,255,255,0.05);padding:10px;border-radius:4px;margin-top:10px;text-align:center;">
+                <span style="color:#81c784;font-weight:600;font-size:1.1rem;">{{ stretch.activity_count }}</span>
+                <span style="color:#cbd5e1;"> Activities</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 
 
 

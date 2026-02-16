@@ -7,6 +7,12 @@
     .dpr-card { max-width: 1180px; margin: 0 auto; padding: 18px; }
     .dpr-top { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap: wrap; }
     .dpr-top .meta { opacity: 0.85; font-size: 13px; }
+    .dpr-intro { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .intro-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 14px; background: rgba(255,255,255,0.02); }
+    .intro-title { font-size: 12px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; opacity: 0.7; }
+    .intro-main { font-size: 15px; font-weight: 800; margin-top: 6px; }
+    .intro-sub { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+    .intro-actions { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .project-context { position: sticky; top: 0; z-index: 5; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; background: rgba(17,24,39,0.92); backdrop-filter: blur(8px); }
     .project-context .title { font-weight: 800; font-size: 14px; }
     .project-context .kv { display:flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 6px; }
@@ -40,6 +46,50 @@
     .modal-content .modal-footer { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
     .modal-content .btn-modal-cancel { background: rgba(255,255,255,0.1); color: #fff; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; }
     .modal-content .btn-modal-save { background: linear-gradient(135deg, #4f8cff 0%, #3a6fd8 100%); color: #fff; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; }
+    .download-option { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,255,255,0.03); cursor: pointer; transition: all 0.2s; text-decoration: none; color: #fff; }
+    .download-option:hover { background: rgba(255,255,255,0.08); border-color: rgba(79,140,255,0.4); transform: translateX(4px); }
+    .download-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #4f8cff 0%, #3a6fd8 100%); border-radius: 8px; font-size: 20px; }
+    .download-info { flex: 1; }
+    .download-title { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+    .download-desc { font-size: 12px; opacity: 0.7; }
+    .btn-download { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+    .btn-download:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+    
+    .project-select { 
+        width: 100%; 
+        max-width: 280px; 
+        padding: 8px 32px 8px 12px; 
+        border: 1px solid rgba(255,255,255,0.2); 
+        border-radius: 6px; 
+        background: rgba(255,255,255,0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E") no-repeat right 10px center; 
+        background-size: 12px;
+        color: #fff; 
+        font-size: 13px; 
+        font-weight: 600; 
+        cursor: pointer; 
+        transition: all 0.2s; 
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+    }
+    .project-select:hover { 
+        background-color: rgba(255,255,255,0.12); 
+        border-color: rgba(255,255,255,0.35); 
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .project-select:focus { 
+        outline: none; 
+        border-color: #4f8cff; 
+        background-color: rgba(79,140,255,0.15); 
+        box-shadow: 0 0 0 3px rgba(79,140,255,0.1);
+    }
+    .project-select option { 
+        background: #1a2332; 
+        color: #fff; 
+        padding: 10px; 
+        font-size: 13px;
+    }
 
 
 </style>
@@ -47,6 +97,46 @@
 <h1 class="page-title">Daily Work Execution (DPR) — {{ project.name }}</h1>
 
 <div class="card dpr-card">
+    <div class="dpr-intro">
+        <div class="intro-card">
+            <div class="intro-title">Project</div>
+            <div class="intro-main">{{ project.name }}</div>
+            <div class="intro-sub">ID #{{ project.id }} · {{ project.city }}{% if project.state %}, {{ project.state }}{% endif %}</div>
+            <div class="intro-actions">
+                {% if all_projects|length > 1 %}
+                <select class="project-select" id="projectSelector" onchange="changeProject(this.value)">
+                    {% for proj in all_projects %}
+                        <option value="{{ proj.id }}" {% if proj.id == project.id %}selected{% endif %}>
+                            {{ proj.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <div style="padding: 8px; color: rgba(255,255,255,0.6); font-size: 12px; font-style: italic;">
+                    Only one active project available
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="intro-card">
+            <div class="intro-title">Current Stretch</div>
+            {% if current_stretch %}
+                <div class="intro-main">
+                    {{ current_stretch.stretch_name or current_stretch.stretch_code or "Stretch" }}
+                </div>
+                <div class="intro-sub">
+                    Chainage: {{ current_stretch.start_chainage or "—" }} → {{ current_stretch.end_chainage or "—" }}
+                </div>
+                <div class="intro-sub">
+                    Plan: {{ (current_stretch.start_date or current_stretch.planned_start_date)|ddmmyyyy }} → {{ (current_stretch.end_date or current_stretch.planned_end_date)|ddmmyyyy }}
+                </div>
+            {% else %}
+                <div class="intro-sub">No active stretch found for this date.</div>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="project-context">
         <div class="title">Project Context (read-only)</div>
         <div class="kv">
@@ -78,8 +168,13 @@
                 · <a href="/execution/{{ project.id }}?date={{ next_date }}">Next →</a>
             </div>
         </div>
-        <div class="meta">
-            Prepared by: <strong>{{ user["username"] }}</strong>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="meta">
+                Prepared by: <strong>{{ user["username"] }}</strong>
+            </div>
+            <button type="button" class="btn-download" onclick="openDownloadModal()">
+                <span>⬇</span> Download
+            </button>
         </div>
     </div>
 
@@ -629,6 +724,39 @@
 
     </form>
     {% endif %}
+    
+    <!-- Download Modal -->
+    <div class="modal-overlay" id="downloadModal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-title">Download DPR</div>
+            <p style="opacity: 0.8; font-size: 13px; margin-bottom: 20px;">
+                Choose your preferred format to download the Daily Work Execution Report
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <a href="/execution/{{ project.id }}/download-excel?date={{ report_date.isoformat() }}" class="download-option">
+                    <div class="download-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        📊
+                    </div>
+                    <div class="download-info">
+                        <div class="download-title">Download as Excel</div>
+                        <div class="download-desc">Get an editable spreadsheet with all DPR data</div>
+                    </div>
+                </a>
+                <a href="/execution/{{ project.id }}/download-pdf?date={{ report_date.isoformat() }}" class="download-option">
+                    <div class="download-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                        📄
+                    </div>
+                    <div class="download-info">
+                        <div class="download-title">Download as PDF</div>
+                        <div class="download-desc">Get a formatted PDF document for printing</div>
+                    </div>
+                </a>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-modal-cancel" onclick="closeDownloadModal()">Close</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% endblock %}
@@ -637,6 +765,39 @@
     <script id="amMapJson" type="application/json">{{ activity_material_map_json | safe }}</script>
     <script id="plannedTodayJson" type="application/json">{{ planned_today_json | safe }}</script>
     <script id="materialsJson" type="application/json">{{ materials_json | safe }}</script>
+    <script>
+        // Download modal functions
+        function openDownloadModal() {
+            document.getElementById('downloadModal').classList.add('active');
+        }
+        
+        function closeDownloadModal() {
+            document.getElementById('downloadModal').classList.remove('active');
+        }
+        
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('downloadModal');
+            if (event.target === modal) {
+                closeDownloadModal();
+            }
+        });
+        
+        function changeProject(projectId) {
+            if (projectId && projectId !== '{{ project.id }}') {
+                // Get current date from URL if exists, or use today's date
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentDate = urlParams.get('date') || '';
+                
+                // Redirect to the new project with the same date
+                let newUrl = '/execution/' + projectId;
+                if (currentDate) {
+                    newUrl += '?date=' + currentDate;
+                }
+                window.location.href = newUrl;
+            }
+        }
+    </script>
     <script src="/static/js/activity_units.js"></script>
     <script src="/static/js/daily_execution.js"></script>
 {% endblock %}

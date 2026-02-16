@@ -12,6 +12,7 @@
     .activity-row{display:grid;grid-template-columns:minmax(180px,1fr) 200px 200px;gap:10px;align-items:center;margin-top:8px}
     .material-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
     .material-chip{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.08);font-size:12px}
+    .stretch-toolbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:16px}
 </style>
 
 <form id="editStretchesForm" method="post" action="/projects/{{ project.id }}/stretches/update">
@@ -36,9 +37,16 @@
     </div>
 
 
-    <div style="margin-top:20px;">
+    <div class="stretch-toolbar">
+        <div>
+            <label for="stretchFilter">Stretches</label>
+            <select id="stretchFilter">
+                <option value="all">All stretches</option>
+            </select>
+        </div>
         <button id="btnAlignStretches" type="button" class="btn-primary">Align All Remaining Stretches</button>
     </div>
+
     <div id="stretchContainer"></div>
 
     <div style="display:flex;gap:12px;margin-top:20px">
@@ -55,6 +63,7 @@
 (function(){
     const container = document.getElementById('stretchContainer');
     const hiddenInput = document.getElementById('stretch_segments_json');
+    const filterSelect = document.getElementById('stretchFilter');
     let stretches = [];
 
     function ddmmyyyyToIso(v){
@@ -82,6 +91,39 @@
         }
     }
 
+    function updateFilterOptions(){
+        if(!filterSelect) return;
+        const current = filterSelect.value || 'all';
+        filterSelect.innerHTML = '';
+
+        const allOpt = document.createElement('option');
+        allOpt.value = 'all';
+        allOpt.textContent = 'All stretches';
+        filterSelect.appendChild(allOpt);
+
+        (stretches || []).forEach((st, idx) => {
+            const opt = document.createElement('option');
+            opt.value = `idx-${idx}`;
+            const code = st.stretch_code || `ST-${String(idx + 1).padStart(3,'0')}`;
+            const name = st.stretch_name || `Stretch ${idx + 1}`;
+            opt.textContent = `${code} — ${name}`;
+            filterSelect.appendChild(opt);
+        });
+
+        const hasCurrent = Array.from(filterSelect.options).some(o => o.value === current);
+        filterSelect.value = hasCurrent ? current : 'all';
+    }
+
+    function getFilteredIndexes(){
+        if(!filterSelect) return stretches.map((_, idx) => idx);
+        const value = filterSelect.value || 'all';
+        if(value === 'all') return stretches.map((_, idx) => idx);
+        const match = value.match(/^idx-(\d+)$/);
+        if(!match) return stretches.map((_, idx) => idx);
+        const idx = parseInt(match[1], 10);
+        return Number.isNaN(idx) ? stretches.map((_, i) => i) : [idx];
+    }
+
     function render(){
         if(!container) return;
         container.innerHTML = '';
@@ -96,7 +138,11 @@
             return;
         }
         if(gen) gen.style.display = 'none';
-        (stretches || []).forEach((st, idx) => {
+        updateFilterOptions();
+        const visibleIndexes = getFilteredIndexes();
+        visibleIndexes.forEach((idx) => {
+            const st = stretches[idx];
+            if(!st) return;
             const card = document.createElement('div');
             card.className = 'stretch-card';
             const showDetails = (st._showDetails === true);
@@ -270,6 +316,7 @@
                 });
                 cursor = end;
             }
+            if(filterSelect) filterSelect.value = 'all';
             render();
         });
     }
@@ -304,6 +351,11 @@
             if(kind === 'toggle-details'){
                 handleInput(e);
             }
+        });
+    }
+    if(filterSelect){
+        filterSelect.addEventListener('change', function(){
+            render();
         });
     }
 })();

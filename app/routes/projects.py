@@ -5,7 +5,7 @@
 # --------------------------------------------------
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -13,7 +13,14 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import bcrypt
 import logging
+import re
 import json
+from io import BytesIO
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib import colors
 
 from app.db.session import SessionLocal
 from app.models.project import Project
@@ -37,12 +44,35 @@ from app.utils.template_filters import register_template_filters
 from app.utils.dates import parse_date_ddmmyyyy_or_iso
 
 from app.services.project_wizard_service import get_state as wizard_get_state, deactivate as wizard_deactivate
+from app.services.stretch_service import apply_activities_to_stretches
 from app.models.road_stretch import RoadStretch
+from app.models.stretch import Stretch as LegacyStretch
 from app.models.stretch_activity import StretchActivity
 from app.models.stretch_material import StretchMaterial
 from app.models.stretch_material_exclusion import StretchMaterialExclusion
 from app.utils.stretch_generation import chainage_from_meters
 from app.utils.stretch_generation import generate_stretch_segments
+
+
+def _chainage_to_meters(value: str | None) -> int | None:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return None
+    raw = raw.replace("ch", "").replace("km", "").replace("m", "").replace(" ", "")
+    if "+" in raw:
+        left, right = raw.split("+", 1)
+        left = re.sub(r"\D", "", left)
+        right = re.sub(r"\D", "", right)
+        if not left and not right:
+            return None
+        return int(left or 0) * 1000 + int(right or 0)
+    digits = re.sub(r"\D", "", raw)
+    if not digits:
+        return None
+    try:
+        return int(digits)
+    except Exception:
+        return None
 
 # Material model used by presets
 from app.models.material import Material
@@ -1668,6 +1698,7 @@ def create_project_form(
                 # Road projects must provide explicit stretch segments (no auto-generation).
                 if (not wizard_state) and _truthy(stretch_enabled) and allow_stretch_create:
                     segments = list(validated_segments or [])
+                    logger.info(f"[CREATE_DEBUG] Creating stretches for project {project.id}, segments count: {len(segments)}")
                     if not segments:
                         raise ValueError("Stretch segments are required for Road projects")
 
@@ -1682,23 +1713,24 @@ def create_project_form(
 
                     created_stretches = 0
                     for seg in segments:
-                        db.add(
-                            RoadStretch(
-                                project_id=int(project.id),
-                                stretch_code=str(seg["stretch_code"]),
-                                stretch_name=str(seg["stretch_name"]),
-                                start_chainage=chainage_from_meters(int(seg["start_m"])),
-                                end_chainage=chainage_from_meters(int(seg["end_m"])),
-                                length_m=int(seg["length_m"]),
-                                sequence_no=int(seg["sequence_no"]),
-                                planned_start_date=seg.get("planned_start_date"),
-                                planned_end_date=seg.get("planned_end_date"),
-                                is_active=True,
-                            )
+                        stretch = RoadStretch(
+                            project_id=int(project.id),
+                            stretch_code=str(seg["stretch_code"]),
+                            stretch_name=str(seg["stretch_name"]),
+                            start_chainage=chainage_from_meters(int(seg["start_m"])),
+                            end_chainage=chainage_from_meters(int(seg["end_m"])),
+                            length_m=int(seg["length_m"]),
+                            sequence_no=int(seg["sequence_no"]),
+                            planned_start_date=seg.get("planned_start_date"),
+                            planned_end_date=seg.get("planned_end_date"),
+                            is_active=True,
                         )
+                        db.add(stretch)
                         created_stretches += 1
+                        logger.info(f"[CREATE_DEBUG] Added stretch: {stretch.stretch_code} (seq {stretch.sequence_no})")
 
                     db.commit()
+                    logger.info(f"[CREATE_DEBUG] Committed {created_stretches} stretches to database")
 
                     # Ensure ProjectActivity rows exist with correct scope so stretch cloning works.
                     try:
@@ -2242,6 +2274,29 @@ def project_overview_page(project_id: int, request: Request, db: Session = Depen
 
     preset_snapshot = _build_project_preset_snapshot(project)
 
+    # Fetch legacy stretches (StretchActivity references stretches.id, not road_stretches.id)
+    legacy_stretches = db.query(LegacyStretch).filter(
+        LegacyStretch.project_id == project_id
+    ).order_by(LegacyStretch.sequence_no).all()
+    
+    stretches_data = []
+    for stretch in legacy_stretches:
+        # Count activities for this stretch
+        activity_count = db.query(func.count(StretchActivity.id)).filter(
+            StretchActivity.stretch_id == stretch.id
+        ).scalar()
+        
+        stretches_data.append({
+            'id': stretch.id,
+            'name': stretch.name,
+            'code': stretch.code,
+            'sequence_no': stretch.sequence_no,
+            'planned_start_date': stretch.planned_start_date,
+            'planned_end_date': stretch.planned_end_date,
+            'activity_count': activity_count or 0,
+            'length_m': stretch.length_m
+        })
+
     return templates.TemplateResponse(
         "projects/overview.html",
         {
@@ -2250,6 +2305,251 @@ def project_overview_page(project_id: int, request: Request, db: Session = Depen
             "role": role,
             "user": user,
             "preset_snapshot": preset_snapshot,
+            "stretches": stretches_data,
+        }
+    )
+
+
+@router.get("/{project_id}/overview-pdf")
+def project_overview_pdf(project_id: int, request: Request, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    project, role = get_project_access(db, project_id, user)
+    if not project:
+        return RedirectResponse("/projects", status_code=302)
+
+    # Fetch stretches data
+    legacy_stretches = db.query(LegacyStretch).filter(
+        LegacyStretch.project_id == project_id
+    ).order_by(LegacyStretch.sequence_no).all()
+    
+    stretches_data = []
+    for stretch in legacy_stretches:
+        activity_count = db.query(func.count(StretchActivity.id)).filter(
+            StretchActivity.stretch_id == stretch.id
+        ).scalar()
+        stretches_data.append({
+            'name': stretch.name,
+            'code': stretch.code,
+            'planned_start_date': stretch.planned_start_date,
+            'planned_end_date': stretch.planned_end_date,
+            'activity_count': activity_count or 0,
+            'length_m': stretch.length_m
+        })
+
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#2196f3'),
+        spaceAfter=12,
+        fontName='Helvetica-Bold'
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#2196f3'),
+        spaceAfter=8,
+        spaceBefore=10,
+        fontName='Helvetica-Bold'
+    )
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=12
+    )
+
+    story = []
+
+    # Title
+    story.append(Paragraph(f"<b>Project Overview: {project.name}</b>", title_style))
+    story.append(Spacer(1, 0.3*inch))
+
+    # Basic Info Section
+    story.append(Paragraph("Basic Information", heading_style))
+    basic_data = [
+        ['Project Name', f'{project.name}'],
+        ['Project Type', f'{project.project_type or "N/A"}'],
+        ['Project Code', f'{project.project_code or "N/A"}'],
+        ['Client / Authority', f'{project.client_authority or "N/A"}'],
+        ['Contractor', f'{project.contractor or "N/A"}'],
+        ['Consultant / PMC', f'{project.consultant_pmc or "N/A"}'],
+    ]
+    basic_table = Table(basic_data, colWidths=[2.2*inch, 4.3*inch])
+    basic_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e3f2fd')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(basic_table)
+    story.append(Spacer(1, 0.3*inch))
+
+    # Road Characteristics
+    story.append(Paragraph("Road Characteristics", heading_style))
+    road_data = [
+        ['Road Type', f'{project.road_type or "N/A"}'],
+        ['Road Category', f'{project.road_category or "N/A"}'],
+        ['Engineering Type', f'{project.road_engineering_type or "N/A"}'],
+        ['Lane Configuration', f'{project.lane_configuration or project.lanes or "N/A"}'],
+        ['Pavement Type', f'{project.road_pavement_type or "N/A"}'],
+        ['Terrain Type', f'{project.terrain_type or "N/A"}'],
+    ]
+    road_table = Table(road_data, colWidths=[2.2*inch, 4.3*inch])
+    road_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e3f2fd')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(road_table)
+    story.append(Spacer(1, 0.3*inch))
+
+    # Road Dimensions
+    story.append(Paragraph("Road Dimensions", heading_style))
+    dim_data = [
+        ['Road Length (km)', f'{project.road_length_km or "N/A"}'],
+        ['Road Width (m)', f'{project.road_width or "N/A"}'],
+        ['Carriageway Width (m)', f'{project.carriageway_width or "N/A"}'],
+        ['Shoulder Type', f'{project.shoulder_type or "N/A"}'],
+        ['Median Type', f'{project.median_type or "N/A"}'],
+    ]
+    dim_table = Table(dim_data, colWidths=[2.2*inch, 4.3*inch])
+    dim_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e3f2fd')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(dim_table)
+    story.append(Spacer(1, 0.3*inch))
+
+    # Location & Chainage
+    story.append(Paragraph("Location & Chainage", heading_style))
+    loc_data = [
+        ['Chainage Range', f'{project.chainage_start or "N/A"} — {project.chainage_end or "N/A"}'],
+        ['City', f'{project.city or "N/A"}'],
+        ['District', f'{project.district or "N/A"}'],
+        ['State', f'{project.state or "N/A"}'],
+        ['Country', f'{project.country or "N/A"}'],
+    ]
+    loc_table = Table(loc_data, colWidths=[2.2*inch, 4.3*inch])
+    loc_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e3f2fd')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(loc_table)
+    story.append(Spacer(1, 0.3*inch))
+
+    # Project Timeline
+    story.append(Paragraph("Project Timeline", heading_style))
+    timeline_data = [
+        ['Planned Start Date', f'{project.planned_start_date.strftime("%d/%m/%Y") if project.planned_start_date else "N/A"}'],
+        ['Planned End Date', f'{project.planned_end_date.strftime("%d/%m/%Y") if project.planned_end_date else "N/A"}'],
+    ]
+    timeline_table = Table(timeline_data, colWidths=[2.2*inch, 4.3*inch])
+    timeline_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e3f2fd')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(timeline_table)
+    story.append(Spacer(1, 0.3*inch))
+
+    # Stretches Section
+    if stretches_data:
+        story.append(PageBreak())
+        story.append(Paragraph(f"Project Stretches ({len(stretches_data)})", heading_style))
+        story.append(Spacer(1, 0.15*inch))
+        
+        for idx, stretch in enumerate(stretches_data, 1):
+            stretch_name = stretch['name'] or stretch['code'] or f'Stretch {idx}'
+            stretch_info = [
+                ['Stretch Name', f'{stretch_name}'],
+                ['Code', f'{stretch["code"] or "N/A"}'],
+                ['Start Date', f'{stretch["planned_start_date"].strftime("%d/%m/%Y") if stretch["planned_start_date"] else "N/A"}'],
+                ['End Date', f'{stretch["planned_end_date"].strftime("%d/%m/%Y") if stretch["planned_end_date"] else "N/A"}'],
+                ['Length (m)', f'{stretch["length_m"] or "N/A"}'],
+                ['Activities Count', f'{stretch["activity_count"]}'],
+            ]
+            stretch_table = Table(stretch_info, colWidths=[2.2*inch, 4.3*inch])
+            stretch_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#fff3e0')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            story.append(stretch_table)
+            story.append(Spacer(1, 0.2*inch))
+
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+
+    # Return PDF as downloadable file
+    filename = f"{project.name.replace(' ', '_')}_Overview.pdf"
+    pdf_data = buffer.getvalue()
+    
+    return Response(
+        content=pdf_data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Length": str(len(pdf_data))
         }
     )
 
@@ -2285,7 +2585,7 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
 
     _ensure_project_road_presets(db, project)
 
-    stretches = (
+    road_stretches = (
         db.query(RoadStretch)
         .filter(
             RoadStretch.project_id == int(project.id),
@@ -2295,8 +2595,25 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
         .all()
     )
 
+    legacy_stretches = (
+        db.query(LegacyStretch)
+        .filter(LegacyStretch.project_id == int(project.id))
+        .order_by(LegacyStretch.sequence_no.asc())
+        .all()
+    )
+
+    logger.info(f"[EDIT_DEBUG] project_id={project.id}, road_stretches={len(road_stretches)}, legacy_stretches={len(legacy_stretches)}")
+    if road_stretches:
+        logger.info(f"[EDIT_DEBUG] First road_stretch: id={road_stretches[0].id}, code={road_stretches[0].stretch_code}")
+    if legacy_stretches:
+        logger.info(f"[EDIT_DEBUG] First legacy_stretch: id={legacy_stretches[0].id}, code={legacy_stretches[0].code}")
+
+    use_legacy = False
+    if not road_stretches and legacy_stretches:
+        use_legacy = True
+
     # Auto-generate stretches for road projects if none exist
-    if not stretches and project.project_type == "Road":
+    if not road_stretches and not legacy_stretches and project.project_type == "Road":
         try:
             total_length_m = int(round(float(project.road_length_km or 0) * 1000.0))
             if total_length_m > 0:
@@ -2321,7 +2638,7 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
                 except Exception:
                     logger.exception("Stretch activity mapping failed after auto-generate (project_id=%s)", project.id)
 
-                stretches = (
+                road_stretches = (
                     db.query(RoadStretch)
                     .filter(
                         RoadStretch.project_id == int(project.id),
@@ -2334,7 +2651,7 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
             logger.exception("Auto-generate stretches failed (project_id=%s)", project.id)
 
     # Ensure stretch activities exist if project activities are present
-    if stretches:
+    if road_stretches and not use_legacy:
         try:
             existing_sa = (
                 db.query(StretchActivity)
@@ -2377,8 +2694,44 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
     except Exception:
         materials_payload = []
 
+    project_activity_rows = (
+        db.query(ProjectActivity, Activity)
+        .join(Activity, Activity.id == ProjectActivity.activity_id)
+        .filter(ProjectActivity.project_id == int(project.id))
+        .order_by(Activity.id.asc())
+        .all()
+    )
+    fallback_activities = [
+        {
+            "project_activity_id": int(pa.id),
+            "name": str(getattr(act, "name", "") or ""),
+            "planned_start_date": pa.start_date.strftime("%d/%m/%Y") if pa.start_date else "",
+            "planned_end_date": pa.end_date.strftime("%d/%m/%Y") if pa.end_date else "",
+        }
+        for pa, act in project_activity_rows
+        if str(getattr(act, "name", "") or "").strip()
+    ]
+
+    source_stretches = legacy_stretches if use_legacy else road_stretches
     stretch_payload = []
-    for stretch in stretches:
+    prev_end_m = 0
+    for stretch in source_stretches:
+        if use_legacy:
+            start_m = int(prev_end_m or 0)
+            length_m = int(getattr(stretch, "length_m", 0) or 0)
+            end_m = int(start_m) + int(length_m)
+        else:
+            start_m = _chainage_to_meters(getattr(stretch, "start_chainage", None))
+            end_m = _chainage_to_meters(getattr(stretch, "end_chainage", None))
+            if start_m is None:
+                start_m = int(prev_end_m or 0)
+            if end_m is None:
+                end_m = int(start_m) + int(getattr(stretch, "length_m", 0) or 0)
+            if end_m < start_m:
+                end_m = int(start_m) + int(getattr(stretch, "length_m", 0) or 0)
+            length_m = int(getattr(stretch, "length_m", 0) or 0)
+
+        prev_end_m = end_m
         acts = (
             db.query(StretchActivity, ProjectActivity, Activity)
             .join(ProjectActivity, ProjectActivity.id == StretchActivity.project_activity_id)
@@ -2392,23 +2745,40 @@ def edit_project_page(project_id: int, request: Request, db: Session = Depends(g
             act_payload.append(
                 {
                     "id": int(sa.id),
+                    "project_activity_id": int(pa.id),
                     "name": str(getattr(act, "name", "") or ""),
                     "planned_start_date": sa.planned_start_date.strftime("%d/%m/%Y") if sa.planned_start_date else "",
                     "planned_end_date": sa.planned_end_date.strftime("%d/%m/%Y") if sa.planned_end_date else "",
                 }
             )
 
+        if not act_payload and fallback_activities:
+            act_payload = list(fallback_activities)
+
+        stretch_code = getattr(stretch, "stretch_code", None) or getattr(stretch, "code", None)
+        stretch_name = getattr(stretch, "stretch_name", None) or getattr(stretch, "name", None)
+
         stretch_payload.append(
             {
                 "id": int(stretch.id),
-                "stretch_code": stretch.stretch_code,
-                "stretch_name": stretch.stretch_name,
+                "sequence_no": int(getattr(stretch, "sequence_no", 0) or 0),
+                "stretch_code": stretch_code,
+                "stretch_name": stretch_name,
+                "start_m": int(start_m),
+                "end_m": int(end_m),
+                "length_m": int(length_m),
+                "width_m": None,
+                "depth_m": None,
                 "planned_start_date": stretch.planned_start_date.strftime("%d/%m/%Y") if stretch.planned_start_date else "",
                 "planned_end_date": stretch.planned_end_date.strftime("%d/%m/%Y") if stretch.planned_end_date else "",
                 "activities": act_payload,
                 "materials": materials_payload,
             }
         )
+
+    logger.info(f"[EDIT_DEBUG] stretch_payload has {len(stretch_payload)} stretches")
+    if stretch_payload:
+        logger.info(f"[EDIT_DEBUG] First stretch payload: {stretch_payload[0]}")
 
     classification_metadata = get_classification_metadata()
     return templates.TemplateResponse(
@@ -2437,7 +2807,7 @@ def edit_project_stretches_page(project_id: int, request: Request, db: Session =
 
     _ensure_project_road_presets(db, project)
 
-    stretches = (
+    road_stretches = (
         db.query(RoadStretch)
         .filter(
             RoadStretch.project_id == int(project.id),
@@ -2447,8 +2817,19 @@ def edit_project_stretches_page(project_id: int, request: Request, db: Session =
         .all()
     )
 
+    legacy_stretches = (
+        db.query(LegacyStretch)
+        .filter(LegacyStretch.project_id == int(project.id))
+        .order_by(LegacyStretch.sequence_no.asc())
+        .all()
+    )
+
+    use_legacy = False
+    if not road_stretches and legacy_stretches:
+        use_legacy = True
+
     # Auto-generate stretches for road projects if none exist
-    if not stretches and project.project_type == "Road":
+    if not road_stretches and not legacy_stretches and project.project_type == "Road":
         try:
             total_length_m = int(round(float(project.road_length_km or 0) * 1000.0))
             if total_length_m > 0:
@@ -2473,7 +2854,7 @@ def edit_project_stretches_page(project_id: int, request: Request, db: Session =
                 except Exception:
                     logger.exception("Stretch activity mapping failed after auto-generate (project_id=%s)", project.id)
 
-                stretches = (
+                road_stretches = (
                     db.query(RoadStretch)
                     .filter(
                         RoadStretch.project_id == int(project.id),
@@ -2486,7 +2867,7 @@ def edit_project_stretches_page(project_id: int, request: Request, db: Session =
             logger.exception("Auto-generate stretches failed (project_id=%s)", project.id)
 
     # Ensure stretch activities exist if project activities are present
-    if stretches:
+    if road_stretches and not use_legacy:
         try:
             existing_sa = (
                 db.query(StretchActivity)
@@ -2529,8 +2910,44 @@ def edit_project_stretches_page(project_id: int, request: Request, db: Session =
     except Exception:
         materials_payload = []
 
+    project_activity_rows = (
+        db.query(ProjectActivity, Activity)
+        .join(Activity, Activity.id == ProjectActivity.activity_id)
+        .filter(ProjectActivity.project_id == int(project.id))
+        .order_by(Activity.id.asc())
+        .all()
+    )
+    fallback_activities = [
+        {
+            "project_activity_id": int(pa.id),
+            "name": str(getattr(act, "name", "") or ""),
+            "planned_start_date": pa.start_date.strftime("%d/%m/%Y") if pa.start_date else "",
+            "planned_end_date": pa.end_date.strftime("%d/%m/%Y") if pa.end_date else "",
+        }
+        for pa, act in project_activity_rows
+        if str(getattr(act, "name", "") or "").strip()
+    ]
+
+    source_stretches = legacy_stretches if use_legacy else road_stretches
     payload = []
-    for stretch in stretches:
+    prev_end_m = 0
+    for stretch in source_stretches:
+        if use_legacy:
+            start_m = int(prev_end_m or 0)
+            length_m = int(getattr(stretch, "length_m", 0) or 0)
+            end_m = int(start_m) + int(length_m)
+        else:
+            start_m = _chainage_to_meters(getattr(stretch, "start_chainage", None))
+            end_m = _chainage_to_meters(getattr(stretch, "end_chainage", None))
+            if start_m is None:
+                start_m = int(prev_end_m or 0)
+            if end_m is None:
+                end_m = int(start_m) + int(getattr(stretch, "length_m", 0) or 0)
+            if end_m < start_m:
+                end_m = int(start_m) + int(getattr(stretch, "length_m", 0) or 0)
+            length_m = int(getattr(stretch, "length_m", 0) or 0)
+
+        prev_end_m = end_m
         acts = (
             db.query(StretchActivity, ProjectActivity, Activity)
             .join(ProjectActivity, ProjectActivity.id == StretchActivity.project_activity_id)
@@ -2544,17 +2961,30 @@ def edit_project_stretches_page(project_id: int, request: Request, db: Session =
             act_payload.append(
                 {
                     "id": int(sa.id),
+                    "project_activity_id": int(pa.id),
                     "name": str(getattr(act, "name", "") or ""),
                     "planned_start_date": sa.planned_start_date.strftime("%d/%m/%Y") if sa.planned_start_date else "",
                     "planned_end_date": sa.planned_end_date.strftime("%d/%m/%Y") if sa.planned_end_date else "",
                 }
             )
 
+        if not act_payload and fallback_activities:
+            act_payload = list(fallback_activities)
+
+        stretch_code = getattr(stretch, "stretch_code", None) or getattr(stretch, "code", None)
+        stretch_name = getattr(stretch, "stretch_name", None) or getattr(stretch, "name", None)
+
         payload.append(
             {
                 "id": int(stretch.id),
-                "stretch_code": stretch.stretch_code,
-                "stretch_name": stretch.stretch_name,
+                "sequence_no": int(getattr(stretch, "sequence_no", 0) or 0),
+                "stretch_code": stretch_code,
+                "stretch_name": stretch_name,
+                "start_m": int(start_m),
+                "end_m": int(end_m),
+                "length_m": int(length_m),
+                "width_m": None,
+                "depth_m": None,
                 "planned_start_date": stretch.planned_start_date.strftime("%d/%m/%Y") if stretch.planned_start_date else "",
                 "planned_end_date": stretch.planned_end_date.strftime("%d/%m/%Y") if stretch.planned_end_date else "",
                 "activities": act_payload,
@@ -2683,7 +3113,42 @@ def update_project_stretches(
                     continue
                 aid = int(a.get("id") or 0)
                 if aid <= 0:
-                    continue
+                    pa_id = int(a.get("project_activity_id") or 0)
+                    if pa_id > 0:
+                        sa = (
+                            db.query(StretchActivity)
+                            .filter(
+                                StretchActivity.stretch_id == int(stretch.id),
+                                StretchActivity.project_activity_id == pa_id,
+                            )
+                            .first()
+                        )
+                        if not sa:
+                            act_name = str(a.get("name") or "").strip()
+                            if not act_name:
+                                row = (
+                                    db.query(ProjectActivity, Activity)
+                                    .join(Activity, Activity.id == ProjectActivity.activity_id)
+                                    .filter(ProjectActivity.id == pa_id)
+                                    .first()
+                                )
+                                if row:
+                                    act_name = str(getattr(row[1], "name", "") or "").strip()
+                            sa = StretchActivity(
+                                stretch_id=int(stretch.id),
+                                project_activity_id=pa_id,
+                                name=act_name or f"Activity {pa_id}",
+                                planned_start_date=None,
+                                planned_end_date=None,
+                                planned_duration_days=None,
+                                manual_override=False,
+                            )
+                            db.add(sa)
+                            db.flush()
+                            aid = int(sa.id)
+                    if aid <= 0:
+                        continue
+
                 sa = db.query(StretchActivity).filter(StretchActivity.id == aid).first()
                 if not sa:
                     continue
@@ -2705,6 +3170,12 @@ def update_project_stretches(
                     sa.planned_start_date = aps
                 if ape:
                     sa.planned_end_date = ape
+
+                if sa.planned_start_date and sa.planned_end_date:
+                    try:
+                        sa.planned_duration_days = (sa.planned_end_date - sa.planned_start_date).days + 1
+                    except Exception:
+                        sa.planned_duration_days = sa.planned_duration_days
 
                 # Clamp to stretch dates
                 if stretch.planned_start_date and sa.planned_start_date and sa.planned_start_date < stretch.planned_start_date:
@@ -2753,6 +3224,7 @@ def update_project_form(
     carriageway_width: float | None = Form(None),
     shoulder_type: str | None = Form(None),
     median_type: str | None = Form(None),
+    lane_configuration: str | None = Form(None),
     country: str = Form(...),
     state: str | None = Form(None),
     district: str | None = Form(None),
@@ -2762,6 +3234,7 @@ def update_project_form(
     planned_start_date: str = Form(...),
     planned_end_date: str = Form(...),
     project_type: str | None = Form(None),
+    stretch_segments_json: str = Form(""),
     db: Session = Depends(get_db),
 ):
     user = request.session.get("user")
@@ -2791,6 +3264,25 @@ def update_project_form(
         flash(request, "Road classification details are locked after creation.", "error")
         return RedirectResponse(f"/projects/{project_id}/edit", status_code=302)
 
+    def parse_lane_count(lc: str | None) -> int | None:
+        if not lc:
+            return None
+        lc = lc.strip().upper().replace(" ", "")
+        lc = re.sub(r"(DIVIDED|MEDIAN|WITH.*)", "", lc)
+        m = re.match(r"^(\d+)L$", lc)
+        if m:
+            return int(m.group(1))
+        m = re.match(r"^(\d+)X(\d+)(L)?$", lc)
+        if m:
+            return int(m.group(1)) * int(m.group(2))
+        m = re.match(r"^(\d+)$", lc)
+        if m:
+            return int(m.group(1))
+        return None
+
+    lane_configuration_norm = (lane_configuration or "").strip() or None
+    derived_lanes = parse_lane_count(lane_configuration_norm)
+
     old = model_to_dict(project)
 
     project.name = name
@@ -2801,6 +3293,10 @@ def update_project_form(
     # Preserve existing road_type and project_type (immutable)
     # Do NOT overwrite `project.project_type` or `project.road_type` from the form.
     project.lanes = project.lanes if lanes is None else lanes
+    if lane_configuration is not None:
+        project.lane_configuration = lane_configuration_norm
+        if derived_lanes is not None:
+            project.lanes = derived_lanes
     project.road_width = project.road_width if road_width is None else road_width
     project.road_length_km = project.road_length_km if road_length_km is None else road_length_km
     project.carriageway_width = carriageway_width
@@ -2816,6 +3312,240 @@ def update_project_form(
     project.planned_end_date = planned_end_date
 
     db.commit()
+
+    # Handle stretch updates if provided
+    logger.info(f"[UPDATE_DEBUG] Project {project.id} update - stretch_segments_json length: {len(stretch_segments_json) if stretch_segments_json else 0}")
+    if stretch_segments_json and stretch_segments_json.strip():
+        try:
+            segments = json.loads(stretch_segments_json)
+            logger.info(f"[UPDATE_DEBUG] Parsed {len(segments) if isinstance(segments, list) else 0} segments from JSON")
+            if isinstance(segments, list) and segments:
+                existing_stretches = (
+                    db.query(RoadStretch)
+                    .filter(RoadStretch.project_id == int(project.id))
+                    .all()
+                )
+                if existing_stretches:
+                    existing_ids = {int(s.id) for s in existing_stretches}
+                    legacy_id_rows = (
+                        db.query(LegacyStretch.id)
+                        .filter(LegacyStretch.id.in_(list(existing_ids)))
+                        .all()
+                    )
+                    legacy_ids = {int(r[0]) for r in legacy_id_rows}
+                    missing_ids = [sid for sid in existing_ids if sid not in legacy_ids]
+                    for s in existing_stretches:
+                        if int(s.id) not in missing_ids:
+                            continue
+                        legacy = LegacyStretch(
+                            id=int(s.id),
+                            project_id=int(project.id),
+                            sequence_no=int(getattr(s, "sequence_no", 0) or 0),
+                            name=str(getattr(s, "stretch_name", "") or ""),
+                            code=str(getattr(s, "stretch_code", "") or ""),
+                            length_m=int(getattr(s, "length_m", 0) or 0),
+                            planned_start_date=s.planned_start_date,
+                            planned_end_date=s.planned_end_date,
+                            manual_override=False,
+                        )
+                        db.add(legacy)
+                    db.flush()
+
+                # Deactivate existing stretches
+                db.query(RoadStretch).filter(
+                    RoadStretch.project_id == int(project.id),
+                    RoadStretch.is_active == True,  # noqa: E712
+                ).update({RoadStretch.is_active: False})
+                
+                # Create/update stretches
+                for seg in segments[:500]:
+                    if not isinstance(seg, dict):
+                        continue
+                    
+                    sid = int(seg.get("id") or 0)
+                    stretch = None
+                    if sid > 0:
+                        stretch = (
+                            db.query(RoadStretch)
+                            .filter(RoadStretch.id == sid, RoadStretch.project_id == int(project.id))
+                            .first()
+                        )
+                        if stretch:
+                            stretch.is_active = True
+                    
+                    if not stretch:
+                        seq = int(seg.get("sequence_no") or 0) or None
+                        if not seq:
+                            last_seq = (
+                                db.query(func.max(RoadStretch.sequence_no))
+                                .filter(RoadStretch.project_id == int(project.id))
+                                .scalar()
+                                or 0
+                            )
+                            seq = int(last_seq) + 1
+                        
+                        code = str(seg.get("stretch_code") or f"ST-{seq:03d}").strip() or f"ST-{seq:03d}"
+                        name = str(seg.get("stretch_name") or f"Stretch {seq}").strip() or f"Stretch {seq}"
+                        
+                        try:
+                            start_m = int(seg.get("start_m") or 0)
+                            end_m = int(seg.get("end_m") or (start_m + int(seg.get("length_m") or 0)))
+                        except Exception:
+                            start_m = 0
+                            end_m = 0
+                        
+                        length_m = max(int(end_m - start_m), 1)
+                        stretch = RoadStretch(
+                            project_id=int(project.id),
+                            stretch_code=code,
+                            stretch_name=name,
+                            start_chainage=chainage_from_meters(int(start_m)),
+                            end_chainage=chainage_from_meters(int(end_m)),
+                            length_m=length_m,
+                            sequence_no=int(seq),
+                            is_active=True,
+                        )
+                        db.add(stretch)
+                        db.flush()
+                    
+                    # Update stretch properties
+                    name = str(seg.get("stretch_name") or "").strip()
+                    if name:
+                        stretch.stretch_name = name
+                    
+                    ps_raw = str(seg.get("planned_start_date") or "").strip()
+                    pe_raw = str(seg.get("planned_end_date") or "").strip()
+                    try:
+                        ps = parse_date_ddmmyyyy_or_iso(ps_raw) if ps_raw else None
+                    except Exception:
+                        ps = None
+                    try:
+                        pe = parse_date_ddmmyyyy_or_iso(pe_raw) if pe_raw else None
+                    except Exception:
+                        pe = None
+                    
+                    if ps:
+                        stretch.planned_start_date = ps
+                    if pe:
+                        stretch.planned_end_date = pe
+                    
+                    if stretch.planned_start_date and stretch.planned_end_date:
+                        if stretch.planned_end_date < stretch.planned_start_date:
+                            stretch.planned_end_date = stretch.planned_start_date
+
+                    legacy_stretch = (
+                        db.query(LegacyStretch)
+                        .filter(LegacyStretch.id == int(stretch.id))
+                        .first()
+                    )
+                    if not legacy_stretch:
+                        legacy_stretch = LegacyStretch(
+                            id=int(stretch.id),
+                            project_id=int(project.id),
+                            sequence_no=int(getattr(stretch, "sequence_no", 0) or 0),
+                            name=str(getattr(stretch, "stretch_name", "") or ""),
+                            code=str(getattr(stretch, "stretch_code", "") or ""),
+                            length_m=int(getattr(stretch, "length_m", 0) or 0),
+                            planned_start_date=stretch.planned_start_date,
+                            planned_end_date=stretch.planned_end_date,
+                            manual_override=False,
+                        )
+                        db.add(legacy_stretch)
+                        db.flush()
+                    
+                    # Update stretch activities
+                    acts = seg.get("activities") or []
+                    if isinstance(acts, list):
+                        for a in acts[:1000]:
+                            if not isinstance(a, dict):
+                                continue
+                            
+                            include = a.get("include")
+                            if include is False:
+                                continue
+                            
+                            aid = int(a.get("id") or 0)
+                            pa_id = int(a.get("project_activity_id") or 0)
+                            
+                            if aid <= 0 and pa_id > 0:
+                                pa_exists = (
+                                    db.query(ProjectActivity.id)
+                                    .filter(
+                                        ProjectActivity.id == pa_id,
+                                        ProjectActivity.project_id == int(project.id),
+                                    )
+                                    .scalar()
+                                )
+                                if not pa_exists:
+                                    continue
+                                sa = (
+                                    db.query(StretchActivity)
+                                    .filter(
+                                        StretchActivity.stretch_id == int(stretch.id),
+                                        StretchActivity.project_activity_id == pa_id,
+                                    )
+                                    .first()
+                                )
+                                if not sa:
+                                    activity_name = str(a.get("name") or "").strip()
+                                    if not activity_name:
+                                        try:
+                                            activity_name = (
+                                                db.query(Activity.name)
+                                                .join(ProjectActivity, ProjectActivity.activity_id == Activity.id)
+                                                .filter(ProjectActivity.id == pa_id)
+                                                .scalar()
+                                                or ""
+                                            )
+                                        except Exception:
+                                            activity_name = ""
+                                    if not activity_name:
+                                        activity_name = "Activity"
+                                    sa = StretchActivity(
+                                        stretch_id=int(stretch.id),
+                                        project_activity_id=pa_id,
+                                        name=activity_name,
+                                    )
+                                    db.add(sa)
+                                    db.flush()
+                                aid = int(sa.id)
+                            
+                            if aid > 0:
+                                sa = db.query(StretchActivity).filter(StretchActivity.id == aid).first()
+                                if sa:
+                                    act_ps_raw = str(a.get("planned_start_date") or "").strip()
+                                    act_pe_raw = str(a.get("planned_end_date") or "").strip()
+                                    try:
+                                        act_ps = parse_date_ddmmyyyy_or_iso(act_ps_raw) if act_ps_raw else None
+                                    except Exception:
+                                        act_ps = None
+                                    try:
+                                        act_pe = parse_date_ddmmyyyy_or_iso(act_pe_raw) if act_pe_raw else None
+                                    except Exception:
+                                        act_pe = None
+                                    
+                                    if act_ps:
+                                        sa.planned_start_date = act_ps
+                                    if act_pe:
+                                        sa.planned_end_date = act_pe
+                                    
+                                    if sa.planned_start_date and sa.planned_end_date and sa.planned_end_date < sa.planned_start_date:
+                                        sa.planned_end_date = sa.planned_start_date
+                                    
+                                    db.add(sa)
+                    
+                    db.add(stretch)
+                
+                db.commit()
+                
+                # Apply activities to new stretches
+                try:
+                    apply_activities_to_stretches(int(project.id), mode="ALL")
+                except Exception:
+                    logger.exception("Failed to apply activities after stretch update (project_id=%s)", project.id)
+                
+        except Exception as e:
+            logger.exception("Failed to update stretches during project update (project_id=%s)", project.id)
 
     # Audit: Project UPDATE (best-effort)
     log_action(

@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
@@ -41,6 +41,7 @@ from app.models.daily_work_qc import DailyWorkQC
 from app.models.daily_work_delay import DailyWorkDelay
 from app.models.daily_work_material import DailyWorkMaterial
 from app.models.daily_work_upload import DailyWorkUpload
+from app.models.road_stretch import RoadStretch
 
 from app.utils.audit_logger import log_action, model_to_dict
 from app.utils.activity_units import (
@@ -128,6 +129,296 @@ def execution_project_select(
 
 
 # =====================================================
+# DOWNLOAD DPR AS EXCEL
+# =====================================================
+@router.get("/{project_id}/download-excel")
+def download_dpr_excel(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Download Daily Work Execution Report as Excel"""
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    # Get date from query params
+    date_str = request.query_params.get("date", "")
+    report_date = date.today()
+    if date_str:
+        try:
+            report_date = parse_date_ddmmyyyy_or_iso(date_str)
+        except Exception:
+            report_date = date.today()
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        return RedirectResponse("/execution", status_code=302)
+
+    report = (
+        db.query(DailyWorkReport)
+        .filter(DailyWorkReport.project_id == project_id, DailyWorkReport.report_date == report_date)
+        .first()
+    )
+
+    # Get activities for the report
+    activities = []
+    if report:
+        activities = (
+            db.query(DailyWorkActivity)
+            .filter(DailyWorkActivity.report_id == report.id)
+            .all()
+        )
+
+    # Create Excel file
+    try:
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "DPR"
+
+        # Header styling
+        header_fill = PatternFill(start_color="4F8CFF", end_color="4F8CFF", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF")
+        
+        # Title
+        ws.merge_cells('A1:F1')
+        ws['A1'] = f"Daily Work Execution Report - {project.name}"
+        ws['A1'].font = Font(bold=True, size=14)
+        ws['A1'].alignment = Alignment(horizontal='center')
+
+        # Project Info
+        row = 3
+        ws[f'A{row}'] = "Project:"
+        ws[f'B{row}'] = project.name
+        ws[f'A{row}'].font = Font(bold=True)
+        
+        row += 1
+        ws[f'A{row}'] = "Date:"
+        ws[f'B{row}'] = report_date.strftime("%d/%m/%Y")
+        ws[f'A{row}'].font = Font(bold=True)
+        
+        if report:
+            row += 1
+            ws[f'A{row}'] = "Weather:"
+            ws[f'B{row}'] = report.weather or ""
+            ws[f'A{row}'].font = Font(bold=True)
+            
+            row += 1
+            ws[f'A{row}'] = "Shift:"
+            ws[f'B{row}'] = report.shift or ""
+            ws[f'A{row}'].font = Font(bold=True)
+            
+            row += 1
+            ws[f'A{row}'] = "Supervisor:"
+            ws[f'B{row}'] = report.supervisor_name or ""
+            ws[f'A{row}'].font = Font(bold=True)
+
+        # Activities Table
+        row += 2
+        headers = ['Activity', 'Planned (Before)', 'Executed Today', 'Cumulative (After)', 'Unit', 'Status']
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=row, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+
+        # Activity data
+        for activity in activities:
+            row += 1
+            activity_obj = db.query(Activity).filter(Activity.id == activity.activity_id).first()
+            activity_name = activity_obj.name if activity_obj else f"Activity {activity.activity_id}"
+            
+            ws.cell(row=row, column=1, value=activity_name)
+            ws.cell(row=row, column=2, value=activity.planned_before or 0)
+            ws.cell(row=row, column=3, value=activity.executed_today or 0)
+            ws.cell(row=row, column=4, value=activity.cumulative_after or 0)
+            ws.cell(row=row, column=5, value=activity.unit or "")
+            ws.cell(row=row, column=6, value=activity.status or "")
+
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 30
+        ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 18
+        ws.column_dimensions['E'].width = 10
+        ws.column_dimensions['F'].width = 12
+
+        # Save to BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f"DPR_{project.name.replace(' ', '_')}_{report_date.strftime('%Y%m%d')}.xlsx"
+        
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except ImportError:
+        return Response(content="Excel library not installed. Please install openpyxl.", status_code=500)
+    except Exception as e:
+        return Response(content=f"Error generating Excel: {str(e)}", status_code=500)
+
+
+# =====================================================
+# DOWNLOAD DPR AS PDF
+# =====================================================
+@router.get("/{project_id}/download-pdf")
+def download_dpr_pdf(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Download Daily Work Execution Report as PDF"""
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    # Get date from query params
+    date_str = request.query_params.get("date", "")
+    report_date = date.today()
+    if date_str:
+        try:
+            report_date = parse_date_ddmmyyyy_or_iso(date_str)
+        except Exception:
+            report_date = date.today()
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        return RedirectResponse("/execution", status_code=302)
+
+    report = (
+        db.query(DailyWorkReport)
+        .filter(DailyWorkReport.project_id == project_id, DailyWorkReport.report_date == report_date)
+        .first()
+    )
+
+    # Get activities for the report
+    activities = []
+    if report:
+        activities = (
+            db.query(DailyWorkActivity)
+            .filter(DailyWorkActivity.report_id == report.id)
+            .all()
+        )
+
+    # Create PDF file
+    try:
+        from io import BytesIO
+        from reportlab.lib.pagesizes import A4, letter
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor=colors.HexColor('#1a2332'),
+            spaceAfter=12,
+            alignment=TA_CENTER
+        )
+        elements.append(Paragraph(f"Daily Work Execution Report", title_style))
+        elements.append(Paragraph(f"{project.name}", styles['Heading2']))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Project Information
+        info_data = [
+            ["Date:", report_date.strftime("%d/%m/%Y")],
+            ["Project ID:", f"#{project.id}"],
+        ]
+        
+        if report:
+            info_data.extend([
+                ["Weather:", report.weather or "—"],
+                ["Shift:", report.shift or "—"],
+                ["Supervisor:", report.supervisor_name or "—"],
+                ["Work Chainage:", f"{report.work_chainage_from or '—'} → {report.work_chainage_to or '—'}"],
+            ])
+        
+        info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Activities Table
+        if activities:
+            elements.append(Paragraph("Activities Executed", styles['Heading3']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            activity_data = [['Activity', 'Planned\n(Before)', 'Executed\nToday', 'Cumulative\n(After)', 'Unit', 'Status']]
+            
+            for activity in activities:
+                activity_obj = db.query(Activity).filter(Activity.id == activity.activity_id).first()
+                activity_name = activity_obj.name if activity_obj else f"Activity {activity.activity_id}"
+                
+                activity_data.append([
+                    activity_name[:40],
+                    f"{activity.planned_before or 0:.3f}",
+                    f"{activity.executed_today or 0:.3f}",
+                    f"{activity.cumulative_after or 0:.3f}",
+                    activity.unit or "",
+                    activity.status or ""
+                ])
+            
+            activity_table = Table(activity_data, colWidths=[2.5*inch, 0.8*inch, 0.8*inch, 1*inch, 0.6*inch, 0.8*inch])
+            activity_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F8CFF')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            elements.append(activity_table)
+        else:
+            elements.append(Paragraph("No activities recorded for this date.", styles['Normal']))
+        
+        # Build PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        filename = f"DPR_{project.name.replace(' ', '_')}_{report_date.strftime('%Y%m%d')}.pdf"
+        
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except ImportError:
+        return Response(content="PDF library not installed. Please install reportlab.", status_code=500)
+    except Exception as e:
+        return Response(content=f"Error generating PDF: {str(e)}", status_code=500)
+
+
+# =====================================================
 # DAILY EXECUTION PAGE
 # =====================================================
 @router.get("/{project_id}", response_class=HTMLResponse)
@@ -159,6 +450,34 @@ def daily_execution_page(
     # Safety: prevent execution on archived/inactive/completed
     if (not project.is_active) or (project.status != "active") or (project.completed_at is not None):
         return RedirectResponse("/execution", status_code=302)
+
+    # Fetch all available projects for dropdown
+    base = (
+        db.query(Project)
+        .outerjoin(ProjectUser, Project.id == ProjectUser.project_id)
+        .filter(
+            Project.is_active == True,
+        )
+    )
+
+    if user.get("role") in {"admin", "superadmin"}:
+        all_projects = (
+            base.distinct()
+            .order_by(Project.name.asc())
+            .all()
+        )
+    else:
+        all_projects = (
+            base.filter(
+                or_(
+                    Project.created_by == user["id"],
+                    ProjectUser.user_id == user["id"],
+                )
+            )
+            .distinct()
+            .order_by(Project.name.asc())
+            .all()
+        )
 
     # Report date (querystring): ?date=YYYY-MM-DD
     report_date_str = (request.query_params.get("date") or "").strip()
@@ -201,6 +520,33 @@ def daily_execution_page(
         .scalar()
         or 0
     )
+
+    # Stretch context (road-only, safe fallback)
+    stretches = (
+        db.query(RoadStretch)
+        .filter(RoadStretch.project_id == project_id)
+        .order_by(RoadStretch.sequence_no.asc())
+        .all()
+    )
+
+    current_stretch = None
+    if stretches:
+        for s in stretches:
+            start = s.start_date or s.planned_start_date
+            end = s.end_date or s.planned_end_date
+            if start and end:
+                if start <= report_date <= end:
+                    current_stretch = s
+                    break
+            elif start and report_date >= start:
+                current_stretch = s
+                break
+            elif end and report_date <= end:
+                current_stretch = s
+                break
+
+        if current_stretch is None:
+            current_stretch = next((s for s in stretches if s.is_active), stretches[0])
 
     activity_ids = [pa.activity_id for pa in planned]
 
@@ -344,6 +690,7 @@ def daily_execution_page(
             "request": request,
             "user": user,
             "project": project,
+            "all_projects": all_projects,
             "report": report,
             "report_date": report_date,
             "prev_date": report_date - timedelta(days=1),
@@ -352,6 +699,7 @@ def daily_execution_page(
             "planned_today": planned_today,
             "planned_today_json": json.dumps(planned_today_map),
             "activity_def_count": int(activity_def_count),
+            "current_stretch": current_stretch,
             "cum_before": cum_before,
             "executed_today": executed_today,
             "remarks_today": remarks_today,

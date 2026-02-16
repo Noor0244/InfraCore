@@ -36,6 +36,28 @@ input, select, textarea {
     color: var(--text);
 }
 
+select {
+    color-scheme: light dark;
+}
+
+.dark select {
+    color-scheme: dark;
+    color: #e5e7eb;
+    background-color: #0b1220;
+}
+
+select option,
+select optgroup {
+    background: var(--card);
+    color: var(--text);
+}
+
+html.dark select option,
+html.dark select optgroup {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+}
+
 /* =========================
    TABLE
    ========================= */
@@ -119,6 +141,11 @@ button,
     --btn: #3b82f6;
     --hover-bg: rgba(59, 130, 246, 0.2);
     --accent-color: #3b82f6;
+    color-scheme: dark;
+}
+
+html.dark {
+    color-scheme: dark;
 }
 
 /* =========================

@@ -1,358 +1,744 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-    .card {
+    /* ===== VARIABLES ===== */
+    :root {
+        --primary: #2563eb;
+        --primary-dark: #1e40af;
+        --danger: #dc2626;
+        --success: #16a34a;
+        --warning: #ea8c55;
+        --info: #0891b2;
+        --gray-50: #f9fafb;
+        --gray-100: #f3f4f6;
+        --gray-200: #e5e7eb;
+        --gray-300: #d1d5db;
+        --gray-700: #374151;
+        --gray-900: #111827;
+    }
+
+    /* ===== PAGE LAYOUT ===== */
+    .users-container {
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 32px;
+        padding: 0;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .page-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--primary-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-secondary {
+        background: var(--gray-600);
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: var(--gray-700);
+    }
+
+    /* ===== SEARCH & FILTER ===== */
+    .search-filter-bar {
         background: var(--card-bg);
-        border-radius: 16px;
-        box-shadow: 0 4px 24px 0 rgba(0,0,0,0.13), 0 1.5px 6px 0 rgba(0,0,0,0.10);
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .search-input {
+        flex: 1;
+        min-width: 250px;
+        padding: 10px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .search-input::placeholder {
+        color: var(--text-secondary);
+    }
+
+    .search-input:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .filter-select {
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .filter-select:focus {
+        border-color: var(--primary);
+        outline: none;
+    }
+
+    /* ===== SECTION CARDS ===== */
+    .users-section {
+        background: var(--card-bg);
+        border-radius: 12px;
         margin-bottom: 28px;
-        padding: 0 0 18px 0;
-        overflow: hidden;
+        overflow: visible;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-header {
+        padding: 20px 24px;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .section-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .section-subtitle {
+        margin: 4px 0 0 0;
+        font-size: 13px;
+        opacity: 0.9;
+    }
+
+    .section-header.secondary {
+        background: var(--gray-700);
+    }
+
+    .section-header.warning {
+        background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+    }
+
+    /* ===== TABLE STYLES ===== */
+    .table-container {
+        overflow-x: auto;
+        overflow-y: visible;
+    }
+
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0;
+    }
+
+    .table thead {
+        background: var(--gray-50);
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .table th {
+        padding: 14px 16px;
+        text-align: left;
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--text-primary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border-color);
         color: var(--text-primary);
     }
-    .page-header {
-        background: none;
-        border-bottom: 1.5px solid var(--border-color);
-        margin-bottom: 28px;
-        padding-bottom: 10px;
+
+    .table tbody tr:hover {
+        background: var(--gray-50);
     }
-    .page-title {
-        font-size: 2.1rem;
+
+    .table-empty {
+        padding: 40px 20px;
+        text-align: center;
+        color: var(--text-secondary);
+    }
+
+    /* ===== USER INFO ===== */
+    .user-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        py: 2p;
+    }
+
+    .user-name {
         font-weight: 700;
         color: var(--text-primary);
-        letter-spacing: 0.01em;
     }
-    .card .table td .badge {
-        margin-bottom: 0;
+
+    .user-email {
+        font-size: 13px;
+        color: var(--text-secondary);
     }
-    @media (max-width: 900px) {
-        .page-header, .card { padding-left: 2vw; padding-right: 2vw; }
-        .table th, .table td { font-size: 0.97em; }
-        .page-title { font-size: 1.3rem; }
+
+    /* ===== BADGE STYLES ===== */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .badge-success {
+        background: rgba(22, 163, 74, 0.1);
+        color: #16a34a;
+    }
+
+    .badge-danger {
+        background: rgba(220, 38, 38, 0.1);
+        color: #dc2626;
+    }
+
+    .badge-info {
+        background: rgba(37, 99, 235, 0.1);
+        color: #2563eb;
+    }
+
+    .badge-warning {
+        background: rgba(217, 119, 6, 0.1);
+        color: #b45309;
+    }
+
+    /* ===== ACTION BUTTON ===== */
+    .action-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 12px;
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+        transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+        background: #e5e7eb;
+        border-color: #9ca3af;
+    }
+
+    .action-menu {
+        position: fixed;
+        background: #1f2937;
+        border: 1px solid #4b5563;
+        border-radius: 10px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        min-width: 240px;
+        z-index: 9999;
+        display: none;
+        overflow: hidden;
+    }
+
+    .action-menu.show {
+        display: block;
+        animation: fadeIn 0.2s ease-in;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .action-item {
+        padding: 12px 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        color: #e5e7eb;
+        font-size: 14px;
+        transition: all 0.15s;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+        font-weight: 500;
+    }
+
+    .action-item:hover {
+        background: #374151;
+        padding-left: 20px;
+        color: #fff;
+    }
+
+    .action-item.danger:hover {
+        background: rgba(220, 38, 38, 0.2);
+        color: #fca5a5;
+    }
+
+    .action-item.success:hover {
+        background: rgba(22, 163, 74, 0.2);
+        color: #86efac;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+        }
+
+        .search-filter-bar {
+            flex-direction: column;
+        }
+
+        .search-input, .filter-select {
+            width: 100%;
+        }
+
+        .table {
+            font-size: 13px;
+        }
+
+        .table th, .table td {
+            padding: 10px 12px;
+        }
+
+        .action-menu {
+            right: -60px;
+        }
+    }
+
+    /* ===== DARK MODE ===== */
+    html.dark {
+        --gray-50: #1f2937;
+        --gray-100: #111827;
     }
 </style>
 
-<link rel="stylesheet" href="/static/css/user_management.css">
-
-<!-- ===== USERS MANAGEMENT SECTION ===== -->
-
-<div class="page-header"
-     style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-
-    <h1 class="page-title">User Management</h1>
-
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <a href="/admin/logs"
-           style="
-               background:#6b7280;
-               color:#ffffff;
-               padding:8px 14px;
-               border-radius:6px;
-               font-weight:600;
-               text-decoration:none;
-               display:inline-flex;
-               align-items:center;
-               gap:6px;
-           ">
-            🧾 Audit Logs
-        </a>
-
-        <a href="/admin/presets/road"
-           style="
-               background:#6b7280;
-               color:#ffffff;
-               padding:8px 14px;
-               border-radius:6px;
-               font-weight:600;
-               text-decoration:none;
-               display:inline-flex;
-               align-items:center;
-               gap:6px;
-           ">
-            🧩 Road Presets
-        </a>
-
-        <!-- ADD USER -->
-        <a href="/admin/users/new"
-           style="
-               background:#3b82f6;
-               color:#ffffff;
-               padding:8px 14px;
-               border-radius:6px;
-               font-weight:600;
-               text-decoration:none;
-               display:inline-flex;
-               align-items:center;
-               gap:6px;
-           ">
-            ➕ Add User
-        </a>
-    </div>
-</div>
-
-<div class="card" style="padding:0;margin-bottom:18px">
-
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border-color)">
-        <h3 style="margin:0">Super Admins</h3>
+<div class="users-container">
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+        <h1 class="page-title">👥 User Management</h1>
+        <div class="header-actions">
+            <a href="/admin/logs" class="btn btn-secondary">📋 Audit Logs</a>
+            <a href="/admin/presets/road" class="btn btn-secondary">🧩 Road Presets</a>
+            <a href="/admin/users/new" class="btn btn-primary">➕ Add New User</a>
+        </div>
     </div>
 
-    <table class="table" style="margin:0">
-        <thead>
-            <tr >
-                <th style="width:60px">ID</th>
-                <th>Username</th>
-                <th style="width:120px">Role</th>
-                <th style="width:120px">Status</th>
-                <th style="width:320px">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% if superadmins and superadmins|length > 0 %}
-        {% for u in superadmins %}
-            <tr style="border-bottom:1px solid var(--border-color)">
-                <td>{{ u.id }}</td>
-                <td><strong>{{ u.username }}</strong></td>
-                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
-                <td>
-                    {% if u.is_active %}
-                        <span class="badge badge-success">ACTIVE</span>
-                    {% else %}
-                        <span class="badge badge-danger">DISABLED</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <a href="/admin/users/{{ u.id }}/edit" style="background:#06b6d4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
-                        <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
-                        {% if user["id"] != u.id %}
-                            <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
-                                {% if u.is_active %}
-                                    <button type="submit" style="background:#ef4444;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
-                                {% else %}
-                                    <button type="submit" style="background:#22c55e;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
-                                {% endif %}
-                            </form>
-                            {% if user["role"] == "superadmin" %}
-                            <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
-                                <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
-                            </form>
-                            {% endif %}
-                        {% else %}
-                            <span class="badge badge-warning">You</span>
-                        {% endif %}
-                    </div>
-                </td>
-            </tr>
-        {% endfor %}
-        {% else %}
-            <tr>
-                <td colspan="5" style="text-align:center;padding:24px">
-                    <strong>No super admins found.</strong>
-                </td>
-            </tr>
-        {% endif %}
-        </tbody>
-    </table>
-</div>
-
-<div class="card" style="padding:0;margin-bottom:18px">
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border-color)">
-        <h3 style="margin:0">Project Users</h3>
+    <!-- SEARCH & FILTER -->
+    <div class="search-filter-bar">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by username or email..." />
+        <select id="roleFilter" class="filter-select">
+            <option value="">All Roles</option>
+            <option value="superadmin">Super Admin</option>
+            <option value="admin">Admin</option>
+            <option value="user">User</option>
+        </select>
+        <select id="statusFilter" class="filter-select">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="disabled">Disabled</option>
+        </select>
     </div>
-    {% if user["role"] == "superadmin" %}
-        <script>
-        function toggleProjectUsers(pid) {
-            var tbl = document.getElementById('project-users-' + pid);
-            var btn = document.getElementById('toggle-btn-' + pid);
-            if (!tbl || !btn) return;
-            if (tbl.style.display === 'none' || tbl.classList.contains('hidden')) {
-                tbl.style.display = '';
-                tbl.classList.remove('hidden');
-                btn.innerText = 'Hide';
-            } else {
-                tbl.style.display = 'none';
-                tbl.classList.add('hidden');
-                btn.innerText = 'Show';
-            }
-        }
-                const projectIds = JSON.parse('{{ projects | map(attribute="id") | list | tojson }}');
-                window.addEventListener('DOMContentLoaded', function() {
-                    projectIds.forEach(function(pid) {
-                        var tbl = document.getElementById('project-users-' + pid);
-                        var btn = document.getElementById('toggle-btn-' + pid);
-                        if (tbl && btn) {
-                            tbl.style.display = 'none';
-                            btn.innerText = 'Show';
-                        }
-                    });
-                });
-        </script>
-        {% for project in projects %}
-            <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;background:rgba(31,111,235,0.08);margin-bottom:4px;border-radius:6px">
-                <span style="font-weight:600;color:#3b82f6;flex:1">{{ project.name }}</span>
-                <button id="toggle-btn-{{ project.id }}" type="button" onclick="toggleProjectUsers({{ project.id }})" style="background:#3b82f6;color:#fff;border:none;padding:4px 16px;border-radius:5px;cursor:pointer;font-weight:500;">Show</button>
-            </div>
-            <table id="project-users-{{ project.id }}" class="table hidden" style="margin:0 0 18px 0">
+
+    <!-- SUPER ADMINS SECTION -->
+    <div class="users-section">
+        <div class="section-header">
+            <h2 class="section-title">⭐ Super Administrators</h2>
+            <p class="section-subtitle">Highest privilege users with full system access</p>
+        </div>
+        <div class="table-container">
+            <table class="table" id="superAdminsTable">
                 <thead>
-                    <tr >
-                        <th style="width:60px">ID</th>
-                        <th>Username</th>
-                        <th style="width:120px">Role</th>
-                        <th style="width:120px">Status</th>
-                        <th style="width:320px">Actions</th>
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th style="flex: 1;">Username & Email</th>
+                        <th style="width: 100px;">Role</th>
+                        <th style="width: 100px;">Status</th>
+                        <th style="width: 150px;">Joined</th>
+                        <th style="width: 120px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                {% for u in project.users %}
-                    <tr style="border-bottom:1px solid var(--border-color)">
-                        <td>{{ u.id }}</td>
-                        <td><strong>{{ u.username }}</strong></td>
-                        <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
-                        <td>
-                            {% if u.is_active %}
-                                <span class="badge badge-success">ACTIVE</span>
-                            {% else %}
-                                <span class="badge badge-danger">DISABLED</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap">
-                                <a href="/admin/users/{{ u.id }}/edit" style="background:#06b6d4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
-                                <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
-                                {% if user["id"] != u.id %}
-                                    <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
-                                        {% if u.is_active %}
-                                            <button type="submit" style="background:#ef4444;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
-                                        {% else %}
-                                            <button type="submit" style="background:#22c55e;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
-                                        {% endif %}
-                                    </form>
-                                    <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
-                                        <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
-                                    </form>
-                                {% else %}
-                                    <span class="badge badge-warning">You</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                {% endfor %}
+                    {% if superadmins and superadmins|length > 0 %}
+                        {% for u in superadmins %}
+                            <tr data-user-role="{{ u.role }}" data-user-status="{% if u.is_active %}active{% else %}disabled{% endif %}">
+                                <td><strong>#{{ u.id }}</strong></td>
+                                <td>
+                                    <div class="user-cell">
+                                        <div class="user-name">{{ u.username }}</div>
+                                        <div class="user-email">{{ u.email or 'No email' }}</div>
+                                    </div>
+                                </td>
+                                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
+                                <td>
+                                    {% if u.is_active %}
+                                        <span class="badge badge-success">🟢 Active</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">🔴 Disabled</span>
+                                    {% endif %}
+                                </td>
+                                <td style="font-size: 13px; color: var(--text-secondary);">
+                                    {{ u.created_at.strftime('%b %d, %Y') if u.created_at else 'N/A' }}
+                                </td>
+                                <td>
+                                    <div class="action-dropdown">
+                                        <button class="action-btn">⋯ Menu</button>
+                                        <div class="action-menu">
+                                            <a href="/admin/users/{{ u.id }}/edit" class="action-item">✏️ Edit Profile</a>
+                                            <a href="/admin/users/{{ u.id }}/sessions" class="action-item">🕒 View Sessions</a>
+                                            {% if user["id"] != u.id %}
+                                                <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display: contents;">
+                                                    <button type="submit" class="action-item {% if u.is_active %}danger{% else %}success{% endif %}">
+                                                        {% if u.is_active %}🔒 Disable Account{% else %}✅ Enable Account{% endif %}
+                                                    </button>
+                                                </form>
+                                                {% if user["role"] == "superadmin" %}
+                                                    <form method="post" action="/admin/users/{{ u.id }}/delete" style="display: contents;">
+                                                        <button type="submit" class="action-item danger" onclick="return confirm('Delete this account permanently? This cannot be undone.');">🗑️ Delete User</button>
+                                                    </form>
+                                                {% endif %}
+                                            {% else %}
+                                                <div class="action-item" style="pointer-events: none; opacity: 0.6;">👤 Your Account</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="table-empty">No super administrators found</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
-        {% endfor %}
-    {% else %}
-        <table class="table" style="margin:0">
-            <thead>
-                <tr >
-                    <th style="width:60px">ID</th>
-                    <th>Username</th>
-                    <th>Project Name</th>
-                    <th style="width:120px">Role</th>
-                    <th style="width:120px">Status</th>
-                    <th style="width:320px">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for u in project_users %}
-                <tr style="border-bottom:1px solid var(--border-color)">
-                    <td>{{ u.id }}</td>
-                    <td><strong>{{ u.username }}</strong></td>
-                    <td>{{ u.project_name }}</td>
-                    <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
-                    <td>
-                        {% if u.is_active %}
-                            <span class="badge badge-success">ACTIVE</span>
-                        {% else %}
-                            <span class="badge badge-danger">DISABLED</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap">
-                            <a href="/admin/users/{{ u.id }}/edit" style="background:#06b6d4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
-                            <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
-                            {% if user["id"] != u.id %}
-                                <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
+        </div>
+    </div>
+
+    <!-- PROJECT USERS SECTION -->
+    <div class="users-section">
+        <div class="section-header secondary">
+            <h2 class="section-title">👨‍💼 Project Users</h2>
+            <p class="section-subtitle">Users assigned to specific projects</p>
+        </div>
+        <div class="table-container">
+            <table class="table" id="projectUsersTable">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th style="flex: 1;">Username & Email</th>
+                        <th style="width: 120px;">Project</th>
+                        <th style="width: 100px;">Role</th>
+                        <th style="width: 100px;">Status</th>
+                        <th style="width: 150px;">Joined</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if project_users and project_users|length > 0 %}
+                        {% for u in project_users %}
+                            <tr data-user-role="{{ u.role }}" data-user-status="{% if u.is_active %}active{% else %}disabled{% endif %}">
+                                <td><strong>#{{ u.id }}</strong></td>
+                                <td>
+                                    <div class="user-cell">
+                                        <div class="user-name">{{ u.username }}</div>
+                                        <div class="user-email">{{ u.email or 'No email' }}</div>
+                                    </div>
+                                </td>
+                                <td><span style="color: var(--primary); font-weight: 600;">{{ u.project_name or 'Unassigned' }}</span></td>
+                                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
+                                <td>
                                     {% if u.is_active %}
-                                        <button type="submit" style="background:#ef4444;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
+                                        <span class="badge badge-success">🟢 Active</span>
                                     {% else %}
-                                        <button type="submit" style="background:#22c55e;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
+                                        <span class="badge badge-danger">🔴 Disabled</span>
                                     {% endif %}
-                                </form>
-                            {% else %}
-                                <span class="badge badge-warning">You</span>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
+                                </td>
+                                <td style="font-size: 13px; color: var(--text-secondary);">
+                                    {{ u.created_at.strftime('%b %d, %Y') if u.created_at else 'N/A' }}
+                                </td>
+                                <td>
+                                    <div class="action-dropdown">
+                                        <button class="action-btn">⋯ Menu</button>
+                                        <div class="action-menu">
+                                            <a href="/admin/users/{{ u.id }}/edit" class="action-item">✏️ Edit Profile</a>
+                                            <a href="/admin/users/{{ u.id }}/sessions" class="action-item">🕒 View Sessions</a>
+                                            {% if user["id"] != u.id %}
+                                                <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display: contents;">
+                                                    <button type="submit" class="action-item {% if u.is_active %}danger{% else %}success{% endif %}">
+                                                        {% if u.is_active %}🔒 Disable Account{% else %}✅ Enable Account{% endif %}
+                                                    </button>
+                                                </form>
+                                            {% else %}
+                                                <div class="action-item" style="pointer-events: none; opacity: 0.6;">👤 Your Account</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="table-empty">No project users found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- UNASSIGNED USERS SECTION -->
+    <div class="users-section">
+        <div class="section-header warning">
+            <h2 class="section-title">⚠️ Unassigned Users</h2>
+            <p class="section-subtitle">Users not connected to any project</p>
+        </div>
+        <div class="table-container">
+            <table class="table" id="unassignedUsersTable">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th style="flex: 1;">Username & Email</th>
+                        <th style="width: 100px;">Role</th>
+                        <th style="width: 100px;">Status</th>
+                        <th style="width: 150px;">Joined</th>
+                        <th style="width: 120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if unassigned_users and unassigned_users|length > 0 %}
+                        {% for u in unassigned_users %}
+                            <tr data-user-role="{{ u.role }}" data-user-status="{% if u.is_active %}active{% else %}disabled{% endif %}">
+                                <td><strong>#{{ u.id }}</strong></td>
+                                <td>
+                                    <div class="user-cell">
+                                        <div class="user-name">{{ u.username }}</div>
+                                        <div class="user-email">{{ u.email or 'No email' }}</div>
+                                    </div>
+                                </td>
+                                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
+                                <td>
+                                    {% if u.is_active %}
+                                        <span class="badge badge-success">🟢 Active</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">🔴 Disabled</span>
+                                    {% endif %}
+                                </td>
+                                <td style="font-size: 13px; color: var(--text-secondary);">
+                                    {{ u.created_at.strftime('%b %d, %Y') if u.created_at else 'N/A' }}
+                                </td>
+                                <td>
+                                    <div class="action-dropdown">
+                                        <button class="action-btn">⋯ Menu</button>
+                                        <div class="action-menu">
+                                            <a href="/admin/users/{{ u.id }}/edit" class="action-item">✏️ Edit Profile</a>
+                                            <a href="/admin/users/{{ u.id }}/sessions" class="action-item">🕒 View Sessions</a>
+                                            {% if user["id"] != u.id %}
+                                                <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display: contents;">
+                                                    <button type="submit" class="action-item {% if u.is_active %}danger{% else %}success{% endif %}">
+                                                        {% if u.is_active %}🔒 Disable Account{% else %}✅ Enable Account{% endif %}
+                                                    </button>
+                                                </form>
+                                                {% if user["role"] == "superadmin" %}
+                                                    <form method="post" action="/admin/users/{{ u.id }}/delete" style="display: contents;">
+                                                        <button type="submit" class="action-item danger" onclick="return confirm('Delete this account permanently? This cannot be undone.');">🗑️ Delete User</button>
+                                                    </form>
+                                                {% endif %}
+                                            {% else %}
+                                                <div class="action-item" style="pointer-events: none; opacity: 0.6;">👤 Your Account</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="table-empty">No unassigned users found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
-<div class="card" style="padding:0">
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border-color)">
-        <h3 style="margin:0">Unassigned Users</h3>
-        <div class="help-text" style="margin-top:6px">Users not connected to any project.</div>
-    </div>
-    <table class="table" style="margin:0">
-        <thead>
-            <tr >
-                <th style="width:60px">ID</th>
-                <th>Username</th>
-                <th style="width:120px">Role</th>
-                <th style="width:120px">Status</th>
-                <th style="width:320px">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% if unassigned_users and unassigned_users|length > 0 %}
-        {% for u in unassigned_users %}
-            <tr style="border-bottom:1px solid var(--border-color)">
-                <td>{{ u.id }}</td>
-                <td><strong>{{ u.username }}</strong></td>
-                <td><span class="badge badge-info">{{ u.role | upper }}</span></td>
-                <td>
-                    {% if u.is_active %}
-                        <span class="badge badge-success">ACTIVE</span>
-                    {% else %}
-                        <span class="badge badge-danger">DISABLED</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <a href="/admin/users/{{ u.id }}/edit" style="background:#06b6d4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">✏️ Edit</a>
-                        <a href="/admin/users/{{ u.id }}/sessions" style="background:#0ea5a4;color:#ffffff;padding:5px 10px;border-radius:5px;font-size:13px;text-decoration:none;">🕒 Sessions</a>
-                        {% if user["id"] != u.id %}
-                            <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
-                                {% if u.is_active %}
-                                    <button type="submit" style="background:#ef4444;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🚫 Disable</button>
-                                {% else %}
-                                    <button type="submit" style="background:#22c55e;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">✅ Enable</button>
-                                {% endif %}
-                            </form>
-                            {% if user["role"] == "superadmin" %}
-                            <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this user permanently? This cannot be undone.')">
-                                <button type="submit" style="background:#dc2626;color:#ffffff;padding:5px 10px;border:none;border-radius:5px;font-size:13px;cursor:pointer;">🗑 Delete</button>
-                            </form>
-                            {% endif %}
-                        {% else %}
-                            <span class="badge badge-warning">You</span>
-                        {% endif %}
-                    </div>
-                </td>
-            </tr>
-        {% endfor %}
-        {% else %}
-            <tr>
-                <td colspan="5" style="text-align:center;padding:24px">
-                    <strong>No unassigned users.</strong>
-                </td>
-            </tr>
-        {% endif %}
-        </tbody>
-    </table>
-</div>
+<script>
+    // Action dropdown menu toggle with smart positioning
+    document.querySelectorAll('.action-dropdown').forEach(dropdown => {
+        const btn = dropdown.querySelector('.action-btn');
+        const menu = dropdown.querySelector('.action-menu');
+        
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            // Close other menus
+            document.querySelectorAll('.action-menu').forEach(m => {
+                if (m !== menu) m.classList.remove('show');
+            });
+            
+            menu.classList.toggle('show');
+            
+            // Position the menu using fixed positioning
+            if (menu.classList.contains('show')) {
+                setTimeout(() => {
+                    const btnRect = btn.getBoundingClientRect();
+                    const menuRect = menu.getBoundingClientRect();
+                    const viewportHeight = window.innerHeight;
+                    
+                    // Position menu to the right of button, below it
+                    let top = btnRect.bottom + 8;
+                    let left = btnRect.right - 240;
+                    
+                    // If menu goes off bottom, position it above
+                    if (top + menuRect.height > viewportHeight - 10) {
+                        top = btnRect.top - menuRect.height - 8;
+                    }
+                    
+                    // If menu goes off right side, adjust
+                    if (left + 240 > window.innerWidth - 10) {
+                        left = window.innerWidth - 250;
+                    }
+                    
+                    // If menu goes off left side, adjust
+                    if (left < 10) {
+                        left = 10;
+                    }
+                    
+                    menu.style.position = 'fixed';
+                    menu.style.top = top + 'px';
+                    menu.style.left = left + 'px';
+                }, 0);
+            }
+        });
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.action-dropdown')) {
+            document.querySelectorAll('.action-menu').forEach(menu => {
+                menu.classList.remove('show');
+            });
+        }
+    });
+
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const roleFilter = document.getElementById('roleFilter');
+    const statusFilter = document.getElementById('statusFilter');
+
+    function filterTables() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const selectedRole = roleFilter.value.toLowerCase();
+        const selectedStatus = statusFilter.value.toLowerCase();
+
+        ['superAdminsTable', 'projectUsersTable', 'unassignedUsersTable'].forEach(tableId => {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const rows = table.querySelectorAll('tbody tr:not(.table-empty)');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const userName = row.querySelector('.user-name')?.textContent.toLowerCase() || '';
+                const userEmail = row.querySelector('.user-email')?.textContent.toLowerCase() || '';
+                const userRole = row.getAttribute('data-user-role') || '';
+                const userStatus = row.getAttribute('data-user-status') || '';
+
+                const matchesSearch = userName.includes(searchTerm) || userEmail.includes(searchTerm);
+                const matchesRole = !selectedRole || userRole.includes(selectedRole);
+                const matchesStatus = !selectedStatus || userStatus === selectedStatus;
+
+                if (matchesSearch && matchesRole && matchesStatus) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Show empty state if no results
+            const emptyRow = table.querySelector('tbody tr.table-empty');
+            if (emptyRow) {
+                if (visibleCount === 0 && rows.length > 0) {
+                    emptyRow.style.display = '';
+                } else {
+                    emptyRow.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    searchInput.addEventListener('input', filterTables);
+    roleFilter.addEventListener('change', filterTables);
+    statusFilter.addEventListener('change', filterTables);
+</script>
 
 {% endblock %}
 

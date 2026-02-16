@@ -405,10 +405,10 @@
             </div>
         </div>
 
-        <div class="form-grid" id="road_fields_block" style="margin-top:10px;display:none">
+        <div class="form-grid" id="road_fields_block" style="margin-top:10px;display:{% if project.project_type == 'Road' %}{% else %}none{% endif %}">
             <div style="min-width:260px">
                 <label>Road Category (required only for Road)</label>
-                <select name="road_category" id="road_category">
+                <select name="road_category" id="road_category" {% if project.project_type == 'Road' %}required{% endif %}>
                     <option value="">-- Select road category --</option>
                     {% for rc in road_categories %}
                         <option value="{{ rc }}" {% if project.road_category == rc %}selected{% endif %}>{{ rc }}</option>
@@ -418,7 +418,7 @@
 
             <div style="min-width:260px">
                 <label>Road Engineering Type (required only for Road)</label>
-                <select name="road_engineering_type" id="road_engineering_type">
+                <select name="road_engineering_type" id="road_engineering_type" {% if project.project_type == 'Road' %}required{% endif %}>
                     <option value="">-- Select engineering type --</option>
                     <option value="Flexible" {% if project.road_engineering_type == 'Flexible' %}selected{% endif %}>Flexible</option>
                     <option value="Rigid" {% if project.road_engineering_type == 'Rigid' %}selected{% endif %}>Rigid</option>
@@ -432,7 +432,7 @@
     </section>
 
     <!-- ================= STRETCH SYSTEM (ROAD ONLY) ================= -->
-    <section class="form-section" id="stretch_system_block" style="display:none">
+    <section class="form-section" id="stretch_system_block" style="display:{% if project.project_type == 'Road' %}{% else %}none{% endif %}">
         <h3 class="section-title">Stretch System (Road Projects)</h3>
         <div class="help-text">Mandatory for Road projects. Stretches remain editable after creation.</div>
 
@@ -449,6 +449,15 @@
             <div style="display:flex;align-items:flex-end;gap:8px">
                 <button type="button" class="btn-primary" id="btnGenerateStretches">Generate stretches</button>
                 <button type="button" class="btn-secondary" id="btnAlignStretches" style="display:none">Align All Remaining Stretches</button>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:10px">
+            <div style="min-width:260px">
+                <label for="stretchFilter">Stretches</label>
+                <select id="stretchFilter">
+                    <option value="all">All stretches</option>
+                </select>
             </div>
         </div>
 
@@ -542,16 +551,16 @@
     <hr>
 
     <!-- ================= CONCRETE DETAILS ================= -->
-    <section class="form-section" id="concrete_details_block" style="display:none">
+    <section class="form-section" id="concrete_details_block" style="display:{% if project.project_type == 'Road' and project.road_engineering_type == 'Rigid' %}{% else %}none{% endif %}">
         <h3 class="section-title">Concrete Pavement Details (optional)</h3>
 
         <div class="form-grid">
             <div>
                 <label>Concrete Pavement Type</label>
-                <select name="pavement_type">
+                <select name="concrete_pavement_type">
                     <option value="">-- Select --</option>
-                    <option value="PQC" {% if project.pavement_type == 'PQC' %}selected{% endif %}>PQC</option>
-                    <option value="RCC" {% if project.pavement_type == 'RCC' %}selected{% endif %}>RCC</option>
+                    <option value="PQC" {% if project.concrete_pavement_type == 'PQC' %}selected{% endif %}>PQC</option>
+                    <option value="RCC" {% if project.concrete_pavement_type == 'RCC' %}selected{% endif %}>RCC</option>
                 </select>
             </div>
 
@@ -665,6 +674,9 @@
         }, false);
     });
 
+    // Load existing stretches data for editing (inline definition)
+    const STRETCHES_DATA = {{ stretches_json | safe }};
+
     (function(){
         const projectType = document.querySelector('select[name="project_type"]');
         const roadCategory = document.querySelector('select[name="road_category"]');
@@ -680,17 +692,25 @@
         const stretchList = document.getElementById('stretchSegmentList');
         const stretchDetails = document.getElementById('stretchDetailsList');
         const segmentsJson = document.getElementById('stretch_segments_json');
+        const stretchFilter = document.getElementById('stretchFilter');
 
         let segments = [];
 
-        // Load stretches from hidden data element
-        const stretchesDataEl = document.querySelector('script[id="stretches-data"]');
-        if (stretchesDataEl) {
+        // Load stretches from inline data variable
+        console.log('[STRETCH_DEBUG] STRETCHES_DATA available:', typeof STRETCHES_DATA !== 'undefined');
+        if (typeof STRETCHES_DATA !== 'undefined') {
             try {
-                segments = JSON.parse(stretchesDataEl.textContent) || [];
+                segments = STRETCHES_DATA || [];
+                console.log('[STRETCH_DEBUG] Loaded segments:', segments.length, 'stretches');
+                if (segments.length > 0) {
+                    console.log('[STRETCH_DEBUG] First stretch:', segments[0]);
+                }
             } catch (e) {
+                console.error('[STRETCH_DEBUG] Failed to load segments:', e);
                 segments = [];
             }
+        } else {
+            console.warn('[STRETCH_DEBUG] STRETCHES_DATA variable not found');
         }
 
         function isRoad(){
@@ -705,17 +725,9 @@
                 if(roadEngineering) roadEngineering.required = true;
             } else {
                 roadFieldsBlock.style.display = 'none';
-                if(roadCategory){
-                    roadCategory.required = false;
-                    roadCategory.value = '';
-                }
-                if(roadEngineering){
-                    roadEngineering.required = false;
-                    roadEngineering.value = '';
-                }
-                if(concreteBlock){
-                    concreteBlock.style.display = 'none';
-                }
+                if(roadCategory) roadCategory.required = false;
+                if(roadEngineering) roadEngineering.required = false;
+                if(concreteBlock) concreteBlock.style.display = 'none';
             }
         }
 
@@ -755,6 +767,14 @@
             return `${d}/${m}/${y}`;
         }
 
+        function normalizeDateInput(raw) {
+            const digits = String(raw || '').replace(/\D/g, '').slice(0, 8);
+            if (!digits) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+            return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+        }
+
         function chainageFromMeters(m){
             const km = Math.floor(m / 1000);
             const mm = String(m % 1000).padStart(3, '0');
@@ -764,6 +784,7 @@
         function serializeSegments(){
             if(!segmentsJson) return;
             const payload = segments.map(seg => ({
+                id: seg.id || null,
                 sequence_no: seg.sequence_no,
                 stretch_code: seg.stretch_code,
                 stretch_name: seg.stretch_name,
@@ -775,8 +796,10 @@
                 planned_start_date: seg.planned_start_date,
                 planned_end_date: seg.planned_end_date,
                 activities: (seg.activities || []).map(a => ({
+                    id: a.id || null,
+                    project_activity_id: a.project_activity_id || null,
                     name: a.name,
-                    include: !!a.include,
+                    include: a.include !== false,
                     planned_start_date: a.planned_start_date,
                     planned_end_date: a.planned_end_date,
                     start_time: a.start_time || null,
@@ -787,33 +810,101 @@
             segmentsJson.value = JSON.stringify(payload);
         }
 
+        function updateFilterOptions(){
+            if(!stretchFilter) return;
+            const current = stretchFilter.value || 'all';
+            stretchFilter.innerHTML = '';
+
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All stretches';
+            stretchFilter.appendChild(allOpt);
+
+            segments.forEach((seg, idx) => {
+                const opt = document.createElement('option');
+                const code = seg.stretch_code || `ST-${String(idx + 1).padStart(3,'0')}`;
+                const name = seg.stretch_name || `Stretch ${idx + 1}`;
+                opt.value = `idx-${idx}`;
+                opt.textContent = `${code} — ${name}`;
+                stretchFilter.appendChild(opt);
+            });
+
+            const hasCurrent = Array.from(stretchFilter.options).some(o => o.value === current);
+            stretchFilter.value = hasCurrent ? current : 'all';
+        }
+
+        function getFilteredIndexes(){
+            if(!stretchFilter) return segments.map((_, idx) => idx);
+            const value = stretchFilter.value || 'all';
+            if(value === 'all') return segments.map((_, idx) => idx);
+            const match = value.match(/^idx-(\d+)$/);
+            if(!match) return segments.map((_, idx) => idx);
+            const idx = parseInt(match[1], 10);
+            return Number.isNaN(idx) ? segments.map((_, i) => i) : [idx];
+        }
+
         function renderSegments(){
+            console.log('[STRETCH_DEBUG] renderSegments called, segments count:', segments.length);
             if(!stretchEditor || !stretchList || !stretchDetails) return;
             stretchList.innerHTML = '';
             stretchDetails.innerHTML = '';
             if(!segments.length){
+                console.log('[STRETCH_DEBUG] No segments to render, hiding editor');
                 stretchEditor.style.display = 'none';
                 serializeSegments();
                 if(btnAlign) btnAlign.style.display = 'none';
+                if(stretchFilter) stretchFilter.value = 'all';
                 return;
             }
+            console.log('[STRETCH_DEBUG] Rendering', segments.length, 'segments');
             stretchEditor.style.display = '';
             if(btnAlign) btnAlign.style.display = segments.length > 1 ? '' : 'none';
-
-            segments.forEach((seg, idx) => {
+            updateFilterOptions();
+            const visibleIndexes = getFilteredIndexes();
+            visibleIndexes.forEach((idx) => {
+                const seg = segments[idx];
+                if(!seg) return;
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td><strong>${seg.sequence_no}</strong></td>
-                    <td><input type="text" value="${seg.stretch_name}" data-kind="stretch-name" data-idx="${idx}" style="width:100%"></td>
-                    <td><input type="text" value="${chainageFromMeters(seg.start_m)}" data-kind="chainage-start" data-idx="${idx}" style="width:100%"></td>
-                    <td><input type="text" value="${chainageFromMeters(seg.end_m)}" data-kind="chainage-end" data-idx="${idx}" style="width:100%"></td>
-                    <td><input type="number" min="1" step="1" value="${seg.length_m}" data-kind="stretch-length" data-idx="${idx}" style="width:100%"></td>
-                    <td><input type="number" min="0" step="0.01" value="${seg.width_m || ''}" data-kind="stretch-width" data-idx="${idx}" style="width:100%"></td>
-                    <td><input type="number" min="0" step="0.01" value="${seg.depth_m || ''}" data-kind="stretch-depth" data-idx="${idx}" style="width:100%"></td>
-                    <td><input type="text" value="${seg.planned_start_date || ''}" maxlength="10" inputmode="numeric" data-kind="stretch-start" data-idx="${idx}"></td>
-                    <td><input type="text" value="${seg.planned_end_date || ''}" maxlength="10" inputmode="numeric" data-kind="stretch-end" data-idx="${idx}"></td>
+                    <td><input type="text" value="${seg.stretch_name}" data-kind="stretch-name" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit"></td>
+                    <td><input type="text" value="${chainageFromMeters(seg.start_m)}" data-kind="chainage-start" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit"></td>
+                    <td><input type="text" value="${chainageFromMeters(seg.end_m)}" data-kind="chainage-end" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit"></td>
+                    <td><input type="number" min="1" step="1" value="${seg.length_m}" data-kind="stretch-length" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit"></td>
+                    <td><input type="number" min="0" step="0.01" value="${seg.width_m || ''}" data-kind="stretch-width" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:13px"></td>
+                    <td><input type="number" min="0" step="0.01" value="${seg.depth_m || ''}" data-kind="stretch-depth" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:13px"></td>
+                    <td><input type="text" value="${seg.planned_start_date || ''}" maxlength="10" inputmode="numeric" placeholder="DD/MM/YYYY" data-kind="stretch-start" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:13px"></td>
+                    <td><input type="text" value="${seg.planned_end_date || ''}" maxlength="10" inputmode="numeric" placeholder="DD/MM/YYYY" data-kind="stretch-end" data-idx="${idx}" style="width:100%;padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:13px"></td>
                 `;
                 stretchList.appendChild(tr);
+
+                const detail = document.createElement('div');
+                detail.style.marginTop = '12px';
+                detail.style.border = '1px solid rgba(255,255,255,0.08)';
+                detail.style.borderRadius = '10px';
+                detail.style.padding = '10px 12px';
+
+                const showActivities = seg._showActivities === true;
+
+                const activityRows = (seg.activities || []).map((a, aidx) => `
+                    <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;align-items:center;margin-top:6px">
+                        <div style="font-weight:600">${a.name || 'Activity'}</div>
+                        <input type="text" value="${a.planned_start_date || ''}" maxlength="10" inputmode="numeric" placeholder="DD/MM/YYYY" data-kind="act-start" data-idx="${idx}" data-aidx="${aidx}" style="padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:13px">
+                        <input type="text" value="${a.planned_end_date || ''}" maxlength="10" inputmode="numeric" placeholder="DD/MM/YYYY" data-kind="act-end" data-idx="${idx}" data-aidx="${aidx}" style="padding:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:13px">
+                    </div>
+                `).join('');
+
+                detail.innerHTML = `
+                    <button type="button" data-kind="activity-toggle" data-idx="${idx}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;width:100%;background:transparent;border:none;color:inherit;padding:0;text-align:left;cursor:pointer">
+                        <div style="font-weight:600">${seg.stretch_name}</div>
+                        <div style="font-size:12px;opacity:0.75">${showActivities ? 'Hide' : 'Show'}</div>
+                    </button>
+                    <div class="help-text" style="margin-top:-4px">Activities for this stretch.</div>
+                    <div data-kind="activity-container" data-idx="${idx}" style="display:${showActivities ? '' : 'none'}">
+                        ${activityRows || '<div class="help-text">No activities found for this stretch.</div>'}
+                    </div>
+                `;
+                stretchDetails.appendChild(detail);
             });
 
             serializeSegments();
@@ -864,6 +955,7 @@
                     });
                     cursor = end;
                 }
+                if(stretchFilter) stretchFilter.value = 'all';
                 renderSegments();
                 btnGenerate.classList.remove('btn-primary');
                 btnGenerate.classList.add('btn-secondary');
@@ -882,8 +974,21 @@
                 const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
                 if(idx < 0 || idx >= segments.length) return;
                 if(kind === 'stretch-name') segments[idx].stretch_name = String(t.value || '').trim();
-                if(kind === 'stretch-start') segments[idx].planned_start_date = String(t.value || '').trim();
-                if(kind === 'stretch-end') segments[idx].planned_end_date = String(t.value || '').trim();
+                if(kind === 'stretch-start' || kind === 'stretch-end') {
+                    const normalized = normalizeDateInput(t.value || '');
+                    if (t.value !== normalized) t.value = normalized;
+                    if(kind === 'stretch-start') segments[idx].planned_start_date = String(normalized || '').trim();
+                    if(kind === 'stretch-end') segments[idx].planned_end_date = String(normalized || '').trim();
+                }
+                if(kind === 'act-start' || kind === 'act-end') {
+                    const aidx = parseInt(t.getAttribute('data-aidx') || '-1', 10);
+                    const list = segments[idx].activities || [];
+                    if (aidx < 0 || aidx >= list.length) return;
+                    const normalized = normalizeDateInput(t.value || '');
+                    if (t.value !== normalized) t.value = normalized;
+                    if(kind === 'act-start') list[aidx].planned_start_date = String(normalized || '').trim();
+                    if(kind === 'act-end') list[aidx].planned_end_date = String(normalized || '').trim();
+                }
                 if(kind === 'stretch-width') segments[idx].width_m = parseFloat(String(t.value || '0')) || 0;
                 if(kind === 'stretch-depth') segments[idx].depth_m = parseFloat(String(t.value || '0')) || 0;
                 if(kind === 'stretch-length') {
@@ -891,20 +996,43 @@
                 }
                 serializeSegments();
             });
+            stretchBlock.addEventListener('click', function(e){
+                const t = e.target.closest('[data-kind="activity-toggle"]');
+                if(!t) return;
+                const idx = parseInt(t.getAttribute('data-idx') || '-1', 10);
+                if(idx < 0 || idx >= segments.length) return;
+                segments[idx]._showActivities = !(segments[idx]._showActivities === true);
+                const container = stretchDetails.querySelector(`[data-kind="activity-container"][data-idx="${idx}"]`);
+                if(container) container.style.display = segments[idx]._showActivities ? '' : 'none';
+                const label = t.querySelector('div:last-child');
+                if(label) label.textContent = segments[idx]._showActivities ? 'Hide' : 'Show';
+            });
+        }
+
+        if(stretchFilter){
+            stretchFilter.addEventListener('change', function(){
+                renderSegments();
+            });
         }
 
         toggleRoadFields();
         showStretchBlock();
         toggleConcreteBlock();
+        
+        // Populate road length from project data if editing
+        if (totalLenKm && !totalLenKm.value && {{ project.road_length_km or 0 }} > 0) {
+            totalLenKm.value = {{ project.road_length_km or 0 }};
+        }
+        if (stretchCount && !stretchCount.value && segments.length > 0) {
+            stretchCount.value = segments.length;
+        }
+        
+        console.log('[STRETCH_DEBUG] About to call renderSegments with', segments.length, 'segments');
         renderSegments();
+        console.log('[STRETCH_DEBUG] Initialization complete');
     })();
     </script>
 
 </form>
 
 <form id="createUserForm" method="post" action="/projects/create-user"></form>
-
-<!-- Load existing stretches data for editing -->
-<script type="application/json" id="stretches-data">
-{{ stretches_json | safe }}
-</script>

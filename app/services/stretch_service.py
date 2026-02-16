@@ -9,6 +9,7 @@ from app.models.activity_material import ActivityMaterial
 from app.models.planned_material import PlannedMaterial
 from app.models.project_activity import ProjectActivity
 from app.models.road_stretch import RoadStretch
+from app.models.stretch import Stretch as LegacyStretch
 from app.models.stretch_activity import StretchActivity
 from app.models.stretch_material import StretchMaterial
 from app.models.stretch_material_exclusion import StretchMaterialExclusion
@@ -134,6 +135,26 @@ def apply_activities_to_stretches(
                     StretchActivity.is_active == True,
                 ).update({StretchActivity.is_active: False})
 
+            legacy_stretch = (
+                db.query(LegacyStretch)
+                .filter(LegacyStretch.id == int(stretch.id))
+                .first()
+            )
+            if not legacy_stretch:
+                legacy_stretch = LegacyStretch(
+                    id=int(stretch.id),
+                    project_id=int(project_id),
+                    sequence_no=int(getattr(stretch, "sequence_no", 0) or 0),
+                    name=str(getattr(stretch, "stretch_name", "") or ""),
+                    code=str(getattr(stretch, "stretch_code", "") or ""),
+                    length_m=int(getattr(stretch, "length_m", 0) or 0),
+                    planned_start_date=stretch.planned_start_date,
+                    planned_end_date=stretch.planned_end_date,
+                    manual_override=False,
+                )
+                db.add(legacy_stretch)
+                db.flush()
+
             for pa in project_activities:
                 # prevent duplicates (best-effort)
                 exists = (
@@ -148,9 +169,15 @@ def apply_activities_to_stretches(
                 if exists:
                     continue
 
+                activity_name = "Activity"
+                try:
+                    activity_name = str(getattr(getattr(pa, "activity", None), "name", "") or "Activity")
+                except Exception:
+                    activity_name = "Activity"
                 sa = StretchActivity(
                     stretch_id=int(stretch.id),
                     project_activity_id=int(pa.id),
+                    name=activity_name,
                     planned_start_date=None,
                     planned_end_date=None,
                     planned_duration_hours=float(getattr(pa, "default_duration_hours", None)) if getattr(pa, "default_duration_hours", None) is not None else None,

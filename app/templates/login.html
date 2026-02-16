@@ -29,7 +29,6 @@
 
         <div class="login-header">
             <h1 class="login-title">InfraCore</h1>
-            <p class="login-subtitle">Construction ERP Platform</p>
         </div>
 
         {% if request.state.flashes %}
@@ -45,7 +44,7 @@
             <input type="hidden" name="next" value="{{ next or '' }}">
             
             <div class="form-group">
-                <label for="usernameField" class="form-label">Username</label>
+                <label for="usernameField" class="form-label">Username or Email</label>
                 <div class="input-wrapper">
                     <span class="input-icon" aria-hidden="true">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -58,13 +57,13 @@
                         name="username" 
                         id="usernameField" 
                         class="form-input"
-                        placeholder="Enter your username"
+                        placeholder="Enter username or email"
                         required 
                         autocomplete="username"
                         autocapitalize="off" 
                         spellcheck="false" 
                         autofocus 
-                        aria-label="Username">
+                        aria-label="Username or Email">
                 </div>
             </div>
 

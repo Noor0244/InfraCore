@@ -265,6 +265,10 @@ app.include_router(prediction_router)
 from app.routes.material_vendor import router as material_vendor_router
 app.include_router(material_vendor_router)
 
+# Password Reset (OTP-based)
+from app.routes.password_reset import router as password_reset_router
+app.include_router(password_reset_router)
+
 # ======================================================
 # HELPERS
 # ======================================================
