@@ -46,10 +46,15 @@ from app.utils.dates import parse_date_ddmmyyyy_or_iso
 from app.services.project_wizard_service import get_state as wizard_get_state, deactivate as wizard_deactivate
 from app.services.stretch_service import apply_activities_to_stretches
 from app.models.road_stretch import RoadStretch
+from app.models.road_geometry import RoadGeometry
+from app.models.pavement_design import PavementDesign
+from app.models.material_stretch import MaterialStretch
 from app.models.stretch import Stretch as LegacyStretch
 from app.models.stretch_activity import StretchActivity
 from app.models.stretch_material import StretchMaterial
 from app.models.stretch_material_exclusion import StretchMaterialExclusion
+from app.models.material_activity import MaterialActivity
+from app.models.material_consumption_rate import MaterialConsumptionRate
 from app.utils.stretch_generation import chainage_from_meters
 from app.utils.stretch_generation import generate_stretch_segments
 
@@ -501,7 +506,7 @@ def get_project_access(db, project_id, user):
 # LIST PROJECTS
 # =================================================
 @router.get("", response_class=HTMLResponse)
-def projects_page(request: Request, db: Session = Depends(get_db)):
+def projects_page(request: Request, show: str = "active", db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         flash(request, "Please login to continue", "warning")
@@ -510,12 +515,19 @@ def projects_page(request: Request, db: Session = Depends(get_db)):
     base = (
         db.query(Project)
         .outerjoin(ProjectUser, Project.id == ProjectUser.project_id)
-        .filter(
+    )
+
+    # Filter by active or archived based on show parameter
+    if show == "archived":
+        # For archived view, show inactive projects
+        base = base.filter(Project.is_active == False)
+    else:  # Default to "active"
+        # For active view, show active projects with standard filters
+        base = base.filter(
             Project.is_active == True,
             Project.status == "active",
             Project.completed_at.is_(None),
         )
-    )
 
     # Keep the UI clean from seed/test/preset projects (matches Daily Execution behavior)
     base = base.filter(
@@ -538,7 +550,7 @@ def projects_page(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         "projects.html",
-        {"request": request, "projects": projects, "user": user}
+        {"request": request, "projects": projects, "user": user, "show": show}
     )
 
 # =================================================
@@ -551,23 +563,8 @@ def manage_projects_page(request: Request, view: str | None = "active", db: Sess
         flash(request, "Please login to continue", "warning")
         return RedirectResponse("/login", status_code=302)
 
-    query = db.query(Project)
+    return RedirectResponse("/projects", status_code=302)
 
-    # Admin can manage all projects; others manage their own.
-    if user.get("role") not in {"admin", "superadmin"}:
-        query = query.filter(Project.created_by == user["id"])
-
-    if view == "archived":
-        query = query.filter(Project.is_active == False)
-    else:
-        query = query.filter(Project.is_active == True)
-
-    projects = query.order_by(Project.created_at.desc()).all()
-
-    return templates.TemplateResponse(
-        "projects_manage.html",
-        {"request": request, "projects": projects, "view": view, "user": user}
-    )
 
 # =================================================
 # CREATE PROJECT
@@ -4608,7 +4605,7 @@ def archive_project(project_id: int, request: Request, db: Session = Depends(get
     else:
         flash(request, "Project archived successfully", "success")
 
-    return RedirectResponse("/projects/manage", status_code=302)
+    return RedirectResponse("/projects", status_code=302)
 
 
 # =================================================
@@ -4643,7 +4640,7 @@ def delete_project(project_id: int, request: Request, db: Session = Depends(get_
 
     if not project or role != "admin":
         flash(request, "Only admins can delete projects.", "error")
-        return RedirectResponse("/projects/manage", status_code=302)
+        return RedirectResponse("/projects", status_code=302)
 
     old = model_to_dict(project)
 
@@ -4651,6 +4648,12 @@ def delete_project(project_id: int, request: Request, db: Session = Depends(get_
     # Use synchronize_session=False for performance and to avoid stale session issues.
     # IMPORTANT: SQLite enforces FK constraints on DELETE, so we must delete children
     # before parents (activities, project_activities, road_stretches, projects).
+
+    # Disable foreign key constraints temporarily for SQLite
+    try:
+        db.execute("PRAGMA foreign_keys = OFF")
+    except Exception:
+        pass
 
     # 0) Daily work system: leaf tables first (only have report_id FK)
     # These must be deleted before DailyWorkReport
@@ -4697,6 +4700,21 @@ def delete_project(project_id: int, request: Request, db: Session = Depends(get_
             )
         )
     ).delete(synchronize_session=False)
+    db.query(RoadGeometry).filter(
+        RoadGeometry.stretch_id.in_(
+            db.query(RoadStretch.id).filter(RoadStretch.project_id == project_id)
+        )
+    ).delete(synchronize_session=False)
+    db.query(PavementDesign).filter(
+        PavementDesign.stretch_id.in_(
+            db.query(RoadStretch.id).filter(RoadStretch.project_id == project_id)
+        )
+    ).delete(synchronize_session=False)
+    db.query(MaterialStretch).filter(
+        MaterialStretch.stretch_id.in_(
+            db.query(RoadStretch.id).filter(RoadStretch.project_id == project_id)
+        )
+    ).delete(synchronize_session=False)
     db.query(StretchMaterialExclusion).filter(
         StretchMaterialExclusion.stretch_id.in_(
             db.query(RoadStretch.id).filter(RoadStretch.project_id == project_id)
@@ -4722,6 +4740,14 @@ def delete_project(project_id: int, request: Request, db: Session = Depends(get_
             db.query(Activity.id).filter(Activity.project_id == project_id)
         )
     ).delete(synchronize_session=False)
+    db.query(MaterialActivity).filter(
+        MaterialActivity.activity_id.in_(
+            db.query(Activity.id).filter(Activity.project_id == project_id)
+        )
+    ).delete(synchronize_session=False)
+    db.query(MaterialConsumptionRate).filter(
+        MaterialConsumptionRate.project_id == project_id
+    ).delete(synchronize_session=False)
     
     # These have project_id
     db.query(ProcurementLog).filter(ProcurementLog.project_id == project_id).delete(synchronize_session=False)
@@ -4739,9 +4765,39 @@ def delete_project(project_id: int, request: Request, db: Session = Depends(get_
     db.query(PlannedMaterial).filter(PlannedMaterial.project_id == project_id).delete(synchronize_session=False)
     db.query(MaterialStock).filter(MaterialStock.project_id == project_id).delete(synchronize_session=False)
 
+    # 7) Additional cleanup: delete any remaining records with project_id using raw SQL
+    # This catches any tables we might have missed
+    try:
+        # Get all table names that have a project_id column
+        tables_with_project_id = [
+            "project_materials", "project_equipment", "project_costs",
+            "project_schedule", "project_settings", "project_milestones",
+            "project_resources", "project_risks", "project_issues",
+            "project_contracts", "project_vendors", "project_stakeholders",
+            "project_documents", "project_approvals", "project_changes",
+        ]
+        for table in tables_with_project_id:
+            try:
+                db.execute(f"DELETE FROM {table} WHERE project_id = {project_id}")
+            except Exception:
+                # Table doesn't exist or has no project_id, skip
+                pass
+        db.commit()
+    except Exception:
+        pass
+
     # Finally delete project object
     db.delete(project)
-    db.commit()
+    
+    try:
+        db.commit()
+    finally:
+        # Re-enable foreign key constraints
+        try:
+            db.execute("PRAGMA foreign_keys = ON")
+            db.commit()
+        except Exception:
+            pass
 
     log_action(
         db=db,
@@ -4756,4 +4812,4 @@ def delete_project(project_id: int, request: Request, db: Session = Depends(get_
 
     flash(request, "Project deleted successfully", "success")
 
-    return RedirectResponse("/projects/manage", status_code=302)
+    return RedirectResponse("/projects", status_code=302)

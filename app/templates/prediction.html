@@ -2,48 +2,93 @@
 {% block content %}
 
 <style>
-  .pred-shell{max-width:1280px;margin:0 auto}
-  .pred-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-  .pred-title{margin:0}
-  .pred-sub{opacity:.78;font-size:13px;margin-top:6px}
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap');
+
+  .pred-shell{max-width:1240px;margin:0 auto;padding:10px 8px 28px;position:relative;font-family:"Sora", "Segoe UI", sans-serif}
+  .pred-shell::before{content:"";position:absolute;inset:-40px -20px auto -20px;height:220px;background:radial-gradient(120% 140% at 10% 10%, rgba(59,130,246,0.16), transparent 55%),radial-gradient(120% 140% at 80% 0%, rgba(16,185,129,0.14), transparent 55%);pointer-events:none}
+  .pred-shell::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(148,163,184,0.06) 1px, transparent 1px),linear-gradient(90deg, rgba(148,163,184,0.06) 1px, transparent 1px);background-size:36px 36px;opacity:.25;pointer-events:none}
+  .pred-shell > *{position:relative;z-index:1}
+
+  .pred-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding:12px 14px;border:1px solid rgba(148,163,184,0.18);border-radius:16px;background:linear-gradient(135deg, rgba(15,23,42,0.92), rgba(8,15,28,0.85))}
+  .pred-title{margin:0;letter-spacing:-0.4px}
+  .pred-sub{opacity:.75;font-size:13px;margin-top:4px}
 
   .hidden{display:none !important}
 
-  .pred-grid{display:grid;grid-template-columns:380px 1fr;gap:12px}
+  .pred-grid{display:grid;grid-template-columns:360px 1fr;gap:20px}
   @media (max-width: 1100px){.pred-grid{grid-template-columns:1fr}}
 
-  .pred-card{border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);border-radius:14px;padding:14px}
-  .pred-card h3{margin:0 0 10px 0}
+  .pred-card{border:1px solid rgba(56,189,248,0.22);background:rgba(7,14,30,0.92);border-radius:20px;padding:18px 18px 20px;backdrop-filter:blur(8px);box-shadow:0 14px 34px rgba(2,6,23,0.4);animation:rise .35s ease both}
+  .pred-card:nth-child(2){animation-delay:.04s}
+  .pred-card h3{margin:0 0 10px 0;font-size:14px;letter-spacing:.2px}
 
   .mode-row{display:flex;gap:8px;flex-wrap:wrap}
-  .mode-btn{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.10);background:rgba(255,255,255,0.03);cursor:pointer;font-size:12px}
-  .mode-btn.active{border-color:rgba(30,111,216,.55);background:rgba(30,111,216,.18)}
+  .mode-btn{padding:8px 14px;border-radius:999px;border:1px solid rgba(148,163,184,0.24);background:rgba(2,6,23,0.55);cursor:pointer;font-size:12px;color:var(--text-primary)}
+  .mode-btn.active{border-color:rgba(59,130,246,.85);background:rgba(59,130,246,.22)}
 
-  .form-grid{display:grid;grid-template-columns:1fr;gap:10px}
-  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .form-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media (max-width: 520px){.row-2{grid-template-columns:1fr}}
 
-  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
-  .kpi{border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.18);border-radius:12px;padding:12px}
-  .kpi .k{font-size:12px;opacity:.75}
-  .kpi .v{font-size:18px;font-weight:900;margin-top:2px}
+  .form-grid input,.form-grid select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(148,163,184,0.2);background:rgba(2,6,23,0.6);color:var(--text-primary);font-size:12.5px}
+  .form-grid input:focus,.form-grid select:focus{outline:none;border-color:rgba(59,130,246,0.7);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
 
-  .badge{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);font-size:12px}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+  .kpi{border:1px solid rgba(148,163,184,0.2);background:rgba(2,6,23,0.6);border-radius:14px;padding:12px}
+  .kpi .k{font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.4px}
+  .kpi .v{font-size:18px;font-weight:700;margin-top:4px}
+
+  .badge{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(148,163,184,0.2);background:rgba(2,6,23,0.5);font-size:11px}
   .badge.low{border-color:rgba(25,135,84,.45);background:rgba(25,135,84,.18)}
   .badge.medium{border-color:rgba(255,193,7,.45);background:rgba(255,193,7,.18)}
   .badge.high{border-color:rgba(214,69,69,.55);background:rgba(214,69,69,.18)}
 
   .alerts{display:flex;flex-direction:column;gap:8px}
-  .alert{border:1px solid rgba(255,255,255,0.10);background:rgba(255,255,255,0.02);border-radius:12px;padding:10px}
+  .alert{border:1px solid rgba(148,163,184,0.2);background:rgba(2,6,23,0.6);border-radius:12px;padding:10px}
   .alert .msg{font-weight:700}
   .alert .meta{opacity:.75;font-size:12px;margin-top:4px}
 
-  .chart-wrap{border:1px solid rgba(255,255,255,0.08);border-radius:14px;background:rgba(255,255,255,0.02);padding:12px}
-  .chart-title{font-weight:800;margin:0 0 8px 0}
+  .chart-wrap{border:1px solid rgba(148,163,184,0.2);border-radius:16px;background:rgba(2,6,23,0.6);padding:12px}
+  .chart-title{font-weight:700;margin:0 0 8px 0}
 
   .actions{display:flex;gap:10px;flex-wrap:wrap}
-  .btn-ghost{border:1px solid rgba(255,255,255,0.12);background:transparent;color:var(--text-primary);padding:9px 12px;border-radius:10px;cursor:pointer}
-  .btn-ghost:hover{background:rgba(255,255,255,0.06)}
+  .btn-ghost{border:1px solid rgba(148,163,184,0.2);background:rgba(2,6,23,0.4);color:var(--text-primary);padding:8px 12px;border-radius:10px;cursor:pointer}
+  .btn-ghost:hover{background:rgba(59,130,246,0.12)}
+
+  .pred-header .btn-secondary{
+    background:rgba(2,6,23,0.55);
+    color:var(--text-primary);
+    border:1px solid rgba(148,163,184,0.22);
+    box-shadow:none;
+  }
+  .pred-header .btn-secondary:hover{
+    background:rgba(59,130,246,0.12);
+    border-color:rgba(59,130,246,0.45);
+  }
+
+  .req-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .req-table th,.req-table td{padding:10px 12px;border-bottom:1px solid rgba(148,163,184,0.18);text-align:left;vertical-align:top}
+  .req-table th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:rgba(226,232,240,0.7)}
+  .req-table tr:hover{background:rgba(59,130,246,0.08)}
+  .req-meta{font-size:11px;opacity:.7}
+
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+  html:not(.dark) .pred-shell::before{background:radial-gradient(120% 140% at 10% 10%, rgba(59,130,246,0.18), transparent 55%),radial-gradient(120% 140% at 80% 0%, rgba(16,185,129,0.16), transparent 55%)}
+  html:not(.dark) .pred-shell::after{opacity:.18}
+  html:not(.dark) .pred-header{background:linear-gradient(135deg, rgba(248,250,252,0.98), rgba(241,245,249,0.96));border-color:rgba(148,163,184,0.35)}
+  html:not(.dark) .pred-card{background:rgba(255,255,255,0.98);border-color:rgba(148,163,184,0.35);box-shadow:0 12px 26px rgba(15,23,42,0.08)}
+  html:not(.dark) .mode-btn{background:rgba(248,250,252,0.95);border-color:rgba(148,163,184,0.35);color:#0f172a}
+  html:not(.dark) .mode-btn.active{background:rgba(59,130,246,0.12);border-color:rgba(59,130,246,0.6)}
+  html:not(.dark) .form-grid input,html:not(.dark) .form-grid select{background:#ffffff;border-color:rgba(148,163,184,0.45);color:#0f172a}
+  html:not(.dark) .kpi,html:not(.dark) .alert,html:not(.dark) .chart-wrap{background:#ffffff;border-color:rgba(148,163,184,0.35)}
+  html:not(.dark) .badge{background:#f8fafc;border-color:rgba(148,163,184,0.35);color:#0f172a}
+  html:not(.dark) .btn-ghost{background:#ffffff;border-color:rgba(148,163,184,0.45);color:#0f172a}
+  html:not(.dark) .btn-ghost:hover{background:rgba(59,130,246,0.08)}
+  html:not(.dark) .pred-header .btn-secondary{background:#ffffff;border-color:rgba(148,163,184,0.45);color:#0f172a}
+  html:not(.dark) .pred-header .btn-secondary:hover{background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.45)}
+  html:not(.dark) .req-table th{color:rgba(15,23,42,0.7)}
+  html:not(.dark) .req-table tr:hover{background:rgba(59,130,246,0.06)}
 </style>
 
 <div class="pred-shell" id="predShell" data-project-id="{{ project.id }}" data-is-road="{{ '1' if is_road else '0' }}" data-project-type="{{ project_type }}">
@@ -178,6 +223,77 @@
         <button type="button" class="btn-ghost" data-action="Increase safety stock" id="actSafety">Increase safety stock</button>
         <button type="button" class="btn-ghost" data-action="Change supplier" id="actSupplier">Change supplier</button>
       </div>
+
+      <hr style="margin:12px 0; opacity:.35">
+
+      <h3>Next Material Requirements</h3>
+      {% if next_requirements and next_requirements.material_orders and next_requirements.material_orders|length > 0 %}
+      <div style="overflow:auto">
+        <table class="req-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Order By</th>
+              <th>Activity</th>
+              <th>Material</th>
+              <th>Required</th>
+              <th>In Stock</th>
+              <th>Order Qty</th>
+              <th>Vendor</th>
+              <th>Usage</th>
+              <th>Stock Cover</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in next_requirements.material_orders %}
+            <tr>
+              <td>
+                <span class="badge{% if r.status_kind == 'LATE' %} high{% elif r.status_kind in ['DUE','DUE_SOON'] %} medium{% else %} low{% endif %}">
+                  {{ r.status_label }}
+                </span>
+              </td>
+              <td>{{ r.order_by }}</td>
+              <td>
+                {% if r.activity_code %}<strong>{{ r.activity_code }}</strong> — {% endif %}{{ r.activity_name }}
+                <div class="req-meta">Start: {{ r.activity_start }}</div>
+              </td>
+              <td>
+                {% if r.material_code %}<strong>{{ r.material_code }}</strong> — {% endif %}{{ r.material_name }}
+                <div class="req-meta">Unit: {{ r.unit }}</div>
+              </td>
+              <td>{{ r.required_qty }}</td>
+              <td>{{ r.available_qty }}</td>
+              <td><strong>{{ r.to_order_qty }}</strong></td>
+              <td>
+                {% if r.recommended_vendor %}
+                  <div><strong>{{ r.recommended_vendor.vendor_name }}</strong></div>
+                  <div class="req-meta">LT: {{ r.recommended_vendor.lead_time_days }}d{% if r.recommended_vendor.unit_price %} · {{ r.recommended_vendor.unit_price }}/unit{% endif %}</div>
+                {% else %}
+                  <span class="req-meta">No vendor</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.avg_daily_usage %}
+                  {{ r.avg_daily_usage }} / day
+                {% else %}
+                  <span class="req-meta">n/a</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.stock_days %}
+                  {{ r.stock_days }} days
+                {% else %}
+                  <span class="req-meta">n/a</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="req-meta">No upcoming material requirements found.</div>
+      {% endif %}
 
       <hr style="margin:12px 0; opacity:.35">
 

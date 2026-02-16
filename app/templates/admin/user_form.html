@@ -1,236 +1,396 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="page-header" style="margin-bottom:24px">
-    <h1 class="page-title">{{ title }}</h1>
-</div>
-
-<div class="card" style="max-width:1100px;margin:auto;padding:24px">
-
 <style>
-    .input-dark{
-        background:var(--input-bg);
-        border:1px solid var(--input-border);
-        color:var(--text-primary);
-    }
-    .input-dark select{color:var(--text-primary)}
-    .input-dark option{background:var(--input-bg);color:var(--text-primary)}
-    select.input-dark option{background:var(--input-bg);color:var(--text-primary)}
-    .input-dark:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.2)}
-    .input-dark:-webkit-autofill,
-    .input-dark:-webkit-autofill:hover,
-    .input-dark:-webkit-autofill:focus{
-        -webkit-text-fill-color:var(--text-primary);
-        box-shadow:0 0 0px 1000px var(--input-bg) inset;
-        transition:background-color 5000s ease-in-out 0s;
-    }
-    .password-row{display:flex;gap:8px;align-items:center}
-    .btn-icon{background:rgba(0,0,0,0.06);border:1px solid var(--border-color);color:var(--text-primary);padding:8px 10px;border-radius:6px;cursor:pointer}
-    .btn-icon:hover{background:rgba(0,0,0,0.1)}
+  .user-form-page { max-width: 1100px; margin: 0 auto; }
+  .user-form-card { background: rgba(7,14,30,0.92); border: 1px solid rgba(148,163,184,0.22); border-radius: 16px; box-shadow: 0 14px 34px rgba(2,6,23,0.4); padding: 28px; }
+  .user-form-toolbar { background: linear-gradient(135deg, rgba(15,23,42,0.92), rgba(8,15,28,0.85)); border: 1px solid rgba(148,163,184,0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; }
+
+  .user-form-page h1 { color: #e2e8f0; margin: 0 0 8px 0; font-size: 28px; font-weight: 600; }
+  .user-form-page .subtitle { color: rgba(226,232,240,0.75); font-size: 14px; margin: 0; }
+
+  .user-form-page input,
+  .user-form-page select,
+  .user-form-page textarea {
+    background: rgba(2,6,23,0.6);
+    border: 1px solid rgba(148,163,184,0.22);
+    color: #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+  }
+
+  .user-form-page input::placeholder { color: rgba(226,232,240,0.5); }
+
+  .user-form-page input:focus,
+  .user-form-page select:focus,
+  .user-form-page textarea:focus {
+    outline: none;
+    border-color: rgba(59,130,246,0.6);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    background: rgba(2,6,23,0.8);
+  }
+
+  .section-group { background: rgba(15,23,42,0.55); border: 1px solid rgba(148,163,184,0.18); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+  .section-title { color: #e2e8f0; font-size: 16px; font-weight: 600; margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
+
+  .form-group { display: flex; flex-direction: column; }
+  .form-group label { color: rgba(226,232,240,0.85); font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+  .help-text { color: rgba(226,232,240,0.6); font-size: 12px; margin-top: 6px; }
+
+  .password-row { display: flex; gap: 8px; align-items: stretch; }
+  .password-row input { flex: 1; }
+
+  .btn-icon {
+    background: rgba(59,130,246,0.18);
+    border: 1px solid rgba(59,130,246,0.4);
+    color: #60a5fa;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-icon:hover {
+    background: rgba(59,130,246,0.28);
+    border-color: rgba(59,130,246,0.6);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #ffffff;
+    padding: 11px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+  }
+
+  .btn-primary:hover { box-shadow: 0 8px 16px rgba(34,197,94,0.3); }
+
+  .btn-secondary {
+    background: rgba(107,112,128,0.4);
+    color: #e2e8f0;
+    padding: 11px 20px;
+    border: 1px solid rgba(148,163,184,0.22);
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(107,112,128,0.55);
+    border-color: rgba(148,163,184,0.35);
+  }
+
+  .btn-danger {
+    background: rgba(239,68,68,0.15);
+    color: #f87171;
+    padding: 6px 12px;
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger:hover {
+    background: rgba(239,68,68,0.25);
+    border-color: rgba(239,68,68,0.5);
+  }
+
+  .badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+  .badge-info { background: rgba(59,130,246,0.2); color: #60a5fa; }
+
+  .table { width: 100%; border-collapse: collapse; }
+  .table thead th { background: rgba(15,23,42,0.8); color: #cbd5e1; padding: 12px; text-align: left; font-weight: 600; border-bottom: 1px solid rgba(148,163,184,0.2); }
+  .table tbody td { padding: 12px; border-bottom: 1px solid rgba(148,163,184,0.1); color: #e2e8f0; }
+  .table tbody tr:hover { background: rgba(59,130,246,0.08); }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; }
+  .checkbox-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+  .checkbox-row label { margin: 0; cursor: pointer; color: #e2e8f0; }
+
+  /* Light Mode Overrides */
+  html:not(.dark) .user-form-toolbar {
+    background: linear-gradient(135deg, rgba(248,250,252,0.98), rgba(241,245,249,0.96));
+    border-color: #e2e8f0;
+  }
+
+  html:not(.dark) .user-form-card {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 12px 26px rgba(15,23,42,0.08);
+  }
+
+  html:not(.dark) .user-form-page h1 { color: #0f172a; }
+  html:not(.dark) .user-form-page .subtitle { color: rgba(15,23,42,0.65); }
+
+  html:not(.dark) .user-form-page input,
+  html:not(.dark) .user-form-page select,
+  html:not(.dark) .user-form-page textarea {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+
+  html:not(.dark) .user-form-page input::placeholder { color: rgba(15,23,42,0.45); }
+
+  html:not(.dark) .user-form-page input:focus,
+  html:not(.dark) .user-form-page select:focus,
+  html:not(.dark) .user-form-page textarea:focus {
+    border-color: rgba(59,130,246,0.5);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    background: #fafbfc;
+  }
+
+  html:not(.dark) .section-group {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  html:not(.dark) .section-title { color: #0f172a; }
+  html:not(.dark) .form-group label { color: rgba(15,23,42,0.75); }
+  html:not(.dark) .help-text { color: rgba(15,23,42,0.55); }
+
+  html:not(.dark) .btn-icon {
+    background: rgba(59,130,246,0.1);
+    border-color: rgba(59,130,246,0.25);
+    color: #3b82f6;
+  }
+
+  html:not(.dark) .btn-icon:hover {
+    background: rgba(59,130,246,0.18);
+    border-color: rgba(59,130,246,0.4);
+  }
+
+  html:not(.dark) .btn-secondary {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+
+  html:not(.dark) .btn-secondary:hover {
+    background: #cbd5e1;
+    border-color: #94a3b8;
+  }
+
+  html:not(.dark) .btn-danger {
+    background: rgba(239,68,68,0.1);
+    border-color: rgba(239,68,68,0.2);
+    color: #dc2626;
+  }
+
+  html:not(.dark) .btn-danger:hover {
+    background: rgba(239,68,68,0.15);
+    border-color: rgba(239,68,68,0.3);
+  }
+
+  html:not(.dark) .badge-info {
+    background: rgba(59,130,246,0.1);
+    color: #2563eb;
+  }
+
+  html:not(.dark) .table thead th {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+
+  html:not(.dark) .table tbody td { color: #1e293b; }
+  html:not(.dark) .table tbody tr:hover { background: rgba(59,130,246,0.05); }
+
+  html:not(.dark) .checkbox-row label { color: #0f172a; }
+  html:not(.dark) .checkbox-row input[type="checkbox"] { accent-color: #3b82f6; }
+
+  html:not(.dark) .btn-primary {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(22,163,74,0.2);
+  }
+
+  html:not(.dark) .btn-primary:hover {
+    box-shadow: 0 8px 16px rgba(22,163,74,0.3);
+  }
+
+  html:not(.dark) .user-form-page span[style*="opacity"] { color: rgba(15,23,42,0.65); }
+
+  html:not(.dark) .user-form-page hr { border-color: #e2e8f0; }
 </style>
 
-<!-- ================================================= -->
-<!-- USER SAVE FORM (UNCHANGED LOGIC) -->
-<!-- ================================================= -->
-<form
-    method="post"
-    action="{% if user_data %}/admin/users/{{ user_data.id }}/update{% else %}/admin/users/create{% endif %}"
->
+<div class="user-form-page">
+  <div class="user-form-toolbar">
+    <h1>{{ title }}</h1>
+    <p class="subtitle">
+      {% if user_data %}Manage user details and project assignments.{% else %}Create a new system user account.{% endif %}
+    </p>
+  </div>
 
-    <h3 class="section-title">User Details</h3>
+  <div class="user-form-card">
 
-    <div class="form-grid" style="margin-bottom:20px">
+    <!-- USER DETAILS FORM -->
+    <form method="post" action="{% if user_data %}/admin/users/{{ user_data.id }}/update{% else %}/admin/users/create{% endif %}">
 
-        <div>
-            <label>Username</label>
-            {% if user_data %}
-                <input type="text" value="{{ user_data.username }}" disabled class="input-dark">
-            {% else %}
-                <input type="text" name="username" value="" required class="input-dark" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            {% endif %}
-        </div>
-
-        <div>
-            <label>Email</label>
-            <input type="email" name="email" value="{{ user_data.email if user_data else '' }}" class="input-dark" autocomplete="off">
-        </div>
-
-        <div>
-            <label>Password {% if user_data %}(leave blank to keep same){% endif %}</label>
-            {% if user_data %}
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-                <label style="display:flex;align-items:center;gap:8px;margin:0">
-                    <input type="checkbox" id="updatePasswordToggle">
-                    Update password
-                </label>
-            </div>
-            {% endif %}
-            <div class="password-row">
-                <input type="password" name="password" id="passwordField" value="" class="input-dark" {% if not user_data %}required{% endif %} {% if user_data %}disabled{% endif %} autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false">
-                <button type="button" class="btn-icon" id="togglePassword">Show</button>
-            </div>
-            <div class="help-text" style="margin-top:6px">Use a strong password with letters, numbers, and symbols.</div>
-        </div>
-
-        <div>
-            <label>System Role</label>
-            <select name="role" required class="input-dark">
-                {% if user and user["role"] == "superadmin" %}
-                <option value="superadmin" {% if user_data and user_data.role == "superadmin" %}selected{% endif %}>
-                    SuperAdmin
-                </option>
-                {% endif %}
-                <option value="user" {% if user_data and user_data.role == "user" %}selected{% endif %}>
-                    User
-                </option>
-                <option value="admin" {% if user_data and user_data.role == "admin" %}selected{% endif %}>
-                    Admin
-                </option>
-            </select>
-        </div>
-
-    </div>
-
-    <div style="margin-top:28px;display:flex;gap:12px">
-        <button
-            type="submit"
-            style="
-                background:#22c55e;
-                color:#fff;
-                padding:10px 18px;
-                border:none;
-                border-radius:6px;
-                font-weight:600;
-                cursor:pointer;
-            ">
-            💾 Save User
-        </button>
-
-        <a href="/admin/users"
-           style="
-               background:#6b7280;
-               color:#fff;
-               padding:10px 18px;
-               border-radius:6px;
-               text-decoration:none;
-               font-weight:500;
-           ">
-            Cancel
-        </a>
-    </div>
-
-</form>
-
-<!-- ================================================= -->
-<!-- PROJECT ASSIGNMENTS -->
-<!-- ================================================= -->
-{% if user_data %}
-<hr style="margin:32px 0">
-
-<h3 class="section-title">Project Assignments</h3>
-
-<!-- CURRENT ASSIGNMENTS -->
-<div class="card" style="margin-bottom:20px;padding:16px">
-
-    <h4 style="margin-top:0;margin-bottom:12px">Assigned Projects</h4>
-
-    {% if project_users %}
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Project</th>
-                <th style="width:160px">Role</th>
-                <th style="width:120px">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for pu in project_users %}
-            <tr>
-                <td><strong>{{ pu.project.name }}</strong></td>
-                <td>
-                    <span class="badge badge-info">
-                        {{ pu.role_in_project|capitalize }}
-                    </span>
-                </td>
-                <td>
-                    <form
-                        method="post"
-                        action="/admin/projects/{{ pu.project_id }}/users/{{ user_data.id }}/remove"
-                    >
-                        <button
-                            style="
-                                background:#ef4444;
-                                color:#fff;
-                                padding:5px 10px;
-                                border:none;
-                                border-radius:5px;
-                                cursor:pointer;
-                            ">
-                            Remove
-                        </button>
-                    </form>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-        <p style="opacity:0.7">No project assignments.</p>
-    {% endif %}
-</div>
-
-<!-- ADD TO PROJECT (✅ FIXED & WORKING) -->
-<div class="card" style="padding:16px">
-
-    <h4 style="margin-top:0;margin-bottom:12px">Add to Project</h4>
-
-    <form method="post" action="/admin/projects/assign-user">
-
-        <!-- REQUIRED -->
-        <input type="hidden" name="user_id" value="{{ user_data.id }}">
+      <div class="section-group">
+        <h3 class="section-title">👤 Account Details</h3>
 
         <div class="form-grid">
+          <div class="form-group">
+            <label>Username</label>
+            {% if user_data %}
+              <input type="text" value="{{ user_data.username }}" disabled>
+            {% else %}
+              <input type="text" name="username" value="" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            {% endif %}
+          </div>
 
-            <div>
-                <label>Project</label>
-                <select name="project_id" required class="input-dark">
-                    {% for p in all_projects %}
-                        <option value="{{ p.id }}">{{ p.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" value="{{ user_data.email if user_data else '' }}" autocomplete="off">
+          </div>
 
-            <div>
-                <label>Role in Project</label>
-                <select name="role_in_project" class="input-dark">
-                    <option value="manager">Manager</option>
-                    <option value="member" selected>Member</option>
-                    <option value="viewer">Viewer</option>
-                </select>
-            </div>
-
+          <div class="form-group" style="grid-column: 1/-1;">
+            <label>System Role</label>
+            <select name="role" required>
+              {% if user and user["role"] == "superadmin" %}
+              <option value="superadmin" {% if user_data and user_data.role == "superadmin" %}selected{% endif %}>
+                🔑 SuperAdmin
+              </option>
+              {% endif %}
+              <option value="admin" {% if user_data and user_data.role == "admin" %}selected{% endif %}>
+                🛡️ Admin
+              </option>
+              <option value="user" {% if user_data and user_data.role == "user" %}selected{% endif %}>
+                👥 User
+              </option>
+            </select>
+          </div>
         </div>
+      </div>
 
-        <div style="margin-top:14px">
-            <button
-                type="submit"
-                style="
-                    background:#3b82f6;
-                    color:#fff;
-                    padding:8px 14px;
-                    border:none;
-                    border-radius:6px;
-                    font-weight:600;
-                    cursor:pointer;
-                ">
-                ➕ Assign to Project
-            </button>
+      <div class="section-group">
+        <h3 class="section-title">🔐 Security</h3>
+
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1/-1;">
+            <label>Password {% if user_data %}<span style="opacity:0.6">(leave blank to keep current)</span>{% endif %}</label>
+
+            {% if user_data %}
+            <div class="checkbox-row" style="margin-bottom:12px">
+              <input type="checkbox" id="updatePasswordToggle">
+              <label for="updatePasswordToggle">Update password</label>
+            </div>
+            {% endif %}
+
+            <div class="password-row">
+              <input
+                type="password"
+                name="password"
+                id="passwordField"
+                value=""
+                {% if not user_data %}required{% endif %}
+                {% if user_data %}disabled{% endif %}
+                autocomplete="new-password"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false">
+              <button type="button" class="btn-icon" id="togglePassword">👁️ Show</button>
+            </div>
+            <div class="help-text">Use a strong password combining uppercase, lowercase, numbers, and symbols.</div>
+          </div>
         </div>
+      </div>
 
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button type="submit" class="btn-primary">💾 Save User</button>
+        <a href="/admin/users" class="btn-secondary">Cancel</a>
+      </div>
     </form>
-</div>
-{% endif %}
 
+    <!-- PROJECT ASSIGNMENTS -->
+    {% if user_data %}
+    <hr style="border:none;border-top:1px solid rgba(148,163,184,0.2);margin:32px 0">
+
+    <div class="section-group">
+      <h3 class="section-title">📋 Project Assignments</h3>
+
+      {% if project_users %}
+      <div style="margin-bottom:20px">
+        <h4 style="color:#cbd5e1;margin:0 0 12px 0;font-size:14px">Currently Assigned</h4>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Project Name</th>
+              <th style="width:140px">Role</th>
+              <th style="width:100px">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for pu in project_users %}
+            <tr>
+              <td><strong>{{ pu.project.name }}</strong></td>
+              <td>
+                <span class="badge badge-info">{{ pu.role_in_project|capitalize }}</span>
+              </td>
+              <td>
+                <form method="post" action="/admin/projects/{{ pu.project_id }}/users/{{ user_data.id }}/remove" style="display:inline">
+                  <button type="submit" class="btn-danger">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p style="color:rgba(226,232,240,0.6);margin:0 0 20px 0">No projects assigned yet.</p>
+      {% endif %}
+
+      <div style="background:rgba(15,23,42,0.4);border:1px solid rgba(148,163,184,0.15);border-radius:10px;padding:16px">
+        <h4 style="color:#cbd5e1;margin:0 0 12px 0;font-size:14px">Assign New Project</h4>
+
+        <form method="post" action="/admin/projects/assign-user">
+          <input type="hidden" name="user_id" value="{{ user_data.id }}">
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Select Project</label>
+              <select name="project_id" required>
+                <option value="">-- Choose a project --</option>
+                {% for p in all_projects %}
+                  <option value="{{ p.id }}">{{ p.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Role in Project</label>
+              <select name="role_in_project">
+                <option value="manager">🔑 Manager</option>
+                <option value="member" selected>👥 Member</option>
+                <option value="viewer">👁️ Viewer</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary" style="margin-top:12px">➕ Assign to Project</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
 </div>
 
 <script>

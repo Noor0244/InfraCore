@@ -175,72 +175,6 @@ async def dashboard(
             for m in project_materials
         }
 
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "title": "Dashboard",
-
-            # USER CONTEXT
-            "user": user,
-            "is_admin": user["role"] in {"admin", "superadmin"},
-
-            # PROJECT CONTEXT
-            "projects": projects,
-            "project": project,
-            "project_id": project.id if project else None,
-            "has_projects": has_projects,
-            "project_role": project_role,
-
-            # KPI / SUMMARY
-            "summary": summary,
-
-            # ALERTS / UPDATES
-            "alerts": alerts,
-
-            # DASHBOARD MODE
-            "dash_view": dash_view,
-            "has_stretches": has_stretches,
-            "stretch_choices": stretch_choices,
-            "stretch_intel": stretch_intel,
-
-            # === NEW DASHBOARD DATA ===
-            "inventory_prediction_data": inventory_prediction_data,
-            "procurement_schedule": procurement_schedule,
-            "inventory_status": inventory_status,
-            "buffer_alerts": buffer_alerts,
-        }
-    )
-    # PROJECT ROLE RESOLUTION
-    # =====================================================
-    project_role = "viewer"
-
-    if user["role"] in {"admin", "superadmin"}:
-        project_role = "admin"
-    elif project:
-        pu = (
-            db.query(ProjectUser)
-            .filter(
-                ProjectUser.project_id == project.id,
-                ProjectUser.user_id == user_id
-            )
-            .first()
-        )
-        if pu:
-            project_role = pu.role_in_project
-
-    # =====================================================
-    # SUMMARY (SAFE WHEN NO PROJECT)
-    # =====================================================
-    summary = (
-        get_summary(project_id=project.id)
-        if project else
-        {
-            "total_reports": 0,
-            "reports_today": 0,
-        }
-    )
-
     if project:
         lookahead_days_eff = int(lookahead_days) if lookahead_days is not None else get_int_setting(db, user_id=int(user_id), key="alerts.lookahead_days", default=30)
         due_soon_days_eff = int(due_soon_days) if due_soon_days is not None else get_int_setting(db, user_id=int(user_id), key="alerts.due_soon_days", default=7)
@@ -331,5 +265,11 @@ async def dashboard(
             "has_stretches": has_stretches,
             "stretch_choices": stretch_choices,
             "stretch_intel": stretch_intel,
+
+            # === NEW DASHBOARD DATA ===
+            "inventory_prediction_data": inventory_prediction_data,
+            "procurement_schedule": procurement_schedule,
+            "inventory_status": inventory_status,
+            "buffer_alerts": buffer_alerts,
         }
     )

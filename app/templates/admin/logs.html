@@ -151,6 +151,99 @@
         .form-grid { flex-direction: column; gap: 10px; }
         .form-group { min-width: 0; }
     }
+
+    /* Light Mode Overrides */
+    html:not(.dark) .card {
+        background: #ffffff;
+        box-shadow: 0 4px 12px rgba(15,23,42,0.08);
+    }
+
+    html:not(.dark) .page-header {
+        border-bottom-color: #e2e8f0;
+    }
+
+    html:not(.dark) .page-title {
+        color: #0f172a;
+    }
+
+    html:not(.dark) .help-text {
+        color: rgba(15,23,42,0.65);
+    }
+
+    html:not(.dark) .table {
+        background: #ffffff;
+    }
+
+    html:not(.dark) .table th {
+        background: #f8fafc;
+        color: #0f172a;
+        border-bottom-color: #e2e8f0;
+    }
+
+    html:not(.dark) .table td {
+        color: #1e293b;
+        border-bottom-color: #e2e8f0;
+    }
+
+    html:not(.dark) .table tr:nth-child(even) td {
+        background: #f8fafc;
+    }
+
+    html:not(.dark) .table tr:hover td {
+        background: rgba(59,130,246,0.05);
+    }
+
+    html:not(.dark) .form-group label {
+        color: #0f172a;
+    }
+
+    html:not(.dark) .form-group input[type="text"],
+    html:not(.dark) .form-group select {
+        background: #ffffff;
+        border-color: #cbd5e1;
+        color: #0f172a;
+    }
+
+    html:not(.dark) .form-group input[type="text"]::placeholder {
+        color: rgba(15,23,42,0.45);
+    }
+
+    html:not(.dark) .form-group input[type="text"]:focus,
+    html:not(.dark) .form-group select:focus {
+        border-color: rgba(59,130,246,0.6);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    html:not(.dark) .btn-primary {
+        background: linear-gradient(90deg, #22c55e 60%, #16a34a 100%);
+        box-shadow: 0 2px 8px rgba(34,197,94,0.15);
+    }
+
+    html:not(.dark) .btn-primary:hover {
+        background: linear-gradient(90deg, #16a34a 60%, #22c55e 100%);
+        box-shadow: 0 4px 12px rgba(34,197,94,0.25);
+    }
+
+    html:not(.dark) .btn-secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    html:not(.dark) .btn-secondary:hover {
+        background: #cbd5e1;
+    }
+
+    html:not(.dark) [style*="white-space:nowrap"] {
+        color: #1e293b;
+    }
+
+    html:not(.dark) [style*="opacity:0.9"] {
+        color: #475569;
+    }
+
+    html:not(.dark) [style*="opacity:0.75"] {
+        color: rgba(15,23,42,0.65);
+    }
 </style>
 
 <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px">

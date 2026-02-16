@@ -1168,6 +1168,9 @@
                         <th>Status</th>
                         <th>Order By</th>
                         <th>Supply Lead Time</th>
+                        <th>Vendor</th>
+                        <th>Usage</th>
+                        <th>Stock Cover</th>
                         <th>Activity</th>
                         <th>Material</th>
                         <th style="text-align:right">Material Required</th>
@@ -1194,6 +1197,31 @@
                         </td>
                         <td title="{{ r.explain or '' }}">{{ r.order_by }}</td>
                         <td title="{{ r.explain or '' }}">{{ r.lead_time_days }} day(s)</td>
+                        <td>
+                            {% if r.recommended_vendor %}
+                                <div><strong>{{ r.recommended_vendor.vendor_name }}</strong></div>
+                                <div class="meta">LT: {{ r.recommended_vendor.lead_time_days }}d{% if r.recommended_vendor.unit_price %} · {{ r.recommended_vendor.unit_price }}/unit{% endif %}</div>
+                            {% elif r.vendor_options and r.vendor_options|length > 0 %}
+                                <div><strong>{{ r.vendor_options[0].vendor_name }}</strong></div>
+                                <div class="meta">LT: {{ r.vendor_options[0].lead_time_days }}d{% if r.vendor_options[0].unit_price %} · {{ r.vendor_options[0].unit_price }}/unit{% endif %}</div>
+                            {% else %}
+                                <span class="meta">No vendor</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.avg_daily_usage %}
+                                {{ r.avg_daily_usage }} / day
+                            {% else %}
+                                <span class="meta">n/a</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.stock_days %}
+                                {{ r.stock_days }} days
+                            {% else %}
+                                <span class="meta">n/a</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if r.activity_code %}<span class="badge">{{ r.activity_code }}</span>{% endif %}
                             {{ r.activity_name }}

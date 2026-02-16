@@ -15,6 +15,8 @@ from app.models.project_user import ProjectUser
 from app.models.activity import Activity
 from app.models.prediction_log import PredictionLog
 from app.services.prediction_service import calculate_predictions, dumps_compact
+from app.services.settings_service import get_int_setting
+from app.services.update_alerts_service import AlertConfig, compute_project_update_alerts
 
 
 router = APIRouter(tags=["Prediction"])
@@ -75,6 +77,16 @@ def prediction_page(
     project_type = (project.project_type or "").strip() or "Building"
     is_road = project_type.lower() == "road"
 
+    lookahead_days = get_int_setting(db, user_id=int(user.get("id")), key="alerts.lookahead_days", default=30)
+    due_soon_days = get_int_setting(db, user_id=int(user.get("id")), key="alerts.due_soon_days", default=7)
+    max_rows = get_int_setting(db, user_id=int(user.get("id")), key="alerts.max_rows", default=30)
+    cfg = AlertConfig(
+        lookahead_days=int(lookahead_days),
+        due_soon_days=int(due_soon_days),
+        max_rows=int(max_rows),
+    )
+    next_requirements = compute_project_update_alerts(db=db, project_id=int(project_id), cfg=cfg)
+
     return templates.TemplateResponse(
         "prediction.html",
         {
@@ -85,6 +97,7 @@ def prediction_page(
             "project_type": project_type,
             "is_road": is_road,
             "activities": activities,
+            "next_requirements": next_requirements,
         },
     )
 

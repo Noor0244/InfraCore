@@ -218,6 +218,47 @@
     outline: none;
   }
 
+  html:not(.dark) .linker-page {
+    --ink: #0f172a;
+    --muted: #64748b;
+    --accent: #0ea5a0;
+    --accent-2: #f59e0b;
+    --card: #ffffff;
+    --card-border: #e2e8f0;
+    --line: #cbd5e1;
+  }
+
+  html:not(.dark) .linker-page::before {
+    background:
+      radial-gradient(120% 120% at 10% 10%, rgba(14, 165, 160, 0.16), transparent 50%),
+      radial-gradient(120% 140% at 90% 0%, rgba(245, 158, 11, 0.14), transparent 55%),
+      radial-gradient(120% 140% at 30% 90%, rgba(59, 130, 246, 0.12), transparent 55%);
+  }
+
+  html:not(.dark) .linker-card {
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+  }
+
+  html:not(.dark) .stretch-select,
+  html:not(.dark) .material-select,
+  html:not(.dark) .activity-filter,
+  html:not(.dark) .activity-qty,
+  html:not(.dark) .activity-unit-select,
+  html:not(.dark) .activity-unit-custom {
+    background: #ffffff;
+    color: #0f172a;
+  }
+
+  html:not(.dark) .linker-pill,
+  html:not(.dark) .linker-count {
+    background: #f8fafc;
+    color: #475569;
+  }
+
+  html:not(.dark) .select-card--activity {
+    background: #f8fafc;
+  }
+
   .activity-unit-select {
     min-width: 70px;
   }

@@ -6,20 +6,33 @@
      style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
 
     <div>
-        <h1 class="page-title">Projects</h1>
+        <h1 class="page-title">
+            Projects
+            {% if show == "archived" %}<span style="opacity:0.7;font-size:0.85em">(Archived View)</span>{% endif %}
+        </h1>
         <p style="opacity:0.7;margin-top:4px">
-            Manage all projects: create, edit, archive, or delete
+            {% if show == "archived" %}
+            View and restore archived projects. Click 'Restore' to unarchive.
+            {% else %}
+            Create, edit, and manage active projects. Click 'Archive' to hide from this view.
+            {% endif %}
         </p>
     </div>
 
-    <!-- ➕ CREATE PROJECT (ADMIN + MANAGER ONLY) -->
-    {% if user["role"] in ["admin", "superadmin", "manager"] %}
-    <div style="display:flex;gap:10px">
+    <!-- VIEW TOGGLES -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="?show=active" class="btn-toggle" style="{% if show == 'active' %}background:#2563eb;color:#fff{% else %}opacity:0.6{% endif %}">
+            ✅ Active
+        </a>
+        <a href="?show=archived" class="btn-toggle" style="{% if show == 'archived' %}background:#f59e0b;color:#fff{% else %}opacity:0.6{% endif %}">
+            📦 Archived
+        </a>
+        {% if user["role"] in ["admin", "superadmin", "manager"] and show == "active" %}
         <a href="/projects/new" class="btn-primary">
             ➕ Create New Project
         </a>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
 <!-- ================= PROJECT LIST ================= -->
@@ -72,22 +85,62 @@
     }
     .badge-success { background: #dcfce7; color: #166534; }
     .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-archived { background: #fed7aa; color: #92400e; }
     .badge-info { background: #dbeafe; color: #0c4a6e; }
-    .btn-sm { font-size: 13px; padding: 6px 12px; border-radius: 7px; }
-    .btn-primary { background: #2563eb; color: #fff; border: none; }
+    .btn-sm { font-size: 13px; padding: 6px 12px; border-radius: 7px; cursor: pointer; border: none; transition: all 0.18s; }
+    .btn-primary { background: #2563eb; color: #fff; border: none; cursor: pointer; border-radius: 8px; padding: 8px 16px; font-weight: 600; transition: all 0.18s; }
     .btn-secondary { background: #e5e7eb; color: #111827; border: none; }
     .btn-info { background: #3b82f6; color: #fff; border: none; }
     .btn-warning { background: #fbbf24; color: #111827; border: none; }
     .btn-danger { background: #ef4444; color: #fff; border: none; }
-    .btn-sm:hover, .btn-primary:hover, .btn-secondary:hover, .btn-info:hover, .btn-warning:hover, .btn-danger:hover {
+    .btn-toggle { padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.2); cursor: pointer; font-weight: 500; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-sm:hover, .btn-primary:hover, .btn-secondary:hover, .btn-info:hover, .btn-warning:hover, .btn-danger:hover, .btn-toggle:hover {
         filter: brightness(1.08);
         box-shadow: 0 2px 8px 0 rgba(59,130,246,0.08);
     }
     .dark .badge-success { background: #16a34a22; color: #86efac; }
     .dark .badge-danger { background: #dc262622; color: #fca5a5; }
+    .dark .badge-archived { background: #d9792622; color: #fed7aa; }
     .dark .badge-info { background: #0c2a4722; color: #60a5fa; }
     .dark .btn-secondary { background: #374151; color: #e5e7eb; }
     .dark .btn-warning { background: #d97706; color: #fff; }
+    .dark .btn-toggle { border-color: rgba(148,163,184,0.3); }
+
+    /* Light Mode */
+    html:not(.dark) .projects-card {
+        background: #ffffff;
+        box-shadow: 0 2px 8px rgba(15,23,42,0.08);
+    }
+
+    html:not(.dark) .projects-table th {
+        background: #f8fafc;
+        color: #0f172a;
+        border-bottom-color: #e2e8f0;
+    }
+
+    html:not(.dark) .projects-table tbody tr:hover {
+        background: rgba(59,130,246,0.05);
+    }
+
+    html:not(.dark) .projects-table tbody tr:nth-child(even) {
+        background: #f8fafc;
+    }
+
+    html:not(.dark) .projects-table th,
+    html:not(.dark) .projects-table td {
+        color: #1e293b;
+        border-bottom-color: #e2e8f0;
+    }
+
+    html:not(.dark) .badge-success { background: #dcfce7; color: #166534; }
+    html:not(.dark) .badge-danger { background: #fee2e2; color: #991b1b; }
+    html:not(.dark) .badge-archived { background: #fed7aa; color: #92400e; }
+    html:not(.dark) .badge-info { background: #dbeafe; color: #0c4a6e; }
+
+    html:not(.dark) .btn-secondary { background: #e5e7eb; color: #111827; }
+    html:not(.dark) .btn-toggle { border-color: #e2e8f0; }
+    html:not(.dark) .btn-toggle:hover { background: #f1f5f9; }
+
     @media (max-width: 900px) {
         .projects-table th, .projects-table td { padding: 10px 8px; }
         .projects-card { padding: 0 0 8px 0; }
@@ -126,29 +179,31 @@
                     {% if project.is_active %}
                         <span class="badge badge-success" title="Active">● Active</span>
                     {% else %}
-                        <span class="badge badge-danger" title="Archived">⏸ Archived</span>
+                        <span class="badge badge-archived" title="Archived">📦 Archived</span>
                     {% endif %}
                 </td>
                 <td style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                     {% if user["role"] in ["admin", "superadmin", "manager"] %}
+                    {% if show != "archived" %}
                     <a href="/projects/{{ project.id }}/edit" class="btn-secondary btn-sm" title="Edit Project">
-                        <span style="font-size:15px">✏️</span>
+                        ✏️ Edit
                     </a>
                     {% endif %}
+                    {% endif %}
                     <a href="/projects/{{ project.id }}" class="btn-info btn-sm" title="Project Details">
-                        <span style="font-size:15px">📄</span>
+                        📄 Details
                     </a>
                     {% if user["role"] in ["admin", "superadmin", "manager"] %}
-                    <form method="post" action="/projects/{{ project.id }}/archive" style="display:inline" onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
-                        <button class="btn-warning btn-sm" type="submit" title="Archive or Restore">
-                            {% if project.is_active %}📦{% else %}♻{% endif %}
+                    <form method="post" action="/projects/{{ project.id }}/archive" style="display:inline" onsubmit="return confirm('{% if project.is_active %}Archive this project? It will be hidden from active lists but can be restored later.{% else %}Restore this project to active status?{% endif %}')">
+                        <button class="btn-warning btn-sm" type="submit" title="{% if project.is_active %}Archive{% else %}Restore{% endif %}">
+                            {% if project.is_active %}📦 Archive{% else %}♻️ Restore{% endif %}
                         </button>
                     </form>
                     {% endif %}
-                    {% if user["role"] in ["admin", "superadmin"] %}
+                    {% if show != "archived" and user["role"] in ["admin", "superadmin"] %}
                     <form method="post" action="/projects/{{ project.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this project permanently? This cannot be undone.')">
                         <button class="btn-danger btn-sm" type="submit" title="Delete Project">
-                            🗑
+                            🗑 Delete
                         </button>
                     </form>
                     {% endif %}
@@ -164,17 +219,27 @@
     {% else %}
     <!-- ================= EMPTY STATE ================= -->
     <div style="text-align:center;padding:48px">
-        <h3>No projects found</h3>
+        {% if show == "archived" %}
+        <h3>No archived projects</h3>
+        <p style="opacity:0.7;margin:8px 0 20px">
+            You have no archived projects yet. Archive active projects to keep your workspace clean.
+        </p>
+        <a href="?show=active" class="btn-primary">
+            ← View Active Projects
+        </a>
+        {% else %}
+        <h3>No active projects</h3>
         <p style="opacity:0.7;margin:8px 0 20px">
             Create your first project to start planning and tracking progress.
         </p>
 
         {% if user["role"] in ["admin", "superadmin", "manager"] %}
         <a href="/projects/new" class="btn-primary">
-            ➕ Create Project
+            ➕ Create New Project
         </a>
         {% else %}
-        <span class="badge badge-info">No access to create projects</span>
+        <span class="badge badge-info">You don't have permission to create projects</span>
+        {% endif %}
         {% endif %}
     </div>
     {% endif %}

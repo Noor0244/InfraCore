@@ -4,13 +4,16 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.models.activity import Activity
 from app.models.activity_material import ActivityMaterial
 from app.models.activity_progress import ActivityProgress
 from app.models.material import Material
 from app.models.material_stock import MaterialStock
+from app.models.material_usage_daily import MaterialUsageDaily
 from app.models.material_vendor import MaterialVendor
+from app.models.project_material_vendor import ProjectMaterialVendor
 from app.models.project_activity import ProjectActivity
 from app.utils.material_lead_time import resolve_effective_lead_time_days
 
@@ -72,6 +75,8 @@ def compute_project_update_alerts(
     cfg = cfg or AlertConfig()
     today = today or date.today()
 
+    usage_window_days = 14
+
     # Planned schedule/qty
     pa_rows = (
         db.query(ProjectActivity)
@@ -109,6 +114,46 @@ def compute_project_update_alerts(
         .all()
     )
     stock_by_material_id = {int(s.material_id): float(s.quantity_available or 0.0) for s in stock_rows}
+
+    # Recent daily usage (project-level, per material)
+    usage_start = today - timedelta(days=usage_window_days)
+    usage_rows = (
+        db.query(
+            MaterialUsageDaily.material_id,
+            func.coalesce(func.sum(MaterialUsageDaily.quantity_used), 0.0),
+        )
+        .filter(
+            MaterialUsageDaily.project_id == int(project_id),
+            MaterialUsageDaily.usage_date >= usage_start,
+        )
+        .group_by(MaterialUsageDaily.material_id)
+        .all()
+    )
+    usage_by_material_id = {int(mid): float(total or 0.0) for (mid, total) in usage_rows}
+
+    # Project-scoped vendors per material (lead time overrides + price)
+    vendor_rows = (
+        db.query(ProjectMaterialVendor, MaterialVendor)
+        .join(MaterialVendor, MaterialVendor.id == ProjectMaterialVendor.vendor_id)
+        .filter(
+            ProjectMaterialVendor.project_id == int(project_id),
+            MaterialVendor.is_active == True,  # noqa: E712
+        )
+        .all()
+    )
+    vendors_by_material_id: dict[int, list[dict[str, object]]] = {}
+    for pmv, vendor in vendor_rows:
+        mid = int(pmv.material_id)
+        eff_lead = pmv.lead_time_days if pmv.lead_time_days is not None else vendor.lead_time_days
+        vendors_by_material_id.setdefault(mid, []).append(
+            {
+                "vendor_id": int(vendor.id),
+                "vendor_name": str(vendor.vendor_name or ""),
+                "lead_time_days": int(eff_lead or 0),
+                "unit_price": float(vendor.unit_price) if vendor.unit_price is not None else None,
+                "vendor_priority": str(vendor.vendor_priority or ""),
+            }
+        )
 
     # Material links for this project (via Activity → project_id)
     mapping_rows = (
@@ -183,7 +228,8 @@ def compute_project_update_alerts(
             consumption_rate = float(getattr(am, "consumption_rate", 0.0) or 0.0)
             required_remaining = max(0.0, remaining_qty * consumption_rate)
 
-            available = float(stock_by_material_id.get(int(mat.id), 0.0) or 0.0)
+            mid = int(mat.id)
+            available = float(stock_by_material_id.get(mid, 0.0) or 0.0)
             to_order = max(0.0, required_remaining - available)
 
             vendor_lead = int(getattr(vendor, "lead_time_days", 0) or 0) if vendor else None
@@ -195,6 +241,33 @@ def compute_project_update_alerts(
             )
             effective_lead_i = int(effective_lead or 0)
             order_by = start - timedelta(days=effective_lead_i)
+
+            # Vendor recommendation
+            vendor_options = list(vendors_by_material_id.get(mid, []))
+            recommended_vendor = None
+            if vendor is not None:
+                recommended_vendor = {
+                    "vendor_id": int(vendor.id),
+                    "vendor_name": str(vendor.vendor_name or ""),
+                    "lead_time_days": int(vendor_lead or 0),
+                    "unit_price": float(vendor.unit_price) if vendor.unit_price is not None else None,
+                    "vendor_priority": str(vendor.vendor_priority or ""),
+                }
+            elif vendor_options:
+                vendor_options_sorted = sorted(
+                    vendor_options,
+                    key=lambda v: (
+                        int(v.get("lead_time_days") or 0),
+                        float(v.get("unit_price") or 1e18),
+                        str(v.get("vendor_priority") or ""),
+                    ),
+                )
+                recommended_vendor = vendor_options_sorted[0]
+
+            avg_daily_usage = float(usage_by_material_id.get(mid, 0.0) or 0.0) / float(usage_window_days)
+            stock_days = None
+            if avg_daily_usage > 0:
+                stock_days = float(available) / avg_daily_usage
 
             status_kind, status_label = _status_for_order(to_order, order_by, today, cfg.due_soon_days)
             explain = _explain_row(today=today, start=start, lead_time_days=effective_lead_i, order_by=order_by)
@@ -211,13 +284,17 @@ def compute_project_update_alerts(
                     "activity_code": str(act_row.get("activity_code") or ""),
                     "activity_name": str(act_row.get("activity_name") or ""),
                     "activity_start": start,
-                    "material_id": int(mat.id),
+                    "material_id": mid,
                     "material_code": str(getattr(mat, "code", "") or ""),
                     "material_name": str(getattr(mat, "name", "") or ""),
                     "unit": str(getattr(mat, "unit", "") or ""),
                     "required_qty": round(required_remaining, 3),
                     "available_qty": round(available, 3),
                     "to_order_qty": round(to_order, 3),
+                    "vendor_options": vendor_options,
+                    "recommended_vendor": recommended_vendor,
+                    "avg_daily_usage": round(avg_daily_usage, 3),
+                    "stock_days": round(stock_days, 1) if stock_days is not None else None,
                 }
             )
 

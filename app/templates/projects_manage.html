@@ -1,40 +1,7 @@
-<!-- This page has been removed. -->
-                {% if user["role"] in ["admin", "superadmin", "manager"] %}
-        <form method="post" action="/projects/{{ p.id }}/archive"
-              onsubmit="return confirm('Archive this project? It will be hidden from active lists but can be restored later.')">
-            <button class="btn-warning">
-                {% if p.is_active %}
-                    Archive
-                {% else %}
-                    Restore
-                {% endif %}
-            </button>
-        </form>
-        {% endif %}
-
-        <!-- 🗑 DELETE -->
-                {% if user["role"] in ["admin", "superadmin"] %}
-                <form method="post"
-                            action="/projects/{{ p.id }}/delete"
-                            onsubmit="return confirm('Delete this project permanently? This action is irreversible and will remove all project data.')">
-                        <button class="btn-danger">Delete</button>
-                </form>
-                {% endif %}
-
-        <!-- 👁 VIEW ONLY (LABEL FOR NON-EDITORS) -->
-        {% if user["role"] not in ["admin", "superadmin", "manager"] %}
-            <span class="badge badge-info">View Only</span>
-        {% endif %}
-
-    </td>
-</tr>
-{% else %}
-<tr>
-    <td colspan="5">No projects found.</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2 class="section-title">Projects</h2>
+    <div class="meta">This page is currently unavailable. Use the Projects list to manage items.</div>
 </div>
-
 {% endblock %}

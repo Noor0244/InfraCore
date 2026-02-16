@@ -1,7 +1,78 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+<style>
+  .add-vendor-page { max-width: 1200px; margin: 0 auto; }
+  .add-vendor-card { background: rgba(7,14,30,0.92); border: 1px solid rgba(148,163,184,0.22); border-radius: 16px; box-shadow: 0 14px 34px rgba(2,6,23,0.4); }
+  .add-vendor-toolbar { background: linear-gradient(135deg, rgba(15,23,42,0.92), rgba(8,15,28,0.85)); border: 1px solid rgba(148,163,184,0.2); border-radius: 14px; padding: 12px 14px; }
+
+  .add-vendor-page input,
+  .add-vendor-page select,
+  .add-vendor-page textarea {
+    background: rgba(2,6,23,0.6);
+    border: 1px solid rgba(148,163,184,0.22);
+    color: #e2e8f0;
+    border-radius: 10px;
+  }
+
+  .add-vendor-page input::placeholder { color: rgba(226,232,240,0.5); }
+
+  .add-vendor-page .btn-secondary {
+    background: rgba(2,6,23,0.55);
+    color: #e2e8f0;
+    border: 1px solid rgba(148,163,184,0.22);
+  }
+
+  .add-vendor-page .btn-secondary:hover {
+    background: rgba(59,130,246,0.12);
+    border-color: rgba(59,130,246,0.45);
+  }
+
+  .add-vendor-page .material-row { background: rgba(15,23,42,0.55); border: 1px solid rgba(148,163,184,0.18); border-radius: 12px; padding: 10px; }
+
+  @media (max-width: 960px) {
+    .add-vendor-page .material-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .add-vendor-page .material-row { grid-template-columns: 1fr; }
+  }
+
+  html:not(.dark) .add-vendor-toolbar {
+    background: linear-gradient(135deg, rgba(248,250,252,0.98), rgba(241,245,249,0.96));
+    border-color: #e2e8f0;
+  }
+
+  html:not(.dark) .add-vendor-card {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 12px 26px rgba(15,23,42,0.08);
+  }
+
+  html:not(.dark) .add-vendor-page input,
+  html:not(.dark) .add-vendor-page select,
+  html:not(.dark) .add-vendor-page textarea {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+
+  html:not(.dark) .add-vendor-page input::placeholder { color: rgba(15,23,42,0.45); }
+
+  html:not(.dark) .add-vendor-page .btn-secondary {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+
+  html:not(.dark) .add-vendor-page .material-row {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+</style>
+
+<div class="add-vendor-page">
+<div class="add-vendor-toolbar" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
   <div>
     <h1 class="page-title">Add Vendor</h1>
     <div class="help-text">Register a vendor and link supplied materials.</div>
@@ -15,7 +86,7 @@
   </div>
 </div>
 
-<div class="card card--page" style="max-width:1200px;margin:auto;">
+<div class="card card--page add-vendor-card">
   <form method="post" action="/vendors/add" id="addVendorForm">
     {% if project_id %}
       <input type="hidden" name="return_to" value="/project/{{ project_id }}/materials" />
@@ -155,6 +226,8 @@
       <button class="btn-primary" type="submit">Add Vendor</button>
     </div>
   </form>
+</div>
+
 </div>
 
 <script>

@@ -116,7 +116,6 @@ def compute_stretch_intelligence(
             RoadStretch.project_id == int(project_id),
             RoadStretch.id.in_(stretch_ids),
             RoadStretch.is_active == True,  # noqa: E712
-            StretchActivity.is_active == True,  # noqa: E712
             Activity.is_active == True,  # noqa: E712
         )
         .all()
