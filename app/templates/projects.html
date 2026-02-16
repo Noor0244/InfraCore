@@ -168,21 +168,21 @@
         <tbody>
         {% for project in projects %}
             <tr>
-                <td>{{ project.id }}</td>
-                <td><strong>{{ project.name }}</strong></td>
-                <td>{{ project.road_type }}</td>
-                <td>{{ project.city }}</td>
-                <td>{{ project.country }}</td>
-                <td>{{ project.planned_start_date|ddmmyyyy }}</td>
-                <td>{{ project.planned_end_date|ddmmyyyy }}</td>
-                <td>
+                <td data-label="ID">{{ project.id }}</td>
+                <td data-label="Project Name"><strong>{{ project.name }}</strong></td>
+                <td data-label="Road Type">{{ project.road_type }}</td>
+                <td data-label="City">{{ project.city }}</td>
+                <td data-label="Country">{{ project.country }}</td>
+                <td data-label="Start">{{ project.planned_start_date|ddmmyyyy }}</td>
+                <td data-label="End">{{ project.planned_end_date|ddmmyyyy }}</td>
+                <td data-label="Status">
                     {% if project.is_active %}
                         <span class="badge badge-success" title="Active">● Active</span>
                     {% else %}
                         <span class="badge badge-archived" title="Archived">📦 Archived</span>
                     {% endif %}
                 </td>
-                <td style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <td data-label="Actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                     {% if user["role"] in ["admin", "superadmin", "manager"] %}
                     {% if show != "archived" %}
                     <a href="/projects/{{ project.id }}/edit" class="btn-secondary btn-sm" title="Edit Project">

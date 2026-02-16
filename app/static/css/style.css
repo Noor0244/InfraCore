@@ -597,3 +597,53 @@ tr.status-DELAYED {
     padding: 4px 8px;
     font-size: 12px;
 }
+/* ==================== MOBILE OPTIMIZATIONS ==================== */
+
+/* Ensure full viewport coverage on mobile */
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+/* Better text wrapping and word breaking */
+body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* Responsive container widths */
+@media (max-width: 480px) {
+    .container { padding: 12px; }
+    button, .button { min-height: 44px; padding: 10px 14px; font-size: 16px; }
+    input, select, textarea { padding: 12px; font-size: 16px; min-height: 44px; }
+    
+    .filter-bar { gap: 6px; }
+    .form-grid { gap: 10px; }
+    
+    /* Responsive heading sizes */
+    h1 { font-size: 24px; }
+    h2 { font-size: 20px; }
+    h3 { font-size: 18px; }
+    
+    /* Better table visibility on mobile */
+    table { font-size: 14px; }
+    th, td { padding: 8px; }
+    
+    .floating-add-project { padding: 0; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+    .container { padding: 16px; }
+    .form-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 769px) {
+    .container { padding: 20px; }
+    .form-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+}
+
+/* iOS safe area for notched devices */
+@supports(padding: max(0px)) {
+    body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+    .floating-add-project { bottom: max(24px, env(safe-area-inset-bottom)); right: max(24px, env(safe-area-inset-right)); }
+}
