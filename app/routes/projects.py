@@ -535,9 +535,19 @@ def projects_page(request: Request, show: str = "active", db: Session = Depends(
         ~func.lower(Project.name).like("%test%"),
     )
 
-    if user.get("role") in {"admin", "superadmin"}:
+    if user.get("role") == "superadmin":
+        # Superadmin sees all projects
         projects = base.distinct().order_by(Project.id.desc()).all()
+    elif user.get("role") == "admin":
+        # Admin sees only projects they created
+        projects = (
+            base.filter(Project.created_by == user["id"])
+            .distinct()
+            .order_by(Project.id.desc())
+            .all()
+        )
     else:
+        # Regular users see projects they created or are assigned to
         projects = (
             base.filter(
                 (Project.created_by == user["id"]) |

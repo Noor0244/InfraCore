@@ -60,9 +60,14 @@ async def dashboard(
     # =====================================================
     # PROJECT VISIBILITY (CONSISTENT WITH /projects)
     # =====================================================
-    if user.get("role") in {"admin", "superadmin"}:
+    if user.get("role") == "superadmin":
+        # Superadmin sees all projects
         base_query = db.query(Project)
+    elif user.get("role") == "admin":
+        # Admin sees only projects they created
+        base_query = db.query(Project).filter(Project.created_by == user_id)
     else:
+        # Regular users see projects they created or are assigned to
         base_query = (
             db.query(Project)
             .outerjoin(ProjectUser, Project.id == ProjectUser.project_id)

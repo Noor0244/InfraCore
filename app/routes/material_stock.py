@@ -61,7 +61,17 @@ def current_stock_page(request: Request, db: Session = Depends(get_db)):
     if not project_id:
         project_id = request.session.get("project_id")
     user = request.session.get("user")
-    projects = db.query(Project).filter(Project.is_active == True).order_by(Project.name.asc()).all()
+    
+    # Apply admin project isolation
+    if user and user.get("role") == "superadmin":
+        projects = db.query(Project).filter(Project.is_active == True).order_by(Project.name.asc()).all()
+    elif user and user.get("role") == "admin":
+        projects = db.query(Project).filter(
+            Project.is_active == True,
+            Project.created_by == user["id"]
+        ).order_by(Project.name.asc()).all()
+    else:
+        projects = []
     
     # Get project details and stretches
     project = None
