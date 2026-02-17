@@ -215,10 +215,11 @@
 
     /* ===== BUTTONS ===== */
     .btn-primary,
-    .btn-secondary {
+    .btn-secondary,
+    .btn-info {
         border: none;
         border-radius: 8px;
-        padding: 10px 20px;
+        padding: 11px 18px;
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
@@ -226,8 +227,10 @@
         text-decoration: none;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
-        white-space: nowrap;
+        white-space: normal;
+        text-align: center;
     }
 
     .btn-primary {
@@ -251,6 +254,18 @@
     .btn-secondary:hover {
         background: var(--border-color);
         border-color: var(--text-secondary);
+    }
+
+    .btn-info {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(139,92,246,0.2);
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        box-shadow: 0 4px 12px rgba(139,92,246,0.3);
+        transform: translateY(-1px);
     }
 
     /* ===== FORM ELEMENTS ===== */
@@ -488,9 +503,31 @@
         }
 
         .btn-primary,
-        .btn-secondary {
-            padding: 8px 16px;
+        .btn-secondary,
+        .btn-info {
+            padding: 10px 14px;
             font-size: 12px;
+        }
+
+        .action-buttons {
+            gap: 10px;
+        }
+
+        .action-buttons a {
+            flex: 1 1 120px;
+            min-width: 120px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .action-buttons {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .action-buttons a {
+            flex: 1 1 auto;
+            width: 100%;
         }
     }
 
@@ -631,11 +668,18 @@
 
     .action-buttons {
         display: flex;
-        gap: 10px;
         flex-wrap: wrap;
+        gap: 12px;
         margin-top: 16px;
         padding-top: 16px;
         border-top: 1px solid var(--border-color);
+    }
+
+    .action-buttons a {
+        flex: 1 1 140px;
+        min-width: 140px;
+        padding: 12px 16px;
+        text-align: center;
     }
 
     .project-selector {
@@ -770,6 +814,7 @@
         <a class="btn-secondary" href="/project/{{ project.id }}/materials">🧱 Material & Vendor</a>
         <a class="btn-secondary" href="/stock/current">📦 Current Stock</a>
         <a class="btn-secondary" href="/execution/{{ project.id }}">🧾 Daily Execution</a>
+        <a class="btn-info" href="/app/billing/dashboard">💰 Billing & Payments</a>
         <a class="btn-primary" href="/projects/{{ project.id }}/prediction">🔮 Prediction</a>
     </div>
 </div>

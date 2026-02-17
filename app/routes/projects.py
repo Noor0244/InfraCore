@@ -16,11 +16,6 @@ import logging
 import re
 import json
 from io import BytesIO
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-from reportlab.lib import colors
 
 from app.db.session import SessionLocal
 from app.models.project import Project
@@ -2319,6 +2314,16 @@ def project_overview_page(project_id: int, request: Request, db: Session = Depen
 
 @router.get("/{project_id}/overview-pdf")
 def project_overview_pdf(project_id: int, request: Request, db: Session = Depends(get_db)):
+    # Lazy import - PDF generation is optional
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        from reportlab.lib import colors
+    except ImportError:
+        return PlainTextResponse("reportlab not installed. Run: pip install reportlab", status_code=500)
+    
     user = request.session.get("user")
     if not user:
         return RedirectResponse("/login", status_code=302)

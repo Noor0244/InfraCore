@@ -116,6 +116,10 @@ from app.routes.project_wizard import router as project_wizard_router
 from app.routes.design_data import router as design_data_router   # ✅ NEW
 from app.routes.road_projects import router as road_projects_router
 
+# BILLING SYSTEM
+from app.routes.billing import router as billing_router
+from app.routes.billing_pages import router as billing_pages_router
+
 # FLASH
 from app.utils.flash import get_flashed_messages, flash
 from app.utils.audit_logger import log_action
@@ -268,6 +272,10 @@ app.include_router(material_vendor_router)
 # Password Reset (OTP-based)
 from app.routes.password_reset import router as password_reset_router
 app.include_router(password_reset_router)
+
+# Billing System
+app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
+app.include_router(billing_pages_router, tags=["billing-pages"])
 
 # ======================================================
 # HELPERS

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Payment - InfraCore</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ux.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_v2.css') }}">
+    <style>
+        .payment-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .header-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .header-section h1 {
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        .bill-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .bill-info-card {
+            background: var(--hover-bg);
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .info-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 0.3rem;
+        }
+
+        .info-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .info-value.amount {
+            color: var(--accent-color);
+            font-family: 'Courier New', monospace;
+        }
+
+        .outstanding-badge {
+            background: var(--error-bg, #fee2e2);
+            color: var(--error-text, #991b1b);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .payment-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-group label .required {
+            color: var(--error-text, #991b1b);
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 20%, transparent);
+        }
+
+        .two-column-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .radio-group {
+            background: var(--hover-bg);
+            padding: 1rem;
+            border-radius: 4px;
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .radio-option input[type="radio"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .radio-option label {
+            margin-bottom: 0;
+            font-weight: 500;
+        }
+
+        .conditional-fields {
+            background: var(--hover-bg);
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid var(--accent-color);
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .conditional-fields.active {
+            display: block;
+        }
+
+        .toggle-section {
+            background: var(--hover-bg);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        .toggle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .toggle-header:hover {
+            color: var(--accent-color);
+        }
+
+        .toggle-content {
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .toggle-content.active {
+            display: block;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .payment-confirmation {
+            background: var(--success-bg, #dcfce7);
+            border: 1px solid var(--success-text, #166534);
+            color: var(--success-text, #166534);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .payment-confirmation.active {
+            display: block;
+        }
+
+        .confirmation-item {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 1rem;
+            padding: 0.5rem 0;
+        }
+
+        .confirmation-item-label {
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-secondary {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .error-message {
+            background: var(--error-bg, #fee2e2);
+            color: var(--error-text, #991b1b);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        .success-message {
+            background: var(--success-bg, #dcfce7);
+            color: var(--success-text, #166534);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .success-message.active {
+            display: block;
+        }
+
+        .amount-calculator {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .calc-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .calc-row.total {
+            border-bottom: 2px solid var(--accent-color);
+            font-weight: 600;
+            padding: 0.75rem 0;
+            font-size: 1.05rem;
+        }
+
+        .calc-label {
+            color: var(--text-secondary);
+        }
+
+        .calc-value {
+            font-family: 'Courier New', monospace;
+            color: var(--text-primary);
+        }
+
+        .calc-value.amount {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .bill-info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .two-column-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .radio-group {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <!-- Error Message -->
+        <div class="error-message" id="errorMessage"></div>
+        <div class="success-message" id="successMessage"></div>
+
+        <!-- Bill Information Header -->
+        <div class="header-section">
+            <h1>Record Payment</h1>
+            
+            <div class="bill-info-grid">
+                <div class="bill-info-card">
+                    <div class="info-label">Bill Number</div>
+                    <div class="info-value" id="billNumberDisplay">-</div>
+                </div>
+                <div class="bill-info-card">
+                    <div class="info-label">Vendor</div>
+                    <div class="info-value" id="vendorDisplay">-</div>
+                </div>
+                <div class="bill-info-card">
+                    <div class="info-label">Bill Total</div>
+                    <div class="info-value amount" id="billTotalDisplay">₹0.00</div>
+                </div>
+                <div class="bill-info-card">
+                    <div class="info-label">Already Paid</div>
+                    <div class="info-value amount" id="alreadyPaidDisplay">₹0.00</div>
+                </div>
+                <div class="bill-info-card">
+                    <div class="info-label">Outstanding</div>
+                    <div class="info-value amount outstanding" id="outstandingDisplay">₹0.00</div>
+                </div>
+                <div class="bill-info-card">
+                    <div class="info-label">Due Date</div>
+                    <div class="info-value" id="dueDateDisplay">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Form Section -->
+        <div class="payment-section">
+            <form id="paymentForm" onsubmit="submitPayment(event)">
+                <div class="section-title">Payment Details</div>
+
+                <!-- Amount Input -->
+                <div class="form-group">
+                    <label for="paymentAmount">
+                        Payment Amount (₹) <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="number" 
+                        id="paymentAmount" 
+                        placeholder="0.00" 
+                        step="0.01" 
+                        min="0"
+                        required
+                        oninput="updateAmountCalculator()"
+                    >
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                        Leave blank to pay outstanding amount
+                    </small>
+                </div>
+
+                <!-- Amount Calculator -->
+                <div class="amount-calculator">
+                    <div class="calc-row">
+                        <span class="calc-label">Outstanding Amount:</span>
+                        <span class="calc-value amount" id="calcOutstanding">₹0.00</span>
+                    </div>
+                    <div class="calc-row">
+                        <span class="calc-label">Payment Amount:</span>
+                        <span class="calc-value amount" id="calcPayment">₹0.00</span>
+                    </div>
+                    <div class="calc-row">
+                        <span class="calc-label">Remaining Balance:</span>
+                        <span class="calc-value amount" id="calcRemaining">₹0.00</span>
+                    </div>
+                </div>
+
+                <!-- Payment Date -->
+                <div class="form-group">
+                    <label for="paymentDate">
+                        Payment Date <span class="required">*</span>
+                    </label>
+                    <input type="date" id="paymentDate" required>
+                </div>
+
+                <!-- Payment Method -->
+                <div class="form-group">
+                    <label>Payment Method <span class="required">*</span></label>
+                    <div class="radio-group">
+                        <div class="radio-option">
+                            <input type="radio" id="method-cheque" name="paymentMethod" value="CHEQUE" required>
+                            <label for="method-cheque">Cheque</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="method-neft" name="paymentMethod" value="NEFT">
+                            <label for="method-neft">NEFT</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="method-rtgs" name="paymentMethod" value="RTGS">
+                            <label for="method-rtgs">RTGS</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="method-cash" name="paymentMethod" value="CASH">
+                            <label for="method-cash">Cash</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="method-upi" name="paymentMethod" value="UPI">
+                            <label for="method-upi">UPI</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="method-transfer" name="paymentMethod" value="BANK_TRANSFER">
+                            <label for="method-transfer">Bank Transfer</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cheque Details -->
+                <div class="conditional-fields" id="chequeFields">
+                    <div class="form-group">
+                        <label for="chequeNumber">Cheque Number <span class="required">*</span></label>
+                        <input type="text" id="chequeNumber" placeholder="e.g., 123456" pattern="[0-9]+">
+                    </div>
+                </div>
+
+                <!-- Bank Transfer Details -->
+                <div class="conditional-fields" id="bankTransferFields">
+                    <div class="two-column-grid">
+                        <div class="form-group">
+                            <label for="bankName">Bank Name <span class="required">*</span></label>
+                            <input type="text" id="bankName" placeholder="e.g., HDFC Bank">
+                        </div>
+                        <div class="form-group">
+                            <label for="accountNumber">Account Number <span class="required">*</span></label>
+                            <input type="text" id="accountNumber" placeholder="e.g., 12345678">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Options -->
+                <div class="toggle-section">
+                    <div class="toggle-header" onclick="toggleSection(this)">
+                        <span style="font-weight: 600; color: var(--text-primary);">Additional Options</span>
+                        <span style="font-size: 1.2rem;">▼</span>
+                    </div>
+                    <div class="toggle-content">
+                        <div class="form-group">
+                            <label for="notes">Payment Notes</label>
+                            <textarea id="notes" placeholder="Reference number, invoice details, etc." 
+                                style="width: 100%; min-height: 100px; padding: 0.8rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-family: inherit;"></textarea>
+                        </div>
+
+                        <div class="checkbox-group" style="margin-top: 1rem;">
+                            <input type="checkbox" id="reconcilledCheckbox">
+                            <label for="reconcilledCheckbox" style="margin-bottom: 0;">
+                                Mark as Reconciled
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Confirmation Preview -->
+                <div class="payment-confirmation" id="confirmationSection">
+                    <h3 style="margin-top: 0; margin-bottom: 1rem;">Payment Summary</h3>
+                    <div class="confirmation-item">
+                        <div class="confirmation-item-label">Bill Number:</div>
+                        <div id="confirmBillNumber">-</div>
+                    </div>
+                    <div class="confirmation-item">
+                        <div class="confirmation-item-label">Amount:</div>
+                        <div id="confirmAmount">₹0.00</div>
+                    </div>
+                    <div class="confirmation-item">
+                        <div class="confirmation-item-label">Date:</div>
+                        <div id="confirmDate">-</div>
+                    </div>
+                    <div class="confirmation-item">
+                        <div class="confirmation-item-label">Method:</div>
+                        <div id="confirmMethod">-</div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="goBack()">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="previewPayment()">Preview</button>
+                    <button type="submit" class="btn btn-primary">Record Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const billId = new URLSearchParams(window.location.search).get('id');
+        let billData = null;
+        let outstanding = 0;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            setPaymentDate();
+            setupPaymentMethodListeners();
+            loadBillData();
+        });
+
+        function setPaymentDate() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('paymentDate').value = today;
+        }
+
+        function setupPaymentMethodListeners() {
+            const methods = document.querySelectorAll('input[name="paymentMethod"]');
+            methods.forEach(method => {
+                method.addEventListener('change', function() {
+                    updateConditionalFields();
+                });
+            });
+        }
+
+        function updateConditionalFields() {
+            const method = document.querySelector('input[name="paymentMethod"]:checked')?.value;
+            
+            document.getElementById('chequeFields').classList.remove('active');
+            document.getElementById('bankTransferFields').classList.remove('active');
+            
+            if (method === 'CHEQUE') {
+                document.getElementById('chequeFields').classList.add('active');
+            } else if (['BANK_TRANSFER', 'NEFT', 'RTGS'].includes(method)) {
+                document.getElementById('bankTransferFields').classList.add('active');
+            }
+        }
+
+        async function loadBillData() {
+            try {
+                const response = await fetch(`/api/billing/bills/${billId}`);
+                if (!response.ok) throw new Error('Bill not found');
+                
+                billData = await response.json();
+                displayBillInfo();
+            } catch (error) {
+                showError('Failed to load bill details');
+                console.error('Error:', error);
+            }
+        }
+
+        function displayBillInfo() {
+            document.getElementById('billNumberDisplay').textContent = billData.bill_number;
+            document.getElementById('vendorDisplay').textContent = billData.vendor_name || 'N/A';
+            document.getElementById('billTotalDisplay').textContent = formatCurrency(billData.total_amount);
+            document.getElementById('alreadyPaidDisplay').textContent = formatCurrency(billData.paid_amount);
+            document.getElementById('dueDateDisplay').textContent = formatDate(billData.due_date);
+            
+            outstanding = billData.outstanding_amount;
+            document.getElementById('outstandingDisplay').textContent = formatCurrency(outstanding);
+            document.getElementById('calcOutstanding').textContent = formatCurrency(outstanding);
+        }
+
+        function updateAmountCalculator() {
+            const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+            const remaining = outstanding - amount;
+            
+            document.getElementById('calcPayment').textContent = formatCurrency(amount);
+            document.getElementById('calcRemaining').textContent = formatCurrency(Math.max(0, remaining));
+        }
+
+        function toggleSection(header) {
+            const content = header.nextElementSibling;
+            const arrow = header.querySelector('span:last-child');
+            
+            content.classList.toggle('active');
+            arrow.style.transform = content.classList.contains('active') ? 'rotate(180deg)' : '';
+        }
+
+        function previewPayment() {
+            const amount = parseFloat(document.getElementById('paymentAmount').value) || outstanding;
+            const date = document.getElementById('paymentDate').value;
+            const method = document.querySelector('input[name="paymentMethod"]:checked')?.value;
+            
+            if (!date || !method) {
+                showError('Please fill in all required fields');
+                return;
+            }
+            
+            document.getElementById('confirmBillNumber').textContent = billData.bill_number;
+            document.getElementById('confirmAmount').textContent = formatCurrency(amount);
+            document.getElementById('confirmDate').textContent = formatDate(date);
+            document.getElementById('confirmMethod').textContent = method;
+            
+            document.getElementById('confirmationSection').classList.add('active');
+            document.getElementById('confirmationSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function submitPayment(event) {
+            event.preventDefault();
+            
+            const formData = {
+                bill_id: billId,
+                amount_paid: parseFloat(document.getElementById('paymentAmount').value) || outstanding,
+                payment_date: document.getElementById('paymentDate').value,
+                payment_method: document.querySelector('input[name="paymentMethod"]:checked').value,
+                cheque_number: document.getElementById('chequeNumber').value || null,
+                bank_name: document.getElementById('bankName').value || null,
+                account_number: document.getElementById('accountNumber').value || null,
+                is_reconciled: document.getElementById('reconcilledCheckbox').checked,
+                notes: document.getElementById('notes').value || null,
+            };
+            
+            // Validate required conditional fields
+            const method = formData.payment_method;
+            if (method === 'CHEQUE' && !formData.cheque_number) {
+                showError('Cheque number is required');
+                return;
+            }
+            if (['BANK_TRANSFER', 'NEFT', 'RTGS'].includes(method) && !formData.bank_name) {
+                showError('Bank details are required');
+                return;
+            }
+            
+            submitPaymentAPI(formData);
+        }
+
+        async function submitPaymentAPI(formData) {
+            try {
+                const response = await fetch('/api/billing/payments/record', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData),
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to record payment');
+                }
+                
+                const payment = await response.json();
+                showSuccess('Payment recorded successfully!');
+                
+                setTimeout(() => {
+                    window.location.href = `/app/billing/bill?id=${billId}`;
+                }, 1500);
+            } catch (error) {
+                showError(error.message);
+                console.error('Error:', error);
+            }
+        }
+
+        function showError(message) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = message;
+            el.classList.add('active');
+            setTimeout(() => el.classList.remove('active'), 5000);
+        }
+
+        function showSuccess(message) {
+            const el = document.getElementById('successMessage');
+            el.textContent = message;
+            el.classList.add('active');
+        }
+
+        function goBack() {
+            window.location.href = `/app/billing/bill?id=${billId}`;
+        }
+
+        // Utility functions
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-IN', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        function formatCurrency(amount) {
+            if (amount === null || amount === undefined) return '₹0.00';
+            return '₹' + parseFloat(amount).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+    </script>
+</body>
+</html>

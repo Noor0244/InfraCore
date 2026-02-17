@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing Reports - InfraCore</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ux.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_v2.css') }}">
+    <style>
+        .reports-container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .reports-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .reports-header h1 {
+            color: var(--text-primary);
+            font-size: 1.8rem;
+            margin: 0;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .tabs-container {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .tab-button {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--text-secondary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-button.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .report-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .report-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        .report-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 0.6rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 20%, transparent);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--hover-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            font-family: 'Courier New', monospace;
+        }
+
+        .stat-value.count {
+            color: var(--text-primary);
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .table thead th {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+
+        .table tbody td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .table tbody tr:hover {
+            background: var(--hover-bg);
+        }
+
+        .amount {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+            font-weight: 500;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: var(--success-bg, #dcfce7);
+            color: var(--success-text, #166534);
+        }
+
+        .badge-warning {
+            background: var(--warning-bg, #fef3c7);
+            color: var(--warning-text, #92400e);
+        }
+
+        .badge-danger {
+            background: var(--error-bg, #fee2e2);
+            color: var(--error-text, #991b1b);
+        }
+
+        .badge-info {
+            background: var(--info-bg, #dbeafe);
+            color: var(--info-text, #1e40af);
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .report-loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: var(--hover-bg);
+            border-radius: 4px;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .reports-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-controls {
+                width: 100%;
+            }
+
+            .report-controls {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .table {
+                font-size: 0.85rem;
+            }
+
+            .table thead th,
+            .table tbody td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="reports-container">
+        <!-- Header -->
+        <div class="reports-header">
+            <h1>📊 Billing Reports</h1>
+            <div class="header-controls">
+                <button class="btn btn-secondary" onclick="refreshAllReports()">🔄 Refresh All</button>
+                <button class="btn btn-secondary" onclick="exportReports()">📥 Export All</button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs-container">
+            <button class="tab-button active" onclick="switchTab(event, 'vendor-tab')">Vendor Summary</button>
+            <button class="tab-button" onclick="switchTab(event, 'project-tab')">Project Costs</button>
+            <button class="tab-button" onclick="switchTab(event, 'outstanding-tab')">Outstanding Bills</button>
+            <button class="tab-button" onclick="switchTab(event, 'payment-tab')">Payment Analysis</button>
+        </div>
+
+        <!-- Vendor Summary Report -->
+        <div id="vendor-tab" class="tab-content active">
+            <div class="report-section">
+                <div class="report-title">Vendor Payment Summary</div>
+                
+                <div class="report-controls">
+                    <div class="form-group">
+                        <label for="vendorSelect">Select Vendor</label>
+                        <select id="vendorSelect" onchange="generateVendorReport()">
+                            <option value="">All Vendors</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="vendorStartDate">Start Date</label>
+                        <input type="date" id="vendorStartDate" onchange="generateVendorReport()">
+                    </div>
+                    <div class="form-group">
+                        <label for="vendorEndDate">End Date</label>
+                        <input type="date" id="vendorEndDate" onchange="generateVendorReport()">
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="vendorStats">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Bills</div>
+                        <div class="stat-value count" id="vendorTotalBills">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Amount</div>
+                        <div class="stat-value" id="vendorTotalAmount">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Paid</div>
+                        <div class="stat-value" id="vendorTotalPaid">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Outstanding</div>
+                        <div class="stat-value" id="vendorOutstanding">₹0.00</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table" id="vendorTableContainer">
+                        <thead>
+                            <tr>
+                                <th>Bill Number</th>
+                                <th>Bill Date</th>
+                                <th class="amount">Total Amount</th>
+                                <th class="amount">Paid</th>
+                                <th class="amount">Outstanding</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vendorTable">
+                            <tr><td colspan="6" class="no-data">Select filters and click generate</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Cost Report -->
+        <div id="project-tab" class="tab-content">
+            <div class="report-section">
+                <div class="report-title">Project Cost Analysis</div>
+                
+                <div class="report-controls">
+                    <div class="form-group">
+                        <label for="projectSelect">Select Project *</label>
+                        <select id="projectSelect" onchange="generateProjectReport()" required>
+                            <option value="">Select Project...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="projectStats">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Cost</div>
+                        <div class="stat-value" id="projectTotalCost">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Paid</div>
+                        <div class="stat-value" id="projectTotalPaid">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Outstanding</div>
+                        <div class="stat-value" id="projectOutstanding">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Average Bill</div>
+                        <div class="stat-value" id="projectAverage">₹0.00</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table" id="projectTable">
+                        <thead>
+                            <tr>
+                                <th>Bill Type</th>
+                                <th class="amount">Count</th>
+                                <th class="amount">Total</th>
+                                <th class="amount">Paid</th>
+                                <th class="amount">Outstanding</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectTableBody">
+                            <tr><td colspan="5" class="no-data">Select a project to view costs</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Outstanding Bills Report -->
+        <div id="outstanding-tab" class="tab-content">
+            <div class="report-section">
+                <div class="report-title">Outstanding Bills Report</div>
+                
+                <div class="report-controls">
+                    <div class="form-group">
+                        <label for="outstandingProject">Project (Optional)</label>
+                        <select id="outstandingProject" onchange="generateOutstandingReport()">
+                            <option value="">All Projects</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Overdue Bills</div>
+                        <div class="stat-value count" id="overdueBillsCount">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Overdue Amount</div>
+                        <div class="stat-value" id="overdueAmount">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Upcoming Bills</div>
+                        <div class="stat-value count" id="upcomingBillsCount">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Outstanding</div>
+                        <div class="stat-value" id="totalOutstanding">₹0.00</div>
+                    </div>
+                </div>
+
+                <h3 style="color: var(--text-primary); margin-top: 2rem; margin-bottom: 1rem;">🔴 Overdue Bills</h3>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Bill Number</th>
+                                <th>Vendor</th>
+                                <th class="amount">Outstanding</th>
+                                <th>Due Date</th>
+                                <th>Days Overdue</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overdueTable">
+                            <tr><td colspan="5" class="no-data">No overdue bills</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="color: var(--text-primary); margin-top: 2rem; margin-bottom: 1rem;">📅 Upcoming Bills</h3>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Bill Number</th>
+                                <th>Vendor</th>
+                                <th class="amount">Outstanding</th>
+                                <th>Due Date</th>
+                                <th>Days Until Due</th>
+                            </tr>
+                        </thead>
+                        <tbody id="upcomingTable">
+                            <tr><td colspan="5" class="no-data">No upcoming bills</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Analysis Report -->
+        <div id="payment-tab" class="tab-content">
+            <div class="report-section">
+                <div class="report-title">Payment Analysis Report</div>
+                
+                <div class="report-controls">
+                    <div class="form-group">
+                        <label for="paymentVendor">Vendor (Optional)</label>
+                        <select id="paymentVendor" onchange="generatePaymentAnalysis()">
+                            <option value="">All Vendors</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentStartDate">Start Date</label>
+                        <input type="date" id="paymentStartDate" onchange="generatePaymentAnalysis()">
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentEndDate">End Date</label>
+                        <input type="date" id="paymentEndDate" onchange="generatePaymentAnalysis()">
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Payments</div>
+                        <div class="stat-value count" id="totalPayments">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Amount Paid</div>
+                        <div class="stat-value" id="totalPaidAnalysis">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Average Payment</div>
+                        <div class="stat-value" id="averagePayment">₹0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Reconciled</div>
+                        <div class="stat-value count" id="reconciledCount">0</div>
+                    </div>
+                </div>
+
+                <h3 style="color: var(--text-primary); margin-top: 2rem; margin-bottom: 1rem;">Payment Methods</h3>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Payment Method</th>
+                                <th class="amount">Count</th>
+                                <th class="amount">Total Amount</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentMethodsTable">
+                            <tr><td colspan="4" class="no-data">No payment data available</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function switchTab(event, tabName) {
+            event.preventDefault();
+            
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Remove active from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadVendors();
+            loadProjects();
+        });
+
+        async function loadVendors() {
+            try {
+                // This will be loaded from API when available
+                // For now, just initialize
+                console.log('Vendors loaded');
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+            }
+        }
+
+        async function loadProjects() {
+            try {
+                // This will be loaded from API when available
+                // For now, just initialize
+                console.log('Projects loaded');
+            } catch (error) {
+                console.error('Error loading projects:', error);
+            }
+        }
+
+        async function generateVendorReport() {
+            const vendorId = document.getElementById('vendorSelect').value;
+            const startDate = document.getElementById('vendorStartDate').value;
+            const endDate = document.getElementById('vendorEndDate').value;
+            
+            try {
+                const url = new URL('/api/billing/reports/vendor-payment', window.location.origin);
+                if (vendorId) url.searchParams.append('vendor_id', vendorId);
+                if (startDate) url.searchParams.append('start_date', startDate);
+                if (endDate) url.searchParams.append('end_date', endDate);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayVendorReport(data.report);
+                }
+            } catch (error) {
+                console.error('Error generating vendor report:', error);
+            }
+        }
+
+        function displayVendorReport(report) {
+            document.getElementById('vendorTotalBills').textContent = report.total_bills;
+            document.getElementById('vendorTotalAmount').textContent = formatCurrency(report.total_amount);
+            document.getElementById('vendorTotalPaid').textContent = formatCurrency(report.total_paid);
+            document.getElementById('vendorOutstanding').textContent = formatCurrency(report.total_outstanding);
+            
+            const tbody = document.getElementById('vendorTable');
+            if (report.bills && report.bills.length > 0) {
+                tbody.innerHTML = report.bills.map(bill => `
+                    <tr>
+                        <td>${bill.bill_number}</td>
+                        <td>${formatDate(bill.bill_date)}</td>
+                        <td class="amount">₹${parseFloat(bill.total_amount).toFixed(2)}</td>
+                        <td class="amount">₹${parseFloat(bill.paid_amount).toFixed(2)}</td>
+                        <td class="amount">₹${parseFloat(bill.outstanding).toFixed(2)}</td>
+                        <td><span class="badge badge-${bill.status.toLowerCase()}">${bill.status}</span></td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" class="no-data">No bills found</td></tr>';
+            }
+        }
+
+        async function generateProjectReport() {
+            const projectId = document.getElementById('projectSelect').value;
+            
+            if (!projectId) {
+                alert('Please select a project');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/billing/reports/project-cost?project_id=${projectId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayProjectReport(data.report);
+                }
+            } catch (error) {
+                console.error('Error generating project report:', error);
+            }
+        }
+
+        function displayProjectReport(report) {
+            document.getElementById('projectTotalCost').textContent = formatCurrency(report.total_cost);
+            document.getElementById('projectTotalPaid').textContent = formatCurrency(report.total_paid);
+            document.getElementById('projectOutstanding').textContent = formatCurrency(report.total_outstanding);
+            document.getElementById('projectAverage').textContent = formatCurrency(report.average_bill_amount);
+            
+            const tbody = document.getElementById('projectTableBody');
+            const types = Object.entries(report.cost_by_type);
+            
+            if (types.length > 0) {
+                tbody.innerHTML = types.map(([type, data]) => `
+                    <tr>
+                        <td>${type}</td>
+                        <td class="amount">${data.count}</td>
+                        <td class="amount">₹${parseFloat(data.amount).toFixed(2)}</td>
+                        <td class="amount">₹${parseFloat(data.paid).toFixed(2)}</td>
+                        <td class="amount">₹${parseFloat(data.outstanding).toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="no-data">No data available</td></tr>';
+            }
+        }
+
+        async function generateOutstandingReport() {
+            const projectId = document.getElementById('outstandingProject').value;
+            
+            try {
+                const url = new URL('/api/billing/reports/outstanding', window.location.origin);
+                if (projectId) url.searchParams.append('project_id', projectId);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayOutstandingReport(data.report);
+                }
+            } catch (error) {
+                console.error('Error generating outstanding report:', error);
+            }
+        }
+
+        function displayOutstandingReport(report) {
+            document.getElementById('overdueBillsCount').textContent = report.overdue.count;
+            document.getElementById('overdueAmount').textContent = formatCurrency(report.overdue.amount);
+            document.getElementById('upcomingBillsCount').textContent = report.upcoming.count;
+            document.getElementById('totalOutstanding').textContent = formatCurrency(report.total_outstanding_amount);
+            
+            // Overdue bills
+            const overdueBody = document.getElementById('overdueTable');
+            if (report.overdue.bills && report.overdue.bills.length > 0) {
+                overdueBody.innerHTML = report.overdue.bills.map(bill => `
+                    <tr>
+                        <td>${bill.bill_number}</td>
+                        <td>${bill.vendor_id}</td>
+                        <td class="amount">₹${parseFloat(bill.outstanding).toFixed(2)}</td>
+                        <td>${formatDate(bill.due_date)}</td>
+                        <td><span class="badge badge-danger">${bill.days_overdue} days</span></td>
+                    </tr>
+                `).join('');
+            }
+            
+            // Upcoming bills
+            const upcomingBody = document.getElementById('upcomingTable');
+            if (report.upcoming.bills && report.upcoming.bills.length > 0) {
+                upcomingBody.innerHTML = report.upcoming.bills.map(bill => `
+                    <tr>
+                        <td>${bill.bill_number}</td>
+                        <td>${bill.vendor_id}</td>
+                        <td class="amount">₹${parseFloat(bill.outstanding).toFixed(2)}</td>
+                        <td>${formatDate(bill.due_date)}</td>
+                        <td><span class="badge badge-warning">${bill.days_until_due} days</span></td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function generatePaymentAnalysis() {
+            const vendorId = document.getElementById('paymentVendor').value;
+            const startDate = document.getElementById('paymentStartDate').value;
+            const endDate = document.getElementById('paymentEndDate').value;
+            
+            try {
+                const url = new URL('/api/billing/reports/payment-analysis', window.location.origin);
+                if (vendorId) url.searchParams.append('vendor_id', vendorId);
+                if (startDate) url.searchParams.append('start_date', startDate);
+                if (endDate) url.searchParams.append('end_date', endDate);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayPaymentAnalysis(data.report);
+                }
+            } catch (error) {
+                console.error('Error generating payment analysis:', error);
+            }
+        }
+
+        function displayPaymentAnalysis(report) {
+            document.getElementById('totalPayments').textContent = report.total_payments;
+            document.getElementById('totalPaidAnalysis').textContent = formatCurrency(report.total_amount_paid);
+            document.getElementById('averagePayment').textContent = formatCurrency(report.average_payment);
+            document.getElementById('reconciledCount').textContent = report.reconciliation_status.reconciled;
+            
+            const tbody = document.getElementById('paymentMethodsTable');
+            const methods = Object.entries(report.payment_by_method);
+            
+            if (methods.length > 0) {
+                const total = report.total_amount_paid;
+                tbody.innerHTML = methods.map(([method, data]) => {
+                    const percentage = total > 0 ? ((data.amount / total) * 100).toFixed(1) : 0;
+                    return `
+                        <tr>
+                            <td>${method}</td>
+                            <td class="amount">${data.count}</td>
+                            <td class="amount">₹${parseFloat(data.amount).toFixed(2)}</td>
+                            <td>${percentage}%</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        async function refreshAllReports() {
+            generateVendorReport();
+            generateProjectReport();
+            generateOutstandingReport();
+            generatePaymentAnalysis();
+        }
+
+        function exportReports() {
+            alert('PDF export functionality will be implemented');
+        }
+
+        // Utility functions
+        function formatCurrency(amount) {
+            if (amount === null || amount === undefined) return '₹0.00';
+            return '₹' + parseFloat(amount).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-IN', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+    </script>
+</body>
+</html>

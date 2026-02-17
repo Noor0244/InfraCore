@@ -1,0 +1,559 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+    .billing-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary, .btn-secondary {
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+        background: #e5e7eb;
+        color: #111827;
+    }
+
+    .dark .btn-secondary {
+        background: #374151;
+        color: white;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 24px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .tab {
+        padding: 14px 20px;
+        cursor: pointer;
+        border: none;
+        background: none;
+        color: var(--text-secondary);
+        font-weight: 600;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.2s;
+    }
+
+    .tab.active {
+        color: var(--accent-color);
+        border-bottom-color: var(--accent-color);
+    }
+
+    /* Bills Table */
+    .bills-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--card-bg);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .bills-table thead th {
+        background: color-mix(in srgb, var(--card-bg) 88%, black 12%);
+        padding: 16px;
+        text-align: left;
+        font-weight: 700;
+        color: var(--text-primary);
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 0.5px;
+    }
+
+    .dark .bills-table thead th {
+        background: color-mix(in srgb, var(--card-bg) 88%, white 12%);
+    }
+
+    .bills-table tbody td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .bills-table tbody tr:hover {
+        background: var(--hover-bg);
+    }
+
+    /* Status Badge */
+    .badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 12px;
+    }
+
+    .badge-pending {
+        background: rgba(237, 137, 54, 0.1);
+        color: #d97706;
+    }
+
+    .badge-partial {
+        background: rgba(59, 130, 246, 0.1);
+        color: #2563eb;
+    }
+
+    .badge-paid {
+        background: rgba(34, 197, 94, 0.1);
+        color: #16a34a;
+    }
+
+    .badge-overdue {
+        background: rgba(220, 38, 38, 0.1);
+        color: #dc2626;
+    }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: var(--text-primary);
+    }
+
+    .form-input, .form-select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--input-border);
+        border-radius: 8px;
+        background: var(--input-bg);
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .form-input:focus, .form-select:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px var(--ring);
+    }
+
+    .date-input {
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+        letter-spacing: 1px;
+    }
+
+    /* Modal */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal.show {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+    .modal-footer {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    /* Stats */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: var(--card-bg);
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .stat-value {
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--accent-color);
+    }
+
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .tabs {
+            overflow-x: auto;
+        }
+
+        .bills-table {
+            font-size: 13px;
+        }
+
+        .bills-table thead th,
+        .bills-table tbody td {
+            padding: 10px 12px;
+        }
+    }
+</style>
+
+<div class="billing-container">
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+        <h1 class="page-title">💰 Billing & Payments</h1>
+        <div class="header-actions">
+            <button class="btn-primary" onclick="openCreateBillModal()">➕ New Bill</button>
+            <button class="btn-secondary" onclick="document.getElementById('billsTab').click()">📋 View Bills</button>
+        </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Total Bills</div>
+            <div class="stat-value" id="totalBillsCount">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Amount</div>
+            <div class="stat-value" id="totalBillsAmount">₹0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Outstanding</div>
+            <div class="stat-value" id="outstandingAmount">₹0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Overdue Bills</div>
+            <div class="stat-value" id="overdueBillsCount">0</div>
+        </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab active" id="billsTab" onclick="switchTab('bills')">Bills</button>
+        <button class="tab" id="paymentsTab" onclick="switchTab('payments')">Payments</button>
+        <button class="tab" id="ratesTab" onclick="switchTab('rates')">Material Rates</button>
+        <button class="tab" id="reportsTab" onclick="switchTab('reports')">Reports</button>
+    </div>
+
+    <!-- BILLS TAB -->
+    <div id="bills-content" class="tab-content">
+        <table class="bills-table">
+            <thead>
+                <tr>
+                    <th>Bill #</th>
+                    <th>Vendor</th>
+                    <th>Project</th>
+                    <th>Amount</th>
+                    <th>Paid</th>
+                    <th>Outstanding</th>
+                    <th>Status</th>
+                    <th>Due Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="billsTableBody">
+                <tr>
+                    <td colspan="9" style="text-align: center; padding: 40px;">Loading bills...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAYMENTS TAB -->
+    <div id="payments-content" class="tab-content" style="display: none;">
+        <div style="margin-bottom: 20px;">
+            <button class="btn-primary" onclick="openRecordPaymentModal()">➕ Record Payment</button>
+        </div>
+        <table class="bills-table">
+            <thead>
+                <tr>
+                    <th>Payment #</th>
+                    <th>Bill #</th>
+                    <th>Vendor</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Method</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="paymentsTableBody">
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px;">No payments recorded</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- RATES TAB -->
+    <div id="rates-content" class="tab-content" style="display: none;">
+        <div style="margin-bottom: 20px;">
+            <button class="btn-primary" onclick="openCreateRateModal()">➕ Create Rate</button>
+        </div>
+        <table class="bills-table">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Vendor</th>
+                    <th>Unit Price</th>
+                    <th>GST %</th>
+                    <th>Total/Unit</th>
+                    <th>Effective From</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="ratesTableBody">
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px;">No rates configured</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div id="reports-content" class="tab-content" style="display: none;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <button class="btn-primary" style="width: 100%; text-align: left;" onclick="generateVendorReport()">
+                📊 Vendor Payment Report
+            </button>
+            <button class="btn-primary" style="width: 100%; text-align: left;" onclick="generateProjectCostReport()">
+                📈 Project Cost Analysis
+            </button>
+            <button class="btn-primary" style="width: 100%; text-align: left;" onclick="generateOutstandingReport()">
+                ⚠️ Outstanding Bills Report
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- CREATE BILL MODAL -->
+<div id="createBillModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Create New Bill</h2>
+        </div>
+        <form id="createBillForm">
+            <div class="form-group">
+                <label class="form-label">Vendor *</label>
+                <select class="form-select" id="vendorSelect" required></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Project *</label>
+                <select class="form-select" id="projectSelect" required></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Bill Date * (DD/MM/YYYY)</label>
+                <input type="text" class="form-input date-input" id="billDate" placeholder="DD/MM/YYYY" maxlength="10" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Due Date * (DD/MM/YYYY)</label>
+                <input type="text" class="form-input date-input" id="dueDate" placeholder="DD/MM/YYYY" maxlength="10" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Payment Terms</label>
+                <input type="text" class="form-input" placeholder="e.g., Net 30 days" id="paymentTerms">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-input" style="resize: vertical;" rows="3" id="billNotes"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeCreateBillModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Create Bill</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Tab switching
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.getElementById(tabName + '-content').style.display = 'block';
+        
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        document.getElementById(tabName + 'Tab').classList.add('active');
+    }
+
+    // Modal functions
+    function openCreateBillModal() {
+        document.getElementById('createBillModal').classList.add('show');
+    }
+
+    function closeCreateBillModal() {
+        document.getElementById('createBillModal').classList.remove('show');
+    }
+
+    // Load bills on page load
+    async function loadBills() {
+        try {
+            const response = await fetch('/billing/bills/project/{{ project_id }}');
+            const data = await response.json();
+            
+            if (data.success && data.bills.length > 0) {
+                const tbody = document.getElementById('billsTableBody');
+                tbody.innerHTML = data.bills.map(bill => `
+                    <tr>
+                        <td><strong>${bill.bill_number}</strong></td>
+                        <td>${bill.vendor_id}</td>
+                        <td>${bill.project_id}</td>
+                        <td>₹${bill.total_amount.toLocaleString('en-IN')}</td>
+                        <td>₹${bill.paid_amount.toLocaleString('en-IN')}</td>
+                        <td>₹${bill.outstanding_amount.toLocaleString('en-IN')}</td>
+                        <td><span class="badge badge-${bill.payment_status.toLowerCase()}">${bill.payment_status}</span></td>
+                        <td>${new Date(bill.bill_date).toLocaleDateString()}</td>
+                        <td><a href="/billing/bill/${bill.id}">View</a></td>
+                    </tr>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading bills:', error);
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBills();
+        
+        // Auto-format date inputs
+        const dateInputs = document.querySelectorAll('.date-input');
+        dateInputs.forEach(input => {
+            input.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                
+                if (value.length > 10) {
+                    value = value.slice(0, 10);
+                }
+                
+                // Auto-insert slashes
+                if (value.length >= 2) {
+                    value = value.slice(0, 2) + '/' + value.slice(2);
+                }
+                if (value.length >= 5) {
+                    value = value.slice(0, 5) + '/' + value.slice(5);
+                }
+                
+                e.target.value = value;
+            });
+            
+            // Format on blur (if pasted)
+            input.addEventListener('blur', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length > 0 && value.length < 8) {
+                    e.target.value = ''; // Clear if incomplete
+                }
+            });
+        });
+
+        // Handle form submission - convert DD/MM/YYYY to YYYY-MM-DD
+        const createBillForm = document.getElementById('createBillForm');
+        if (createBillForm) {
+            createBillForm.addEventListener('submit', function(e) {
+                const billDateInput = document.getElementById('billDate');
+                const dueDateInput = document.getElementById('dueDate');
+                
+                // Convert DD/MM/YYYY to YYYY-MM-DD
+                function convertDate(dateStr) {
+                    if (!dateStr) return '';
+                    const parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        return parts[2] + '-' + parts[1] + '-' + parts[0]; // YYYY-MM-DD
+                    }
+                    return dateStr;
+                }
+                
+                billDateInput.value = convertDate(billDateInput.value);
+                dueDateInput.value = convertDate(dueDateInput.value);
+            });
+        }
+    });
+</script>
+
+{% endblock %}
