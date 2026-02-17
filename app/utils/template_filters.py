@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
@@ -21,6 +22,24 @@ def format_unit_sup(value: str | None) -> Markup:
     return Markup(f'<span class="unit-text">{formatted}</span>')
 
 
+def local_dt(dt, tz_name='Asia/Kolkata', fmt='%d/%m/%Y %H:%M:%S') -> str:
+    """Convert UTC datetime to local timezone."""
+    if not dt:
+        return ''
+    
+    try:
+        import pytz
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=pytz.UTC)
+        local = dt.astimezone(pytz.timezone(tz_name))
+        return local.strftime(fmt)
+    except Exception:
+        # Fallback if pytz not available or other issues
+        if hasattr(dt, 'strftime'):
+            return dt.strftime(fmt)
+        return str(dt)
+
+
 def register_template_filters(templates: Jinja2Templates) -> None:
     """Register shared Jinja filters on a templates instance."""
 
@@ -31,10 +50,4 @@ def register_template_filters(templates: Jinja2Templates) -> None:
     templates.env.filters.setdefault("ddmmyyyy", format_date_ddmmyyyy)
     templates.env.filters.setdefault("ddmmyyyy_dt", format_datetime_ddmmyyyy_hhmm)
     templates.env.filters.setdefault("unit_sup", format_unit_sup)
-
-    # Register local_dt filter for timezone conversion
-    try:
-        from app.utils.filters import local_dt
-        templates.env.filters.setdefault("local_dt", local_dt)
-    except ImportError:
-        pass
+    templates.env.filters.setdefault("local_dt", local_dt)
