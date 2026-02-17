@@ -36,6 +36,19 @@ input, select, textarea {
     color: var(--text);
 }
 
+/* Dark mode input contrast */
+.dark input, .dark select, .dark textarea {
+    background: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--text);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 0.85;
+}
+
 /* =========================
    TABLE
    ========================= */
@@ -91,11 +104,21 @@ button,
     --text: #111827;
     --text-muted: #6b7280;
 
+    /* Shared tokens for newer templates */
+    --text-primary: var(--text);
+    --text-secondary: var(--text-muted);
+
     --card: #ffffff;
     --nav: #1f2937;
 
+    --card-bg: var(--card);
+    --card-border: var(--border-color);
+
     --border: #e5e7eb;
     --border-color: #e5e7eb;
+
+    --input-bg: var(--card);
+    --input-border: var(--border);
 
     --btn: #2563eb;
     --hover-bg: rgba(37, 99, 235, 0.1);
@@ -110,11 +133,20 @@ button,
     --text: #e5e7eb;
     --text-muted: #94a3b8;
 
+    --text-primary: var(--text);
+    --text-secondary: var(--text-muted);
+
     --card: #020617;
     --nav: #020617;
 
+    --card-bg: var(--card);
+    --card-border: var(--border-color);
+
     --border: #334155;
     --border-color: #334155;
+
+    --input-bg: #0b1220;
+    --input-border: #1f2a36;
 
     --btn: #3b82f6;
     --hover-bg: rgba(59, 130, 246, 0.2);
