@@ -82,7 +82,7 @@
 <div class="layout">
     <!-- Sidebar show/hide buttons (right side) -->
     <!-- Sidebar show button (left, at InfraCore logo position) -->
-    <button id="sidebarShowBtn" style="display:none;position:fixed;top:32px;left:0;z-index:2000;background:yellow;color:#2563eb;border:2px solid red;padding:10px 14px 10px 6px;border-radius:0 8px 8px 0;box-shadow:0 2px 8px rgba(0,0,0,0.12);font-size:20px;" aria-label="Show sidebar">⫶</button>
+    <button id="sidebarShowBtn" class="sidebar-show-btn" aria-label="Show sidebar">☰</button>
     <!-- ================= SIDEBAR ================= -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -156,60 +156,81 @@
 
 <!-- Sidebar show/hide script -->
 <script>
-    function updateSidebarButtons() {
-        var sidebar = document.getElementById('sidebar');
-        var showBtn = document.getElementById('sidebarShowBtn');
-        var hideBtn = document.getElementById('sidebarHideBtn');
+    (function() {
+        const sidebar = document.getElementById('sidebar');
+        const showBtn = document.getElementById('sidebarShowBtn');
+        const hideBtn = document.getElementById('sidebarHideBtn');
+        
         if (!sidebar || !showBtn || !hideBtn) return;
-        // Find the vertical position of the InfraCore logo
-        var header = document.querySelector('.sidebar-header');
-        if (header) {
-            var rect = header.getBoundingClientRect();
-            showBtn.style.top = rect.top + window.scrollY + 'px';
+        
+        // Check if device is mobile/tablet
+        function isMobileOrTablet() {
+            const width = window.innerWidth;
+            return width <= 768;
         }
-        if (sidebar.style.display === 'none' || window.getComputedStyle(sidebar).display === 'none') {
-            showBtn.style.display = 'block';
-            hideBtn.style.display = 'none';
-        } else {
+        
+        // Initialize sidebar state based on screen size
+        function initializeSidebar() {
+            if (isMobileOrTablet()) {
+                sidebar.classList.remove('visible');
+                showBtn.style.display = 'block';
+            } else {
+                sidebar.classList.remove('visible');
+                showBtn.style.display = 'none';
+            }
+        }
+        
+        // Show sidebar
+        function showSidebar() {
+            sidebar.classList.add('visible');
             showBtn.style.display = 'none';
-            hideBtn.style.display = 'block';
         }
-    }
-    function showSidebar() {
-        var sidebar = document.getElementById('sidebar');
-        var showBtn = document.getElementById('sidebarShowBtn');
-        var hideBtn = document.getElementById('sidebarHideBtn');
-        sidebar.style.display = 'block';
-        showBtn.style.display = 'none';
-        hideBtn.style.display = 'block';
-        sidebar.style.position = '';
-        sidebar.style.top = '';
-        sidebar.style.left = '';
-        sidebar.style.height = '';
-        sidebar.style.zIndex = '';
-        sidebar.style.background = '';
-        sidebar.style.boxShadow = '';
-    }
-    function hideSidebar() {
-        var sidebar = document.getElementById('sidebar');
-        var showBtn = document.getElementById('sidebarShowBtn');
-        var hideBtn = document.getElementById('sidebarHideBtn');
-        sidebar.style.display = 'none';
-        showBtn.style.display = 'block';
-        hideBtn.style.display = 'none';
-        // Move showBtn to the same vertical position as the InfraCore logo
-        var header = document.querySelector('.sidebar-header');
-        if (header) {
-            var rect = header.getBoundingClientRect();
-            showBtn.style.top = rect.top + window.scrollY + 'px';
+        
+        // Hide sidebar
+        function hideSidebar() {
+            sidebar.classList.remove('visible');
+            if (isMobileOrTablet()) {
+                showBtn.style.display = 'block';
+            }
         }
-    }
-    window.addEventListener('resize', updateSidebarButtons);
-    window.addEventListener('DOMContentLoaded', function() {
-        updateSidebarButtons();
-        document.getElementById('sidebarShowBtn').onclick = showSidebar;
-        document.getElementById('sidebarHideBtn').onclick = hideSidebar;
-    });
+        
+        // Handle resize events
+        function handleResize() {
+            if (!isMobileOrTablet()) {
+                sidebar.classList.remove('visible');
+                showBtn.style.display = 'none';
+            } else {
+                showBtn.style.display = sidebar.classList.contains('visible') ? 'none' : 'block';
+            }
+        }
+        
+        // Event listeners
+        showBtn.addEventListener('click', showSidebar);
+        hideBtn.addEventListener('click', hideSidebar);
+        window.addEventListener('resize', handleResize);
+        
+        // Close sidebar when clicking on a navigation link (on mobile)
+        const navLinks = sidebar.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (isMobileOrTablet()) {
+                    hideSidebar();
+                }
+            });
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSidebar();
+        });
+        
+        // Also initialize immediately in case DOM is already loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeSidebar);
+        } else {
+            initializeSidebar();
+        }
+    })();
 </script>
 
 

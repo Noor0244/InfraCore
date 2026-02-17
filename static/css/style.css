@@ -224,6 +224,7 @@ html, body, table, th, td, input, select, textarea, button, .button {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    transition: all 0.3s ease;
 }
 
 .sidebar-header {
@@ -285,9 +286,28 @@ html, body, table, th, td, input, select, textarea, button, .button {
 
 /* ================= RESPONSIVE ================= */
 
+/* ================= RESPONSIVE (Mobile/Tablet) ================= */
+
 @media (max-width: 768px) {
     .sidebar {
-        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 240px;
+        z-index: 1999;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+    }
+
+    .sidebar.visible {
+        transform: translateX(0);
+    }
+
+    .main {
+        width: 100%;
+        margin-left: 0;
     }
 }
 /* ================= DASHBOARD UI ================= */
